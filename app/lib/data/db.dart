@@ -1,5 +1,4 @@
 import 'package:drift/drift.dart';
-import 'package:drift_flutter/drift_flutter.dart';
 import 'tables.dart';
 
 part 'db.g.dart';
@@ -28,7 +27,7 @@ class SettingsDao {
 ])
 class AppDatabase extends _$AppDatabase {
   AppDatabase(super.e);
-  AppDatabase.forTesting(QueryExecutor e) : super(e);
+  AppDatabase.forTesting(super.e);
 
   @override
   int get schemaVersion => 1;

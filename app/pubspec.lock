@@ -424,6 +424,13 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "0.2.2"
+  llama_cpp_dart_ios:
+    dependency: "direct main"
+    description:
+      path: "packages/llama_cpp_dart_ios"
+      relative: true
+    source: path
+    version: "0.2.2"
   logging:
     dependency: transitive
     description:
@@ -758,7 +765,7 @@ packages:
     source: hosted
     version: "1.4.0"
   typed_isolate:
-    dependency: transitive
+    dependency: "direct main"
     description:
       name: typed_isolate
       sha256: e245b87368104f9da13a75268e0bce16a2a8d4c9a4194a5eb50bb569be680c65

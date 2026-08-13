@@ -43,6 +43,9 @@ dependencies:
   http: ^1.6.0
   intl: ^0.20.3
   llama_cpp_dart: ^0.2.2
+  typed_isolate: ^6.0.0
+  llama_cpp_dart_ios:
+    path: packages/llama_cpp_dart_ios
 
 dev_dependencies:
   flutter_test:
