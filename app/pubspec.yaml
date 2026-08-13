@@ -42,6 +42,7 @@ dependencies:
   path_provider: ^2.1.6
   http: ^1.6.0
   intl: ^0.20.3
+  llama_cpp_dart: ^0.2.2
 
 dev_dependencies:
   flutter_test:
