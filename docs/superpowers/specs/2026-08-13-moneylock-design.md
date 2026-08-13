@@ -182,7 +182,9 @@ lib/
 
 ## 9. Backend de sync (mínimo, opcional)
 
-- FastAPI + SQLAlchemy async + PostgreSQL (Docker Compose) + Alembic.
+- FastAPI + SQLAlchemy async + Alembic.
+- **Motor v1: SQLite** (sin Docker instalado; mismo código SQLAlchemy — cambiar a
+  PostgreSQL = solo cambiar la URL de conexión). Postgres queda como swap-in.
 - Endpoints: `POST /users`, `POST /sync/transactions` (batch upsert con dedup_hash),
   `GET /sync/transactions?since=<ts>`, `GET /health`.
 - Auth: API key por usuario (header `X-API-Key`).
