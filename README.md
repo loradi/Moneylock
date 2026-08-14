@@ -10,8 +10,9 @@ open-source.
 
 - **On-device LLM** — a 3B parameter model (Qwen 2.5) runs locally on your iPhone via
   llama.cpp. No API keys, no cloud inference, no data leaves the device.
-- **Offline-first** — the app works fully offline; sync to the optional backend is a
-  background nicety, never a dependency.
+- **Offline-first** — the app works fully offline; a sync client and backend are
+  included and tested, but UI wiring for sync is a planned follow-up, not a
+  dependency.
 - **Privacy** — voice is transcribed with Apple's on-device Speech framework.
 - **Free forever** — every model and package is open-source (see [Licenses](#licenses)).
 
@@ -38,7 +39,7 @@ Target market: US and Canada (USD/CAD).
 │  Data: Drift/SQLite · Notifications: local (UNUserNotificationCenter)     │
 │  State: Riverpod · UI: Dashboard / Chat / Insights / Settings             │
 └───────────────────────────────────────────────────────────────────────────┘
-          │ optional sync when network is available
+          │ planned sync: client + backend tested, UI wiring TBD
           ▼
 ┌── Minimal sync backend: FastAPI + SQLite (PostgreSQL-ready) ──┐
 │  POST /users · POST/GET /sync/transactions · GET /health      │
@@ -125,8 +126,9 @@ Endpoints:
 | `GET` | `/health` | Health check |
 
 The backend runs on SQLite by default; the SQLAlchemy layer also works with
-PostgreSQL (just change the connection URL). The app syncs in the background when
-network is available — failures never block the UI.
+PostgreSQL (just change the connection URL). A ready-to-use sync client
+(FastAPI backend + Dart client) is included and tested; UI wiring (Settings →
+Sync now) is a planned follow-up. The app is fully offline-first without it.
 
 ---
 

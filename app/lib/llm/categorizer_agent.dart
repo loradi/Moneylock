@@ -14,10 +14,16 @@ class CategorizerAgent {
   CategorizerAgent(this.provider);
 
   Future<CategorizeResult> categorize(String rawText, {String source = 'manual'}) async {
-    final raw = await provider.complete(categorizerSystemPrompt, rawText);
-    final parsed = _parseJson(raw) ?? parseFallback(rawText);
-    final confidence = (parsed?.confidence ?? 0.0).clamp(0.0, 1.0).toDouble();
-    return CategorizeResult(parsed ?? ParsedTransaction(confidence: 0.0), confidence);
+    ParsedTransaction? parsed;
+    try {
+      final raw = await provider.complete(categorizerSystemPrompt, rawText);
+      parsed = _parseJson(raw);
+    } catch (_) {
+      parsed = null; // LLM no disponible: fallback determinista garantiza el registro
+    }
+    final result = parsed ?? parseFallback(rawText);
+    final confidence = (result?.confidence ?? 0.0).clamp(0.0, 1.0).toDouble();
+    return CategorizeResult(result ?? ParsedTransaction(confidence: 0.0), confidence);
   }
 
   ParsedTransaction? _parseJson(String raw) {

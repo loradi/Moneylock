@@ -9,6 +9,12 @@ class _FakeLlm implements LlmProvider {
   Future<String> complete(String system, String user, {double temperature = 0.2}) async => response;
 }
 
+class _ThrowingLlm implements LlmProvider {
+  @override
+  Future<String> complete(String system, String user, {double temperature = 0.2}) async =>
+      throw Exception('engine not ready');
+}
+
 void main() {
   group('CategorizerAgent', () {
     test('parsea JSON valido del LLM', () async {
@@ -27,6 +33,13 @@ void main() {
       expect(r.parsed.amount, closeTo(12.5, 0.001));
       expect(r.parsed.category, 'Coffee & Dining');
       expect(r.parsed.merchant, 'Starbucks');
+    });
+
+    test('LLM lanza excepcion -> fallback determinista (nunca perder tx)', () async {
+      final agent = CategorizerAgent(_ThrowingLlm());
+      final r = await agent.categorize(r'Starbucks $12.50');
+      expect(r.parsed.amount, closeTo(12.5, 0.001));
+      expect(r.parsed.category, 'Coffee & Dining');
     });
 
     test('categoria fuera del catalogo -> fallback', () async {
