@@ -14,12 +14,11 @@ Params:
 | Parámetro | Requerido | Descripción |
 |-----------|-----------|-------------|
 | `amount`  | sí        | Monto numérico. Sin él la URL lanza `FormatException` y no se captura nada. |
-| `merchant`| sí        | Nombre del comercio (se usa tal cual en el rawText). |
-| `category`| no        | Categoría opcional (la app puede inferirla sola). |
-| `date`    | no        | Fecha ISO opcional (`YYYY-MM-DD` o ISO 8601). Por defecto es "ahora". |
+| `merchant`| no        | Nombre del comercio. Opcional: si falta, el categorizador lo deduce del texto de la transacción. |
+| `category`| no        | Aceptado por la URL pero **ignorado en v1**: `parseShortcutUrl` no lo lee; la categoría la infiere el categorizador. |
+| `date`    | no        | Aceptado por la URL pero **ignorado en v1**: `parseShortcutUrl` no lo lee; la transacción se registra con la fecha actual. |
 
-`category` y `date` aceptados por `parseShortcutUrl`; los consume el
-grabado de la transacción cuando el orquestador los mapee.
+`category` y `date` se reservan en el URL scheme para una versión futura;
 
 ## Pasos en la app Shortcuts
 
