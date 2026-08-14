@@ -4,7 +4,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../llm/mentor_agent.dart';
 import '../../providers.dart';
 
-final _amountRe = RegExp(r'\d+(?:\.\d+)?');
+final _amountRe = RegExp(r'\$\s?\d+(?:\.\d{1,2})?|\d+\.\d{2}');
+
+/// True si el texto contiene un monto explícito (con `$` o con dos
+/// decimales). Evita que frases habladas como "meet me at 5" disparen
+/// el flujo de transacción.
+bool hasMonetaryAmount(String text) => _amountRe.hasMatch(text);
 
 class ChatScreen extends ConsumerStatefulWidget {
   const ChatScreen({super.key});
@@ -87,7 +92,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     final db = ref.read(appDatabaseProvider);
     await db.messagesDao.add('user', text);
     setState(() => _thinking = true);
-    if (_amountRe.hasMatch(text)) {
+    if (hasMonetaryAmount(text)) {
       await _handleTransaction(text);
     } else {
       await _handleChat(text);

@@ -63,6 +63,8 @@ final mentorToneProvider = FutureProvider<String>((ref) =>
 final budgetSummaryProvider = StreamProvider<BudgetSummary>((ref) async* {
   final db = ref.watch(appDatabaseProvider);
   final period = _currentPeriod();
+  final start = DateTime.parse('$period-01T00:00:00');
+  final end = DateTime(start.year, start.month + 1, 1);
 
   final txsStream = db.select(db.transactions).watch();
   final budgetsStream = db.select(db.budgets).watch();
@@ -91,7 +93,8 @@ final budgetSummaryProvider = StreamProvider<BudgetSummary>((ref) async* {
           b.category: b.monthlyLimit,
       };
       final byCategory = <String, double>{};
-      for (final t in rows) {
+      for (final t in rows.where((t) =>
+          !t.timestamp.isBefore(start) && t.timestamp.isBefore(end))) {
         byCategory[t.category] = (byCategory[t.category] ?? 0) + t.amount;
       }
       final totalSpent = byCategory.values.fold(0.0, (a, b) => a + b);

@@ -18,9 +18,21 @@ class VoiceButton extends ConsumerStatefulWidget {
 enum _VoiceState { idle, listening, error }
 
 class _VoiceButtonState extends ConsumerState<VoiceButton> {
-  final SpeechToTextService _speech = SpeechToTextService();
+  late final SpeechToTextService _speech;
   _VoiceState _state = _VoiceState.idle;
   String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _speech = ref.read(speechServiceProvider);
+  }
+
+  @override
+  void dispose() {
+    _speech.stop();
+    super.dispose();
+  }
 
   Future<void> _start() async {
     setState(() => _state = _VoiceState.listening);

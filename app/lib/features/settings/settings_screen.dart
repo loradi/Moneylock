@@ -64,8 +64,10 @@ class _ToneSelector extends ConsumerWidget {
     final tone = ref.watch(mentorToneProvider).valueOrNull ?? 'strict_ramsey';
     return CupertinoSegmentedControl<String>(
       groupValue: tone,
-      onValueChanged: (t) =>
-          ref.read(appDatabaseProvider).settingsDao.setMentorTone(t),
+      onValueChanged: (t) {
+        ref.read(appDatabaseProvider).settingsDao.setMentorTone(t);
+        ref.invalidate(mentorToneProvider);
+      },
       children: const {
         'strict_ramsey': Padding(
             padding: EdgeInsets.symmetric(horizontal: 10), child: Text('Strict')),
@@ -94,6 +96,9 @@ class _BudgetEditorState extends ConsumerState<_BudgetEditor> {
   @override
   void initState() {
     super.initState();
+    for (final c in categoryCatalog) {
+      _controllers[c] = TextEditingController();
+    }
     _load();
   }
 
@@ -115,8 +120,10 @@ class _BudgetEditorState extends ConsumerState<_BudgetEditor> {
     setState(() {
       _limits = limits;
       for (final c in categoryCatalog) {
-        _controllers[c] ??= TextEditingController(
-            text: _trimLimit(limits[c]));
+        final controller = _controllers[c]!;
+        if (controller.text.isEmpty) {
+          controller.text = _trimLimit(limits[c]);
+        }
       }
     });
   }
@@ -355,7 +362,7 @@ class _VoiceCardState extends ConsumerState<_VoiceCard> {
   Future<void> _test() async {
     setState(() => _result = 'Checking permission…');
     try {
-      final speech = SpeechToTextService();
+      final speech = ref.read(speechServiceProvider);
       await speech.init();
       await speech.stop();
       if (!mounted) return;
