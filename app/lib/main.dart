@@ -1,12 +1,19 @@
-import 'package:flutter/material.dart';
+import 'dart:async';
+
+import 'package:flutter/cupertino.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'core/notifications.dart';
-import 'core/theme.dart';
+import 'core/router.dart';
+import 'providers.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await LocalNotifications().init();
-  runApp(const MoneylockApp());
+  final container = ProviderContainer();
+  unawaited(container.read(deepLinkHandlerProvider).startListening());
+  runApp(UncontrolledProviderScope(
+      container: container, child: const MoneylockApp()));
 }
 
 class MoneylockApp extends StatelessWidget {
@@ -14,22 +21,16 @@ class MoneylockApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
+    return CupertinoApp.router(
       title: 'Moneylock',
-      theme: buildTheme(),
-      home: const HomeScreen(),
-    );
-  }
-}
-
-class HomeScreen extends StatelessWidget {
-  const HomeScreen({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Moneylock')),
-      body: const Center(child: Text('Home')),
+      theme: CupertinoThemeData(
+        brightness: Brightness.light,
+        primaryColor: CupertinoColors.activeBlue,
+        scaffoldBackgroundColor: CupertinoColors.systemGroupedBackground,
+        barBackgroundColor: CupertinoColors.systemBackground,
+      ),
+      routerConfig: appRouter,
+      debugShowCheckedModeBanner: false,
     );
   }
 }

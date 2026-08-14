@@ -18,7 +18,7 @@ Params:
 | `category`| no        | Aceptado por la URL pero **ignorado en v1**: `parseShortcutUrl` no lo lee; la categoría la infiere el categorizador. |
 | `date`    | no        | Aceptado por la URL pero **ignorado en v1**: `parseShortcutUrl` no lo lee; la transacción se registra con la fecha actual. |
 
-`category` y `date` se reservan en el URL scheme para una versión futura;
+`category` y `date` se reservan en el URL scheme para una versión futura.
 
 ## Pasos en la app Shortcuts
 
@@ -40,8 +40,8 @@ Params:
   `shortcuts://run-shortcut?name=Add%20Transaction` (configúralo en
   "Settings > Allow running from other apps" si lo necesitas).
 - Opcional: capturar el recibo de Apple Pay manualmente con una acción
-  **Show Notification** en el propio atajo; la app por su parte registra
-  la categoría y la fecha si se pasan como parámetros extra.
+  **Show Notification** en el propio atajo; la app por su parte ignora en v1
+  la categoría y la fecha aunque se pasen como parámetros extra (ver tabla).
 - Ejemplo del atajo exportado (definición `shortcut` de un plist):
 
 ```xml
