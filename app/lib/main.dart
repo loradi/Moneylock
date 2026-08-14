@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 
+import 'core/notifications.dart';
 import 'core/theme.dart';
 
-void main() {
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await LocalNotifications().init();
   runApp(const MoneylockApp());
 }
 
