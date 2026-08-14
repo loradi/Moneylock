@@ -19,7 +19,7 @@ class SyncTransaction(BaseModel):
     source: str = Field(pattern="^(shortcut|voice|manual)$")
     raw_text: str = Field(max_length=2000)
     timestamp: datetime
-    dedup_hash: str = Field(min_length=6, max_length=64)
+    dedup_hash: str = Field(min_length=8, max_length=64)
 
 
 class SyncRequest(BaseModel):

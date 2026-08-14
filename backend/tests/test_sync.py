@@ -23,7 +23,7 @@ def test_create_user_and_sync_roundtrip():
     tx = {"amount": 12.5, "currency": "USD", "merchant": "Starbucks",
           "category": "Coffee & Dining", "source": "shortcut",
           "raw_text": "Starbucks $12.50", "timestamp": "2026-08-13T10:00:00",
-          "dedup_hash": "abc123"}
+          "dedup_hash": "abc12345"}
     r = c.post("/sync/transactions", headers=headers,
                json={"transactions": [tx]})
     assert r.status_code == 200
