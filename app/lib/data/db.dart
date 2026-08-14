@@ -1,5 +1,9 @@
 import 'package:drift/drift.dart';
+import 'budgets_dao.dart';
+import 'memories_dao.dart';
+import 'messages_dao.dart';
 import 'tables.dart';
+import 'transactions_dao.dart';
 
 part 'db.g.dart';
 
@@ -33,4 +37,8 @@ class AppDatabase extends _$AppDatabase {
   int get schemaVersion => 1;
 
   late final SettingsDao settingsDao = SettingsDao(this);
+  late final TransactionsDao transactionsDao = TransactionsDao(this);
+  late final BudgetsDao budgetsDao = BudgetsDao(this);
+  late final MessagesDao messagesDao = MessagesDao(this);
+  late final MemoriesDao memoriesDao = MemoriesDao(this);
 }
