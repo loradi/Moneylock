@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../llm/mentor_agent.dart';
+import '../../llm/mentor_guardrails.dart';
 import '../../providers.dart';
 import '../../theme/app_theme.dart';
 
@@ -77,7 +78,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     final db = ref.read(appDatabaseProvider);
     await db.messagesDao.add('user', text);
     if (mounted) setState(() => _thinking = true);
-    if (hasMonetaryAmount(text)) {
+    if (!mentorRequestAllowed(text)) {
+      await db.messagesDao.add('mentor', mentorScopeRefusal);
+    } else if (hasMonetaryAmount(text)) {
       final result = await ref
           .read(addFlowProvider)
           .run(rawText: text, source: 'manual');
@@ -92,7 +95,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         final reply = await ref
             .read(llmProviderProvider)
             .complete(mentorPromptFor(tone), text);
-        await db.messagesDao.add('mentor', reply);
+        await db.messagesDao.add('mentor', guardMentorResponse(reply));
       } catch (_) {
         await db.messagesDao.add(
           'mentor',
