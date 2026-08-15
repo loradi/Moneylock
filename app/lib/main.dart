@@ -1,11 +1,12 @@
 import 'dart:async';
 
-import 'package:flutter/cupertino.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'core/notifications.dart';
 import 'core/router.dart';
 import 'providers.dart';
+import 'theme/app_theme.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -13,7 +14,9 @@ Future<void> main() async {
   final container = ProviderContainer();
   unawaited(container.read(deepLinkHandlerProvider).startListening());
   runApp(UncontrolledProviderScope(
-      container: container, child: const MoneylockApp()));
+    container: container,
+    child: const MoneylockApp(),
+  ));
 }
 
 class MoneylockApp extends StatelessWidget {
@@ -21,14 +24,9 @@ class MoneylockApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return CupertinoApp.router(
+    return MaterialApp.router(
       title: 'Moneylock',
-      theme: CupertinoThemeData(
-        brightness: Brightness.light,
-        primaryColor: CupertinoColors.activeBlue,
-        scaffoldBackgroundColor: CupertinoColors.systemGroupedBackground,
-        barBackgroundColor: CupertinoColors.systemBackground,
-      ),
+      theme: buildAppTheme(),
       routerConfig: appRouter,
       debugShowCheckedModeBanner: false,
     );
