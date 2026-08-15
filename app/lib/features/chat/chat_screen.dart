@@ -2,9 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../llm/mentor_agent.dart';
+import '../../llm/category_correction.dart';
 import '../../llm/mentor_guardrails.dart';
 import '../../providers.dart';
 import '../../theme/app_theme.dart';
+import '../../receipt/receipt_ocr_service.dart';
 
 final _amountRe = RegExp(r'\$\s?\d+(?:\.\d{1,2})?|\d+\.\d{2}');
 bool hasMonetaryAmount(String text) => _amountRe.hasMatch(text);
@@ -64,7 +66,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                 },
               ),
             ),
-            _Composer(controller: _controller, onSend: _send),
+            _Composer(
+              controller: _controller,
+              onSend: _send,
+              onReceipt: _scanReceipt,
+            ),
           ],
         ),
       ),
@@ -78,7 +84,18 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     final db = ref.read(appDatabaseProvider);
     await db.messagesDao.add('user', text);
     if (mounted) setState(() => _thinking = true);
-    if (!mentorRequestAllowed(text)) {
+    final correction = parseCategoryCorrection(text);
+    if (correction != null) {
+      final updated = await db.transactionsDao.updateMostRecentCategory(
+        correction,
+      );
+      await db.messagesDao.add(
+        'mentor',
+        updated == null
+            ? 'I could not find a recent transaction to recategorize.'
+            : 'Updated ${updated.merchant.isEmpty ? updated.category : updated.merchant} to $correction.',
+      );
+    } else if (!mentorRequestAllowed(text)) {
       await db.messagesDao.add('mentor', mentorScopeRefusal);
     } else if (hasMonetaryAmount(text)) {
       final result = await ref
@@ -104,6 +121,40 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       }
     }
     if (mounted) setState(() => _thinking = false);
+  }
+
+  Future<void> _scanReceipt() async {
+    if (_thinking) return;
+    if (mounted) setState(() => _thinking = true);
+    try {
+      final text = await ReceiptOcrService().scanReceipt();
+      if (text == null) {
+        await ref
+            .read(appDatabaseProvider)
+            .messagesDao
+            .add('mentor', 'No receipt text detected.');
+      } else {
+        final result = await ref
+            .read(addFlowProvider)
+            .run(rawText: text, source: 'receipt');
+        await ref
+            .read(appDatabaseProvider)
+            .messagesDao
+            .add(
+              'mentor',
+              result.inserted
+                  ? 'Receipt recorded successfully.'
+                  : result.error ?? 'Could not record that receipt.',
+            );
+      }
+    } catch (_) {
+      await ref
+          .read(appDatabaseProvider)
+          .messagesDao
+          .add('mentor', 'I could not read that receipt.');
+    } finally {
+      if (mounted) setState(() => _thinking = false);
+    }
   }
 }
 
@@ -213,12 +264,24 @@ class _Bubble extends StatelessWidget {
 class _Composer extends StatelessWidget {
   final TextEditingController controller;
   final VoidCallback onSend;
-  const _Composer({required this.controller, required this.onSend});
+  final VoidCallback onReceipt;
+  const _Composer({
+    required this.controller,
+    required this.onSend,
+    required this.onReceipt,
+  });
   @override
   Widget build(BuildContext context) => Padding(
     padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
     child: Row(
       children: [
+        IconButton(
+          onPressed: onReceipt,
+          icon: const Icon(
+            Icons.camera_alt_outlined,
+            color: AppColors.darkOnSurfaceVariant,
+          ),
+        ),
         Expanded(
           child: TextField(
             controller: controller,
@@ -226,10 +289,6 @@ class _Composer extends StatelessWidget {
             decoration: InputDecoration(
               hintText: 'Ask Vector anything…',
               hintStyle: const TextStyle(color: AppColors.darkOnSurfaceVariant),
-              prefixIcon: const Icon(
-                Icons.mic_none,
-                color: AppColors.darkOnSurfaceVariant,
-              ),
               filled: true,
               fillColor: AppColors.darkSurfaceContainerHigh,
               border: OutlineInputBorder(

@@ -43,6 +43,8 @@
 	<string>Moneylock uses speech recognition to record your voice transactions.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Moneylock uses the microphone to record voice transactions.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>Moneylock uses the camera to read receipts on-device.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

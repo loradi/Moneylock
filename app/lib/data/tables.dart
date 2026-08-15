@@ -17,8 +17,21 @@ class Budgets extends Table {
   TextColumn get category => text()();
   RealColumn get monthlyLimit => real()();
   TextColumn get period => text()(); // 'YYYY-MM'
+  TextColumn get cycle => text().withDefault(const Constant('monthly'))();
+  IntColumn get cycleDays => integer().withDefault(const Constant(30))();
+  TextColumn get currency => text().withDefault(const Constant('USD'))();
+  BoolColumn get enabled => boolean().withDefault(const Constant(true))();
   @override
-  List<Set<Column>> get uniqueKeys => [{category, period}];
+  List<Set<Column>> get uniqueKeys => [
+    {category, period},
+  ];
+}
+
+class Categories extends Table {
+  IntColumn get id => integer().autoIncrement()();
+  TextColumn get name => text().unique()();
+  BoolColumn get isActive => boolean().withDefault(const Constant(true))();
+  BoolColumn get isDefault => boolean().withDefault(const Constant(false))();
 }
 
 class MentorMessages extends Table {

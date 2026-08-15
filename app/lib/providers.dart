@@ -23,26 +23,37 @@ final appDatabaseProvider = Provider<AppDatabase>((ref) {
 
 final llamaServiceProvider = Provider<LlamaService>((ref) => LlamaService());
 
-final llmProviderProvider = Provider<LlmProvider>((ref) =>
-    LocalLlmProvider(ref.watch(llamaServiceProvider)));
+final llmProviderProvider = Provider<LlmProvider>(
+  (ref) => LocalLlmProvider(ref.watch(llamaServiceProvider)),
+);
 
-final categorizerProvider = Provider<CategorizerAgent>((ref) =>
-    CategorizerAgent(ref.watch(llmProviderProvider)));
+final categorizerProvider = Provider<CategorizerAgent>(
+  (ref) => CategorizerAgent(ref.watch(llmProviderProvider)),
+);
 
-final mentorProvider = Provider<MentorAgent>((ref) => MentorAgent(
-    ref.watch(llmProviderProvider), ref.watch(appDatabaseProvider)));
+final mentorProvider = Provider<MentorAgent>(
+  (ref) => MentorAgent(
+    ref.watch(llmProviderProvider),
+    ref.watch(appDatabaseProvider),
+  ),
+);
 
-final addFlowProvider = Provider<AddTransactionFlow>((ref) => AddTransactionFlow(
+final addFlowProvider = Provider<AddTransactionFlow>(
+  (ref) => AddTransactionFlow(
     categorizer: ref.watch(categorizerProvider),
     mentor: ref.watch(mentorProvider),
     db: ref.watch(appDatabaseProvider),
-    notifications: LocalNotifications()));
+    notifications: LocalNotifications(),
+  ),
+);
 
-final deepLinkHandlerProvider = Provider<DeepLinkHandler>((ref) =>
-    DeepLinkHandler(flow: ref.watch(addFlowProvider)));
+final deepLinkHandlerProvider = Provider<DeepLinkHandler>(
+  (ref) => DeepLinkHandler(flow: ref.watch(addFlowProvider)),
+);
 
-final speechServiceProvider =
-    Provider<SpeechToTextService>((ref) => SpeechToTextService());
+final speechServiceProvider = Provider<SpeechToTextService>(
+  (ref) => SpeechToTextService(),
+);
 
 final transactionsStreamProvider = StreamProvider<List<Transaction>>((ref) {
   final db = ref.watch(appDatabaseProvider);
@@ -51,11 +62,13 @@ final transactionsStreamProvider = StreamProvider<List<Transaction>>((ref) {
   return q.watch();
 });
 
-final messagesStreamProvider = StreamProvider<List<MentorMessage>>((ref) =>
-    ref.watch(appDatabaseProvider).messagesDao.watchAll());
+final messagesStreamProvider = StreamProvider<List<MentorMessage>>(
+  (ref) => ref.watch(appDatabaseProvider).messagesDao.watchAll(),
+);
 
-final mentorToneProvider = FutureProvider<String>((ref) =>
-    ref.watch(appDatabaseProvider).settingsDao.mentorTone());
+final mentorToneProvider = FutureProvider<String>(
+  (ref) => ref.watch(appDatabaseProvider).settingsDao.mentorTone(),
+);
 
 /// Combina el stream de transacciones y el de presupuestos: se re-emite
 /// cuando cualquiera de las dos tablas cambia, así editar un límite en
@@ -89,21 +102,28 @@ final budgetSummaryProvider = StreamProvider<BudgetSummary>((ref) async* {
       final rows = txRows;
       if (rows == null) continue;
       final limits = {
-        for (final b in budgetRows.where((b) => b.period == period))
+        for (final b in budgetRows.where(
+          (b) =>
+              b.enabled &&
+              ((b.cycle == 'monthly' && b.period == period) ||
+                  (b.cycle != 'monthly' && b.period == b.cycle)),
+        ))
           b.category: b.monthlyLimit,
       };
       final byCategory = <String, double>{};
-      for (final t in rows.where((t) =>
-          !t.timestamp.isBefore(start) && t.timestamp.isBefore(end))) {
+      for (final t in rows.where(
+        (t) => !t.timestamp.isBefore(start) && t.timestamp.isBefore(end),
+      )) {
         byCategory[t.category] = (byCategory[t.category] ?? 0) + t.amount;
       }
       final totalSpent = byCategory.values.fold(0.0, (a, b) => a + b);
       final totalLimit = limits.values.fold(0.0, (a, b) => a + b);
       yield BudgetSummary(
-          totalSpent: totalSpent,
-          totalLimit: totalLimit,
-          byCategory: byCategory,
-          byCategoryLimits: limits);
+        totalSpent: totalSpent,
+        totalLimit: totalLimit,
+        byCategory: byCategory,
+        byCategoryLimits: limits,
+      );
     }
   } finally {
     await txSub.cancel();
@@ -112,9 +132,9 @@ final budgetSummaryProvider = StreamProvider<BudgetSummary>((ref) async* {
   }
 });
 
-final insightsProvider =
-    Provider<AsyncValue<List<InsightCapsule>>>((ref) =>
-        ref.watch(budgetSummaryProvider).whenData(generateInsights));
+final insightsProvider = Provider<AsyncValue<List<InsightCapsule>>>(
+  (ref) => ref.watch(budgetSummaryProvider).whenData(generateInsights),
+);
 
 String _currentPeriod() {
   final now = DateTime.now();

@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../core/format.dart';
-import '../../llm/prompts.dart';
 import '../../providers.dart';
 import '../../theme/app_theme.dart';
 import '../../voice/speech_service.dart';
@@ -35,9 +33,6 @@ class SettingsScreen extends ConsumerWidget {
             const SizedBox(height: 20),
             const _Section('MENTOR TONE'),
             const _ToneSelector(),
-            const SizedBox(height: 28),
-            const _Section('BUDGETS'),
-            const _BudgetEditor(),
             const SizedBox(height: 28),
             const _Section('ON-DEVICE MODEL'),
             const _ModelCard(),
@@ -84,89 +79,6 @@ class _ToneSelector extends ConsumerWidget {
       },
     );
   }
-}
-
-class _BudgetEditor extends ConsumerStatefulWidget {
-  const _BudgetEditor();
-  @override
-  ConsumerState<_BudgetEditor> createState() => _BudgetEditorState();
-}
-
-class _BudgetEditorState extends ConsumerState<_BudgetEditor> {
-  final _controllers = <String, TextEditingController>{};
-  Map<String, double> _limits = {};
-  @override
-  void initState() {
-    super.initState();
-    for (final c in categoryCatalog) _controllers[c] = TextEditingController();
-    _load();
-  }
-
-  @override
-  void dispose() {
-    for (final c in _controllers.values) c.dispose();
-    super.dispose();
-  }
-
-  Future<void> _load() async {
-    final limits = await ref
-        .read(appDatabaseProvider)
-        .budgetsDao
-        .limitsForPeriod(_period());
-    if (!mounted) return;
-    setState(() {
-      _limits = limits;
-      for (final c in categoryCatalog)
-        _controllers[c]!.text = limits[c]?.toStringAsFixed(0) ?? '';
-    });
-  }
-
-  Future<void> _save(String c) async {
-    final value = double.tryParse(_controllers[c]!.text);
-    if (value == null || value <= 0) return;
-    await ref.read(appDatabaseProvider).budgetsDao.upsert(c, value, _period());
-    if (mounted) {
-      setState(() => _limits = {..._limits, c: value});
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('${fmtCurrency(value)} cap set for $c')),
-      );
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) => Column(
-    children: [
-      for (final c in categoryCatalog)
-        Padding(
-          padding: const EdgeInsets.only(bottom: 8),
-          child: Row(
-            children: [
-              Expanded(
-                flex: 3,
-                child: Text(c, overflow: TextOverflow.ellipsis),
-              ),
-              Expanded(
-                flex: 2,
-                child: TextField(
-                  controller: _controllers[c],
-                  keyboardType: const TextInputType.numberWithOptions(
-                    decimal: true,
-                  ),
-                  decoration: const InputDecoration(
-                    hintText: 'No limit',
-                    suffixText: r'$',
-                  ),
-                ),
-              ),
-              IconButton(
-                onPressed: () => _save(c),
-                icon: const Icon(Icons.check, color: AppColors.primary),
-              ),
-            ],
-          ),
-        ),
-    ],
-  );
 }
 
 class _ModelCard extends ConsumerStatefulWidget {
@@ -315,9 +227,4 @@ class _Card extends StatelessWidget {
     ),
     child: child,
   );
-}
-
-String _period() {
-  final n = DateTime.now();
-  return '${n.year.toString().padLeft(4, '0')}-${n.month.toString().padLeft(2, '0')}';
 }

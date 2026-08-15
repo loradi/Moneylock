@@ -7,16 +7,19 @@ import 'package:moneylock/main.dart';
 import 'package:moneylock/providers.dart';
 
 void main() {
-  testWidgets('shell renders 3 tabs and mentor FAB opens chat', (tester) async {
+  testWidgets('shell renders 4 tabs and mentor FAB opens chat', (tester) async {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
-          transactionsStreamProvider
-              .overrideWith((ref) => Stream.value(const [])),
-          messagesStreamProvider
-              .overrideWith((ref) => Stream.value(const [])),
-          budgetSummaryProvider.overrideWith((ref) => Stream.value(
-              BudgetSummary(totalSpent: 0, totalLimit: 0, byCategory: {}))),
+          transactionsStreamProvider.overrideWith(
+            (ref) => Stream.value(const []),
+          ),
+          messagesStreamProvider.overrideWith((ref) => Stream.value(const [])),
+          budgetSummaryProvider.overrideWith(
+            (ref) => Stream.value(
+              BudgetSummary(totalSpent: 0, totalLimit: 0, byCategory: {}),
+            ),
+          ),
           mentorToneProvider.overrideWith((ref) async => 'strict_ramsey'),
         ],
         child: const MoneylockApp(),
@@ -25,6 +28,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Dashboard'), findsWidgets);
+    expect(find.text('Budget'), findsOneWidget);
     expect(find.text('Insights'), findsOneWidget);
     expect(find.text('History'), findsOneWidget);
     expect(find.byIcon(Icons.smart_toy), findsOneWidget);

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../features/chat/chat_screen.dart';
+import '../features/budget/budget_screen.dart';
 import '../features/dashboard/dashboard_screen.dart';
 import '../features/history/history_screen.dart';
 import '../features/insights/insights_screen.dart';
@@ -22,6 +23,11 @@ final appRouter = GoRouter(
         StatefulShellBranch(
           routes: [
             GoRoute(path: '/', builder: (_, _) => const DashboardScreen()),
+          ],
+        ),
+        StatefulShellBranch(
+          routes: [
+            GoRoute(path: '/budget', builder: (_, _) => const BudgetScreen()),
           ],
         ),
         StatefulShellBranch(
@@ -95,6 +101,11 @@ class _BottomNav extends StatelessWidget {
         icon: Icons.dashboard_outlined,
         active: Icons.dashboard,
         label: 'Dashboard',
+      ),
+      (
+        icon: Icons.account_balance_wallet_outlined,
+        active: Icons.account_balance_wallet,
+        label: 'Budget',
       ),
       (
         icon: Icons.bar_chart_outlined,

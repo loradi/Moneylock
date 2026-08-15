@@ -11,6 +11,7 @@ import '../../widgets/kit.dart';
 import '../insights/insights_agent.dart';
 import '../add/manual_form.dart';
 import '../add/voice_button.dart';
+import '../../receipt/receipt_ocr_service.dart';
 import 'budget_bar.dart';
 
 class DashboardScreen extends ConsumerWidget {
@@ -235,6 +236,7 @@ class _AddSheet extends ConsumerStatefulWidget {
 
 class _AddSheetState extends ConsumerState<_AddSheet> {
   String? _status;
+  final _receipt = ReceiptOcrService();
   @override
   Widget build(BuildContext context) => SafeArea(
     child: Padding(
@@ -261,7 +263,17 @@ class _AddSheetState extends ConsumerState<_AddSheet> {
           const SizedBox(height: 20),
           Text('Add transaction', style: AppTextStyles.headlineMd),
           const SizedBox(height: 20),
-          const AppSectionLabel('MANUALLY'),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const AppSectionLabel('MANUALLY'),
+              OutlinedButton.icon(
+                onPressed: _scanReceipt,
+                icon: const Icon(Icons.camera_alt_outlined),
+                label: const Text('Receipt'),
+              ),
+            ],
+          ),
           const SizedBox(height: 8),
           ManualForm(onStatus: _setStatus),
           const SizedBox(height: 12),
@@ -282,4 +294,25 @@ class _AddSheetState extends ConsumerState<_AddSheet> {
     ),
   );
   void _setStatus(String status) => setState(() => _status = status);
+
+  Future<void> _scanReceipt() async {
+    _setStatus('Scanning receipt on-device…');
+    try {
+      final text = await _receipt.scanReceipt();
+      if (text == null) {
+        _setStatus('No receipt text detected.');
+        return;
+      }
+      final result = await ref
+          .read(addFlowProvider)
+          .run(rawText: text, source: 'receipt');
+      _setStatus(
+        result.inserted
+            ? 'Receipt recorded.'
+            : result.error ?? 'Could not record receipt.',
+      );
+    } catch (error) {
+      _setStatus('Receipt scan failed: $error');
+    }
+  }
 }

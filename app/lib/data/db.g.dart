@@ -593,8 +593,66 @@ class $BudgetsTable extends Budgets with TableInfo<$BudgetsTable, Budget> {
     type: DriftSqlType.string,
     requiredDuringInsert: true,
   );
+  static const VerificationMeta _cycleMeta = const VerificationMeta('cycle');
   @override
-  List<GeneratedColumn> get $columns => [id, category, monthlyLimit, period];
+  late final GeneratedColumn<String> cycle = GeneratedColumn<String>(
+    'cycle',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('monthly'),
+  );
+  static const VerificationMeta _cycleDaysMeta = const VerificationMeta(
+    'cycleDays',
+  );
+  @override
+  late final GeneratedColumn<int> cycleDays = GeneratedColumn<int>(
+    'cycle_days',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(30),
+  );
+  static const VerificationMeta _currencyMeta = const VerificationMeta(
+    'currency',
+  );
+  @override
+  late final GeneratedColumn<String> currency = GeneratedColumn<String>(
+    'currency',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('USD'),
+  );
+  static const VerificationMeta _enabledMeta = const VerificationMeta(
+    'enabled',
+  );
+  @override
+  late final GeneratedColumn<bool> enabled = GeneratedColumn<bool>(
+    'enabled',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("enabled" IN (0, 1))',
+    ),
+    defaultValue: const Constant(true),
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    category,
+    monthlyLimit,
+    period,
+    cycle,
+    cycleDays,
+    currency,
+    enabled,
+  ];
   @override
   String get aliasedName => _alias ?? actualTableName;
   @override
@@ -637,6 +695,30 @@ class $BudgetsTable extends Budgets with TableInfo<$BudgetsTable, Budget> {
     } else if (isInserting) {
       context.missing(_periodMeta);
     }
+    if (data.containsKey('cycle')) {
+      context.handle(
+        _cycleMeta,
+        cycle.isAcceptableOrUnknown(data['cycle']!, _cycleMeta),
+      );
+    }
+    if (data.containsKey('cycle_days')) {
+      context.handle(
+        _cycleDaysMeta,
+        cycleDays.isAcceptableOrUnknown(data['cycle_days']!, _cycleDaysMeta),
+      );
+    }
+    if (data.containsKey('currency')) {
+      context.handle(
+        _currencyMeta,
+        currency.isAcceptableOrUnknown(data['currency']!, _currencyMeta),
+      );
+    }
+    if (data.containsKey('enabled')) {
+      context.handle(
+        _enabledMeta,
+        enabled.isAcceptableOrUnknown(data['enabled']!, _enabledMeta),
+      );
+    }
     return context;
   }
 
@@ -666,6 +748,22 @@ class $BudgetsTable extends Budgets with TableInfo<$BudgetsTable, Budget> {
         DriftSqlType.string,
         data['${effectivePrefix}period'],
       )!,
+      cycle: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}cycle'],
+      )!,
+      cycleDays: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}cycle_days'],
+      )!,
+      currency: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}currency'],
+      )!,
+      enabled: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}enabled'],
+      )!,
     );
   }
 
@@ -680,11 +778,19 @@ class Budget extends DataClass implements Insertable<Budget> {
   final String category;
   final double monthlyLimit;
   final String period;
+  final String cycle;
+  final int cycleDays;
+  final String currency;
+  final bool enabled;
   const Budget({
     required this.id,
     required this.category,
     required this.monthlyLimit,
     required this.period,
+    required this.cycle,
+    required this.cycleDays,
+    required this.currency,
+    required this.enabled,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -693,6 +799,10 @@ class Budget extends DataClass implements Insertable<Budget> {
     map['category'] = Variable<String>(category);
     map['monthly_limit'] = Variable<double>(monthlyLimit);
     map['period'] = Variable<String>(period);
+    map['cycle'] = Variable<String>(cycle);
+    map['cycle_days'] = Variable<int>(cycleDays);
+    map['currency'] = Variable<String>(currency);
+    map['enabled'] = Variable<bool>(enabled);
     return map;
   }
 
@@ -702,6 +812,10 @@ class Budget extends DataClass implements Insertable<Budget> {
       category: Value(category),
       monthlyLimit: Value(monthlyLimit),
       period: Value(period),
+      cycle: Value(cycle),
+      cycleDays: Value(cycleDays),
+      currency: Value(currency),
+      enabled: Value(enabled),
     );
   }
 
@@ -715,6 +829,10 @@ class Budget extends DataClass implements Insertable<Budget> {
       category: serializer.fromJson<String>(json['category']),
       monthlyLimit: serializer.fromJson<double>(json['monthlyLimit']),
       period: serializer.fromJson<String>(json['period']),
+      cycle: serializer.fromJson<String>(json['cycle']),
+      cycleDays: serializer.fromJson<int>(json['cycleDays']),
+      currency: serializer.fromJson<String>(json['currency']),
+      enabled: serializer.fromJson<bool>(json['enabled']),
     );
   }
   @override
@@ -725,6 +843,10 @@ class Budget extends DataClass implements Insertable<Budget> {
       'category': serializer.toJson<String>(category),
       'monthlyLimit': serializer.toJson<double>(monthlyLimit),
       'period': serializer.toJson<String>(period),
+      'cycle': serializer.toJson<String>(cycle),
+      'cycleDays': serializer.toJson<int>(cycleDays),
+      'currency': serializer.toJson<String>(currency),
+      'enabled': serializer.toJson<bool>(enabled),
     };
   }
 
@@ -733,11 +855,19 @@ class Budget extends DataClass implements Insertable<Budget> {
     String? category,
     double? monthlyLimit,
     String? period,
+    String? cycle,
+    int? cycleDays,
+    String? currency,
+    bool? enabled,
   }) => Budget(
     id: id ?? this.id,
     category: category ?? this.category,
     monthlyLimit: monthlyLimit ?? this.monthlyLimit,
     period: period ?? this.period,
+    cycle: cycle ?? this.cycle,
+    cycleDays: cycleDays ?? this.cycleDays,
+    currency: currency ?? this.currency,
+    enabled: enabled ?? this.enabled,
   );
   Budget copyWithCompanion(BudgetsCompanion data) {
     return Budget(
@@ -747,6 +877,10 @@ class Budget extends DataClass implements Insertable<Budget> {
           ? data.monthlyLimit.value
           : this.monthlyLimit,
       period: data.period.present ? data.period.value : this.period,
+      cycle: data.cycle.present ? data.cycle.value : this.cycle,
+      cycleDays: data.cycleDays.present ? data.cycleDays.value : this.cycleDays,
+      currency: data.currency.present ? data.currency.value : this.currency,
+      enabled: data.enabled.present ? data.enabled.value : this.enabled,
     );
   }
 
@@ -756,13 +890,26 @@ class Budget extends DataClass implements Insertable<Budget> {
           ..write('id: $id, ')
           ..write('category: $category, ')
           ..write('monthlyLimit: $monthlyLimit, ')
-          ..write('period: $period')
+          ..write('period: $period, ')
+          ..write('cycle: $cycle, ')
+          ..write('cycleDays: $cycleDays, ')
+          ..write('currency: $currency, ')
+          ..write('enabled: $enabled')
           ..write(')'))
         .toString();
   }
 
   @override
-  int get hashCode => Object.hash(id, category, monthlyLimit, period);
+  int get hashCode => Object.hash(
+    id,
+    category,
+    monthlyLimit,
+    period,
+    cycle,
+    cycleDays,
+    currency,
+    enabled,
+  );
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -770,7 +917,11 @@ class Budget extends DataClass implements Insertable<Budget> {
           other.id == this.id &&
           other.category == this.category &&
           other.monthlyLimit == this.monthlyLimit &&
-          other.period == this.period);
+          other.period == this.period &&
+          other.cycle == this.cycle &&
+          other.cycleDays == this.cycleDays &&
+          other.currency == this.currency &&
+          other.enabled == this.enabled);
 }
 
 class BudgetsCompanion extends UpdateCompanion<Budget> {
@@ -778,17 +929,29 @@ class BudgetsCompanion extends UpdateCompanion<Budget> {
   final Value<String> category;
   final Value<double> monthlyLimit;
   final Value<String> period;
+  final Value<String> cycle;
+  final Value<int> cycleDays;
+  final Value<String> currency;
+  final Value<bool> enabled;
   const BudgetsCompanion({
     this.id = const Value.absent(),
     this.category = const Value.absent(),
     this.monthlyLimit = const Value.absent(),
     this.period = const Value.absent(),
+    this.cycle = const Value.absent(),
+    this.cycleDays = const Value.absent(),
+    this.currency = const Value.absent(),
+    this.enabled = const Value.absent(),
   });
   BudgetsCompanion.insert({
     this.id = const Value.absent(),
     required String category,
     required double monthlyLimit,
     required String period,
+    this.cycle = const Value.absent(),
+    this.cycleDays = const Value.absent(),
+    this.currency = const Value.absent(),
+    this.enabled = const Value.absent(),
   }) : category = Value(category),
        monthlyLimit = Value(monthlyLimit),
        period = Value(period);
@@ -797,12 +960,20 @@ class BudgetsCompanion extends UpdateCompanion<Budget> {
     Expression<String>? category,
     Expression<double>? monthlyLimit,
     Expression<String>? period,
+    Expression<String>? cycle,
+    Expression<int>? cycleDays,
+    Expression<String>? currency,
+    Expression<bool>? enabled,
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
       if (category != null) 'category': category,
       if (monthlyLimit != null) 'monthly_limit': monthlyLimit,
       if (period != null) 'period': period,
+      if (cycle != null) 'cycle': cycle,
+      if (cycleDays != null) 'cycle_days': cycleDays,
+      if (currency != null) 'currency': currency,
+      if (enabled != null) 'enabled': enabled,
     });
   }
 
@@ -811,12 +982,20 @@ class BudgetsCompanion extends UpdateCompanion<Budget> {
     Value<String>? category,
     Value<double>? monthlyLimit,
     Value<String>? period,
+    Value<String>? cycle,
+    Value<int>? cycleDays,
+    Value<String>? currency,
+    Value<bool>? enabled,
   }) {
     return BudgetsCompanion(
       id: id ?? this.id,
       category: category ?? this.category,
       monthlyLimit: monthlyLimit ?? this.monthlyLimit,
       period: period ?? this.period,
+      cycle: cycle ?? this.cycle,
+      cycleDays: cycleDays ?? this.cycleDays,
+      currency: currency ?? this.currency,
+      enabled: enabled ?? this.enabled,
     );
   }
 
@@ -835,6 +1014,18 @@ class BudgetsCompanion extends UpdateCompanion<Budget> {
     if (period.present) {
       map['period'] = Variable<String>(period.value);
     }
+    if (cycle.present) {
+      map['cycle'] = Variable<String>(cycle.value);
+    }
+    if (cycleDays.present) {
+      map['cycle_days'] = Variable<int>(cycleDays.value);
+    }
+    if (currency.present) {
+      map['currency'] = Variable<String>(currency.value);
+    }
+    if (enabled.present) {
+      map['enabled'] = Variable<bool>(enabled.value);
+    }
     return map;
   }
 
@@ -844,7 +1035,308 @@ class BudgetsCompanion extends UpdateCompanion<Budget> {
           ..write('id: $id, ')
           ..write('category: $category, ')
           ..write('monthlyLimit: $monthlyLimit, ')
-          ..write('period: $period')
+          ..write('period: $period, ')
+          ..write('cycle: $cycle, ')
+          ..write('cycleDays: $cycleDays, ')
+          ..write('currency: $currency, ')
+          ..write('enabled: $enabled')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $CategoriesTable extends Categories
+    with TableInfo<$CategoriesTable, Category> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $CategoriesTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+    'id',
+    aliasedName,
+    false,
+    hasAutoIncrement: true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'PRIMARY KEY AUTOINCREMENT',
+    ),
+  );
+  static const VerificationMeta _nameMeta = const VerificationMeta('name');
+  @override
+  late final GeneratedColumn<String> name = GeneratedColumn<String>(
+    'name',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways('UNIQUE'),
+  );
+  static const VerificationMeta _isActiveMeta = const VerificationMeta(
+    'isActive',
+  );
+  @override
+  late final GeneratedColumn<bool> isActive = GeneratedColumn<bool>(
+    'is_active',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("is_active" IN (0, 1))',
+    ),
+    defaultValue: const Constant(true),
+  );
+  static const VerificationMeta _isDefaultMeta = const VerificationMeta(
+    'isDefault',
+  );
+  @override
+  late final GeneratedColumn<bool> isDefault = GeneratedColumn<bool>(
+    'is_default',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("is_default" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
+  @override
+  List<GeneratedColumn> get $columns => [id, name, isActive, isDefault];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'categories';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<Category> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('name')) {
+      context.handle(
+        _nameMeta,
+        name.isAcceptableOrUnknown(data['name']!, _nameMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_nameMeta);
+    }
+    if (data.containsKey('is_active')) {
+      context.handle(
+        _isActiveMeta,
+        isActive.isAcceptableOrUnknown(data['is_active']!, _isActiveMeta),
+      );
+    }
+    if (data.containsKey('is_default')) {
+      context.handle(
+        _isDefaultMeta,
+        isDefault.isAcceptableOrUnknown(data['is_default']!, _isDefaultMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  Category map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return Category(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}id'],
+      )!,
+      name: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}name'],
+      )!,
+      isActive: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}is_active'],
+      )!,
+      isDefault: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}is_default'],
+      )!,
+    );
+  }
+
+  @override
+  $CategoriesTable createAlias(String alias) {
+    return $CategoriesTable(attachedDatabase, alias);
+  }
+}
+
+class Category extends DataClass implements Insertable<Category> {
+  final int id;
+  final String name;
+  final bool isActive;
+  final bool isDefault;
+  const Category({
+    required this.id,
+    required this.name,
+    required this.isActive,
+    required this.isDefault,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<int>(id);
+    map['name'] = Variable<String>(name);
+    map['is_active'] = Variable<bool>(isActive);
+    map['is_default'] = Variable<bool>(isDefault);
+    return map;
+  }
+
+  CategoriesCompanion toCompanion(bool nullToAbsent) {
+    return CategoriesCompanion(
+      id: Value(id),
+      name: Value(name),
+      isActive: Value(isActive),
+      isDefault: Value(isDefault),
+    );
+  }
+
+  factory Category.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return Category(
+      id: serializer.fromJson<int>(json['id']),
+      name: serializer.fromJson<String>(json['name']),
+      isActive: serializer.fromJson<bool>(json['isActive']),
+      isDefault: serializer.fromJson<bool>(json['isDefault']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<int>(id),
+      'name': serializer.toJson<String>(name),
+      'isActive': serializer.toJson<bool>(isActive),
+      'isDefault': serializer.toJson<bool>(isDefault),
+    };
+  }
+
+  Category copyWith({int? id, String? name, bool? isActive, bool? isDefault}) =>
+      Category(
+        id: id ?? this.id,
+        name: name ?? this.name,
+        isActive: isActive ?? this.isActive,
+        isDefault: isDefault ?? this.isDefault,
+      );
+  Category copyWithCompanion(CategoriesCompanion data) {
+    return Category(
+      id: data.id.present ? data.id.value : this.id,
+      name: data.name.present ? data.name.value : this.name,
+      isActive: data.isActive.present ? data.isActive.value : this.isActive,
+      isDefault: data.isDefault.present ? data.isDefault.value : this.isDefault,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('Category(')
+          ..write('id: $id, ')
+          ..write('name: $name, ')
+          ..write('isActive: $isActive, ')
+          ..write('isDefault: $isDefault')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(id, name, isActive, isDefault);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is Category &&
+          other.id == this.id &&
+          other.name == this.name &&
+          other.isActive == this.isActive &&
+          other.isDefault == this.isDefault);
+}
+
+class CategoriesCompanion extends UpdateCompanion<Category> {
+  final Value<int> id;
+  final Value<String> name;
+  final Value<bool> isActive;
+  final Value<bool> isDefault;
+  const CategoriesCompanion({
+    this.id = const Value.absent(),
+    this.name = const Value.absent(),
+    this.isActive = const Value.absent(),
+    this.isDefault = const Value.absent(),
+  });
+  CategoriesCompanion.insert({
+    this.id = const Value.absent(),
+    required String name,
+    this.isActive = const Value.absent(),
+    this.isDefault = const Value.absent(),
+  }) : name = Value(name);
+  static Insertable<Category> custom({
+    Expression<int>? id,
+    Expression<String>? name,
+    Expression<bool>? isActive,
+    Expression<bool>? isDefault,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (name != null) 'name': name,
+      if (isActive != null) 'is_active': isActive,
+      if (isDefault != null) 'is_default': isDefault,
+    });
+  }
+
+  CategoriesCompanion copyWith({
+    Value<int>? id,
+    Value<String>? name,
+    Value<bool>? isActive,
+    Value<bool>? isDefault,
+  }) {
+    return CategoriesCompanion(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      isActive: isActive ?? this.isActive,
+      isDefault: isDefault ?? this.isDefault,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<int>(id.value);
+    }
+    if (name.present) {
+      map['name'] = Variable<String>(name.value);
+    }
+    if (isActive.present) {
+      map['is_active'] = Variable<bool>(isActive.value);
+    }
+    if (isDefault.present) {
+      map['is_default'] = Variable<bool>(isDefault.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('CategoriesCompanion(')
+          ..write('id: $id, ')
+          ..write('name: $name, ')
+          ..write('isActive: $isActive, ')
+          ..write('isDefault: $isDefault')
           ..write(')'))
         .toString();
   }
@@ -1752,6 +2244,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
   late final $TransactionsTable transactions = $TransactionsTable(this);
   late final $BudgetsTable budgets = $BudgetsTable(this);
+  late final $CategoriesTable categories = $CategoriesTable(this);
   late final $MentorMessagesTable mentorMessages = $MentorMessagesTable(this);
   late final $AgentMemoriesTable agentMemories = $AgentMemoriesTable(this);
   late final $SettingsTable settings = $SettingsTable(this);
@@ -1762,6 +2255,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   List<DatabaseSchemaEntity> get allSchemaEntities => [
     transactions,
     budgets,
+    categories,
     mentorMessages,
     agentMemories,
     settings,
@@ -2043,12 +2537,20 @@ typedef $$BudgetsTableCreateCompanionBuilder = BudgetsCompanion Function({
   required String category,
   required double monthlyLimit,
   required String period,
+  Value<String> cycle,
+  Value<int> cycleDays,
+  Value<String> currency,
+  Value<bool> enabled,
 });
 typedef $$BudgetsTableUpdateCompanionBuilder = BudgetsCompanion Function({
   Value<int> id,
   Value<String> category,
   Value<double> monthlyLimit,
   Value<String> period,
+  Value<String> cycle,
+  Value<int> cycleDays,
+  Value<String> currency,
+  Value<bool> enabled,
 });
 
 class $$BudgetsTableFilterComposer
@@ -2077,6 +2579,26 @@ class $$BudgetsTableFilterComposer
 
   ColumnFilters<String> get period => $composableBuilder(
     column: $table.period,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get cycle => $composableBuilder(
+    column: $table.cycle,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get cycleDays => $composableBuilder(
+    column: $table.cycleDays,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get currency => $composableBuilder(
+    column: $table.currency,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get enabled => $composableBuilder(
+    column: $table.enabled,
     builder: (column) => ColumnFilters(column),
   );
 }
@@ -2109,6 +2631,26 @@ class $$BudgetsTableOrderingComposer
     column: $table.period,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<String> get cycle => $composableBuilder(
+    column: $table.cycle,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get cycleDays => $composableBuilder(
+    column: $table.cycleDays,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get currency => $composableBuilder(
+    column: $table.currency,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get enabled => $composableBuilder(
+    column: $table.enabled,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $$BudgetsTableAnnotationComposer
@@ -2133,6 +2675,18 @@ class $$BudgetsTableAnnotationComposer
 
   GeneratedColumn<String> get period =>
       $composableBuilder(column: $table.period, builder: (column) => column);
+
+  GeneratedColumn<String> get cycle =>
+      $composableBuilder(column: $table.cycle, builder: (column) => column);
+
+  GeneratedColumn<int> get cycleDays =>
+      $composableBuilder(column: $table.cycleDays, builder: (column) => column);
+
+  GeneratedColumn<String> get currency =>
+      $composableBuilder(column: $table.currency, builder: (column) => column);
+
+  GeneratedColumn<bool> get enabled =>
+      $composableBuilder(column: $table.enabled, builder: (column) => column);
 }
 
 class $$BudgetsTableTableManager
@@ -2167,11 +2721,19 @@ class $$BudgetsTableTableManager
                 Value<String> category = const Value.absent(),
                 Value<double> monthlyLimit = const Value.absent(),
                 Value<String> period = const Value.absent(),
+                Value<String> cycle = const Value.absent(),
+                Value<int> cycleDays = const Value.absent(),
+                Value<String> currency = const Value.absent(),
+                Value<bool> enabled = const Value.absent(),
               }) => BudgetsCompanion(
                 id: id,
                 category: category,
                 monthlyLimit: monthlyLimit,
                 period: period,
+                cycle: cycle,
+                cycleDays: cycleDays,
+                currency: currency,
+                enabled: enabled,
               ),
           createCompanionCallback:
               ({
@@ -2179,11 +2741,19 @@ class $$BudgetsTableTableManager
                 required String category,
                 required double monthlyLimit,
                 required String period,
+                Value<String> cycle = const Value.absent(),
+                Value<int> cycleDays = const Value.absent(),
+                Value<String> currency = const Value.absent(),
+                Value<bool> enabled = const Value.absent(),
               }) => BudgetsCompanion.insert(
                 id: id,
                 category: category,
                 monthlyLimit: monthlyLimit,
                 period: period,
+                cycle: cycle,
+                cycleDays: cycleDays,
+                currency: currency,
+                enabled: enabled,
               ),
           withReferenceMapper: (p0) => p0
               .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
@@ -2205,6 +2775,173 @@ typedef $$BudgetsTableProcessedTableManager =
       $$BudgetsTableUpdateCompanionBuilder,
       (Budget, BaseReferences<_$AppDatabase, $BudgetsTable, Budget>),
       Budget,
+      PrefetchHooks Function()
+    >;
+typedef $$CategoriesTableCreateCompanionBuilder = CategoriesCompanion Function({
+  Value<int> id,
+  required String name,
+  Value<bool> isActive,
+  Value<bool> isDefault,
+});
+typedef $$CategoriesTableUpdateCompanionBuilder = CategoriesCompanion Function({
+  Value<int> id,
+  Value<String> name,
+  Value<bool> isActive,
+  Value<bool> isDefault,
+});
+
+class $$CategoriesTableFilterComposer
+    extends Composer<_$AppDatabase, $CategoriesTable> {
+  $$CategoriesTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get name => $composableBuilder(
+    column: $table.name,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get isActive => $composableBuilder(
+    column: $table.isActive,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get isDefault => $composableBuilder(
+    column: $table.isDefault,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$CategoriesTableOrderingComposer
+    extends Composer<_$AppDatabase, $CategoriesTable> {
+  $$CategoriesTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get name => $composableBuilder(
+    column: $table.name,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get isActive => $composableBuilder(
+    column: $table.isActive,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get isDefault => $composableBuilder(
+    column: $table.isDefault,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$CategoriesTableAnnotationComposer
+    extends Composer<_$AppDatabase, $CategoriesTable> {
+  $$CategoriesTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get name =>
+      $composableBuilder(column: $table.name, builder: (column) => column);
+
+  GeneratedColumn<bool> get isActive =>
+      $composableBuilder(column: $table.isActive, builder: (column) => column);
+
+  GeneratedColumn<bool> get isDefault =>
+      $composableBuilder(column: $table.isDefault, builder: (column) => column);
+}
+
+class $$CategoriesTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $CategoriesTable,
+          Category,
+          $$CategoriesTableFilterComposer,
+          $$CategoriesTableOrderingComposer,
+          $$CategoriesTableAnnotationComposer,
+          $$CategoriesTableCreateCompanionBuilder,
+          $$CategoriesTableUpdateCompanionBuilder,
+          (Category, BaseReferences<_$AppDatabase, $CategoriesTable, Category>),
+          Category,
+          PrefetchHooks Function()
+        > {
+  $$CategoriesTableTableManager(_$AppDatabase db, $CategoriesTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$CategoriesTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$CategoriesTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$CategoriesTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                Value<String> name = const Value.absent(),
+                Value<bool> isActive = const Value.absent(),
+                Value<bool> isDefault = const Value.absent(),
+              }) => CategoriesCompanion(
+                id: id,
+                name: name,
+                isActive: isActive,
+                isDefault: isDefault,
+              ),
+          createCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                required String name,
+                Value<bool> isActive = const Value.absent(),
+                Value<bool> isDefault = const Value.absent(),
+              }) => CategoriesCompanion.insert(
+                id: id,
+                name: name,
+                isActive: isActive,
+                isDefault: isDefault,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$CategoriesTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $CategoriesTable,
+      Category,
+      $$CategoriesTableFilterComposer,
+      $$CategoriesTableOrderingComposer,
+      $$CategoriesTableAnnotationComposer,
+      $$CategoriesTableCreateCompanionBuilder,
+      $$CategoriesTableUpdateCompanionBuilder,
+      (Category, BaseReferences<_$AppDatabase, $CategoriesTable, Category>),
+      Category,
       PrefetchHooks Function()
     >;
 typedef $$MentorMessagesTableCreateCompanionBuilder =
@@ -2732,6 +3469,8 @@ class $AppDatabaseManager {
       $$TransactionsTableTableManager(_db, _db.transactions);
   $$BudgetsTableTableManager get budgets =>
       $$BudgetsTableTableManager(_db, _db.budgets);
+  $$CategoriesTableTableManager get categories =>
+      $$CategoriesTableTableManager(_db, _db.categories);
   $$MentorMessagesTableTableManager get mentorMessages =>
       $$MentorMessagesTableTableManager(_db, _db.mentorMessages);
   $$AgentMemoriesTableTableManager get agentMemories =>
