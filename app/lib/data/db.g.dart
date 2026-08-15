@@ -900,8 +900,26 @@ class $MentorMessagesTable extends MentorMessages
     type: DriftSqlType.dateTime,
     requiredDuringInsert: true,
   );
+  static const VerificationMeta _severityMeta = const VerificationMeta(
+    'severity',
+  );
   @override
-  List<GeneratedColumn> get $columns => [id, role, content, createdAt];
+  late final GeneratedColumn<String> severity = GeneratedColumn<String>(
+    'severity',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('info'),
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    role,
+    content,
+    createdAt,
+    severity,
+  ];
   @override
   String get aliasedName => _alias ?? actualTableName;
   @override
@@ -941,6 +959,12 @@ class $MentorMessagesTable extends MentorMessages
     } else if (isInserting) {
       context.missing(_createdAtMeta);
     }
+    if (data.containsKey('severity')) {
+      context.handle(
+        _severityMeta,
+        severity.isAcceptableOrUnknown(data['severity']!, _severityMeta),
+      );
+    }
     return context;
   }
 
@@ -966,6 +990,10 @@ class $MentorMessagesTable extends MentorMessages
         DriftSqlType.dateTime,
         data['${effectivePrefix}created_at'],
       )!,
+      severity: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}severity'],
+      )!,
     );
   }
 
@@ -980,11 +1008,13 @@ class MentorMessage extends DataClass implements Insertable<MentorMessage> {
   final String role;
   final String content;
   final DateTime createdAt;
+  final String severity;
   const MentorMessage({
     required this.id,
     required this.role,
     required this.content,
     required this.createdAt,
+    required this.severity,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -993,6 +1023,7 @@ class MentorMessage extends DataClass implements Insertable<MentorMessage> {
     map['role'] = Variable<String>(role);
     map['content'] = Variable<String>(content);
     map['created_at'] = Variable<DateTime>(createdAt);
+    map['severity'] = Variable<String>(severity);
     return map;
   }
 
@@ -1002,6 +1033,7 @@ class MentorMessage extends DataClass implements Insertable<MentorMessage> {
       role: Value(role),
       content: Value(content),
       createdAt: Value(createdAt),
+      severity: Value(severity),
     );
   }
 
@@ -1015,6 +1047,7 @@ class MentorMessage extends DataClass implements Insertable<MentorMessage> {
       role: serializer.fromJson<String>(json['role']),
       content: serializer.fromJson<String>(json['content']),
       createdAt: serializer.fromJson<DateTime>(json['createdAt']),
+      severity: serializer.fromJson<String>(json['severity']),
     );
   }
   @override
@@ -1025,6 +1058,7 @@ class MentorMessage extends DataClass implements Insertable<MentorMessage> {
       'role': serializer.toJson<String>(role),
       'content': serializer.toJson<String>(content),
       'createdAt': serializer.toJson<DateTime>(createdAt),
+      'severity': serializer.toJson<String>(severity),
     };
   }
 
@@ -1033,11 +1067,13 @@ class MentorMessage extends DataClass implements Insertable<MentorMessage> {
     String? role,
     String? content,
     DateTime? createdAt,
+    String? severity,
   }) => MentorMessage(
     id: id ?? this.id,
     role: role ?? this.role,
     content: content ?? this.content,
     createdAt: createdAt ?? this.createdAt,
+    severity: severity ?? this.severity,
   );
   MentorMessage copyWithCompanion(MentorMessagesCompanion data) {
     return MentorMessage(
@@ -1045,6 +1081,7 @@ class MentorMessage extends DataClass implements Insertable<MentorMessage> {
       role: data.role.present ? data.role.value : this.role,
       content: data.content.present ? data.content.value : this.content,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      severity: data.severity.present ? data.severity.value : this.severity,
     );
   }
 
@@ -1054,13 +1091,14 @@ class MentorMessage extends DataClass implements Insertable<MentorMessage> {
           ..write('id: $id, ')
           ..write('role: $role, ')
           ..write('content: $content, ')
-          ..write('createdAt: $createdAt')
+          ..write('createdAt: $createdAt, ')
+          ..write('severity: $severity')
           ..write(')'))
         .toString();
   }
 
   @override
-  int get hashCode => Object.hash(id, role, content, createdAt);
+  int get hashCode => Object.hash(id, role, content, createdAt, severity);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -1068,7 +1106,8 @@ class MentorMessage extends DataClass implements Insertable<MentorMessage> {
           other.id == this.id &&
           other.role == this.role &&
           other.content == this.content &&
-          other.createdAt == this.createdAt);
+          other.createdAt == this.createdAt &&
+          other.severity == this.severity);
 }
 
 class MentorMessagesCompanion extends UpdateCompanion<MentorMessage> {
@@ -1076,17 +1115,20 @@ class MentorMessagesCompanion extends UpdateCompanion<MentorMessage> {
   final Value<String> role;
   final Value<String> content;
   final Value<DateTime> createdAt;
+  final Value<String> severity;
   const MentorMessagesCompanion({
     this.id = const Value.absent(),
     this.role = const Value.absent(),
     this.content = const Value.absent(),
     this.createdAt = const Value.absent(),
+    this.severity = const Value.absent(),
   });
   MentorMessagesCompanion.insert({
     this.id = const Value.absent(),
     required String role,
     required String content,
     required DateTime createdAt,
+    this.severity = const Value.absent(),
   }) : role = Value(role),
        content = Value(content),
        createdAt = Value(createdAt);
@@ -1095,12 +1137,14 @@ class MentorMessagesCompanion extends UpdateCompanion<MentorMessage> {
     Expression<String>? role,
     Expression<String>? content,
     Expression<DateTime>? createdAt,
+    Expression<String>? severity,
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
       if (role != null) 'role': role,
       if (content != null) 'content': content,
       if (createdAt != null) 'created_at': createdAt,
+      if (severity != null) 'severity': severity,
     });
   }
 
@@ -1109,12 +1153,14 @@ class MentorMessagesCompanion extends UpdateCompanion<MentorMessage> {
     Value<String>? role,
     Value<String>? content,
     Value<DateTime>? createdAt,
+    Value<String>? severity,
   }) {
     return MentorMessagesCompanion(
       id: id ?? this.id,
       role: role ?? this.role,
       content: content ?? this.content,
       createdAt: createdAt ?? this.createdAt,
+      severity: severity ?? this.severity,
     );
   }
 
@@ -1133,6 +1179,9 @@ class MentorMessagesCompanion extends UpdateCompanion<MentorMessage> {
     if (createdAt.present) {
       map['created_at'] = Variable<DateTime>(createdAt.value);
     }
+    if (severity.present) {
+      map['severity'] = Variable<String>(severity.value);
+    }
     return map;
   }
 
@@ -1142,7 +1191,8 @@ class MentorMessagesCompanion extends UpdateCompanion<MentorMessage> {
           ..write('id: $id, ')
           ..write('role: $role, ')
           ..write('content: $content, ')
-          ..write('createdAt: $createdAt')
+          ..write('createdAt: $createdAt, ')
+          ..write('severity: $severity')
           ..write(')'))
         .toString();
   }
@@ -2163,6 +2213,7 @@ typedef $$MentorMessagesTableCreateCompanionBuilder =
       required String role,
       required String content,
       required DateTime createdAt,
+      Value<String> severity,
     });
 typedef $$MentorMessagesTableUpdateCompanionBuilder =
     MentorMessagesCompanion Function({
@@ -2170,6 +2221,7 @@ typedef $$MentorMessagesTableUpdateCompanionBuilder =
       Value<String> role,
       Value<String> content,
       Value<DateTime> createdAt,
+      Value<String> severity,
     });
 
 class $$MentorMessagesTableFilterComposer
@@ -2198,6 +2250,11 @@ class $$MentorMessagesTableFilterComposer
 
   ColumnFilters<DateTime> get createdAt => $composableBuilder(
     column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get severity => $composableBuilder(
+    column: $table.severity,
     builder: (column) => ColumnFilters(column),
   );
 }
@@ -2230,6 +2287,11 @@ class $$MentorMessagesTableOrderingComposer
     column: $table.createdAt,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<String> get severity => $composableBuilder(
+    column: $table.severity,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $$MentorMessagesTableAnnotationComposer
@@ -2252,6 +2314,9 @@ class $$MentorMessagesTableAnnotationComposer
 
   GeneratedColumn<DateTime> get createdAt =>
       $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<String> get severity =>
+      $composableBuilder(column: $table.severity, builder: (column) => column);
 }
 
 class $$MentorMessagesTableTableManager
@@ -2291,11 +2356,13 @@ class $$MentorMessagesTableTableManager
                 Value<String> role = const Value.absent(),
                 Value<String> content = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
+                Value<String> severity = const Value.absent(),
               }) => MentorMessagesCompanion(
                 id: id,
                 role: role,
                 content: content,
                 createdAt: createdAt,
+                severity: severity,
               ),
           createCompanionCallback:
               ({
@@ -2303,11 +2370,13 @@ class $$MentorMessagesTableTableManager
                 required String role,
                 required String content,
                 required DateTime createdAt,
+                Value<String> severity = const Value.absent(),
               }) => MentorMessagesCompanion.insert(
                 id: id,
                 role: role,
                 content: content,
                 createdAt: createdAt,
+                severity: severity,
               ),
           withReferenceMapper: (p0) => p0
               .map((e) => (e.readTable(table), BaseReferences(db, table, e)))

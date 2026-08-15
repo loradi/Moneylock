@@ -5,9 +5,12 @@ class MessagesDao {
   final AppDatabase db;
   MessagesDao(this.db);
 
-  Future<void> add(String role, String content) =>
+  Future<void> add(String role, String content, {String severity = 'info'}) =>
       db.into(db.mentorMessages).insert(MentorMessagesCompanion.insert(
-          role: role, content: content, createdAt: DateTime.now()));
+          role: role,
+          content: content,
+          createdAt: DateTime.now(),
+          severity: Value(severity)));
 
   Stream<List<MentorMessage>> watchAll() {
     final q = db.select(db.mentorMessages)

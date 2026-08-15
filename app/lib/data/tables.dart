@@ -26,6 +26,7 @@ class MentorMessages extends Table {
   TextColumn get role => text()(); // 'user' | 'mentor'
   TextColumn get content => text()();
   DateTimeColumn get createdAt => dateTime()();
+  TextColumn get severity => text().withDefault(const Constant('info'))();
 }
 
 class AgentMemories extends Table {

@@ -48,7 +48,8 @@ class AddTransactionFlow {
           category: outcome.transaction!.category,
           amount: outcome.transaction!.amount,
           timestamp: ts);
-      await db.messagesDao.add('mentor', verdict.message);
+      await db.messagesDao
+          .add('mentor', verdict.message, severity: verdict.severity.name);
       final title = switch (verdict.severity) {
         Severity.alert => 'Over budget',
         Severity.warning => 'Budget warning',
