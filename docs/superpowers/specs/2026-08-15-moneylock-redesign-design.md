@@ -10,6 +10,7 @@ Reestilizar la UI de Moneylock (actualmente Cupertino nativo azul) a un sistema 
 ## Principios
 
 - **Offline-first**: sin imágenes remotas, sin fetch de fuentes en runtime. Fuentes empaquetadas como assets.
+- **Idioma de la UI: inglés** (labels, eyebrows, nav, todo el copy visible) — fiel a la referencia.
 - **Sin cambio de funcionalidad**: solo look & feel y reorganización de navegación. El backend LLM, sync, speech y lógica de negocios no se tocan.
   - **Única excepción**: el mic del input del chat (sección 4) dicta la pregunta a texto reutilizando el `SpeechToTextService` existente — es un affordance nuevo del rediseño, sin lógica nueva.
 - **Fiel a la referencia** en tokens, layout y micro-detalles (glow, blur, shine).
@@ -120,7 +121,7 @@ Fuentes: **Inter** (400/500/600/700) y **Geist** (400/500/600). Empaquetadas com
 
 ## 4. Chat — modal dark siempre
 
-- Fondo `#131313`; header: avatar 64px redondo (inicial "V" con gradiente rojo, offline), nombre **Vector**, subtitle label-caps `FINANCIAL INTELLIGENCE CORE`, botón cerrar (X) + Volver.
+- Fondo `#131313`; header: avatar 64px `surface-container-high` con **icono de agente Material (`smart_toy`) rojo** (offline), nombre **Vector**, subtitle label-caps `FINANCIAL INTELLIGENCE CORE`, botón cerrar (X) + Volver.
 - Mensajes: burbuja mentor `surface-container-high` (borde `outline/10`, radius 16 con esquina sup-izq 4px, **shine superior** gradiente `primary/5`→transparent); cantidades mono-data `primary-fixed-dim` bold; pregunta del usuario alineada derecha `primary` (#FF3B30) texto `on-primary`.
 - **Chips de acción** en la burbuja del mentor cuando el veredicto incluye severidad: `STOP BUYING` (outline) y `ADJUST BUDGET` (rojo) → insertan un mensaje de usuario (p.ej. "quiero parar estos gastos") al hilo.
 - **Input bar glass** (bottom, border-t, blur): botón `+` (abre add sheet rápido), textarea auto-grow `surface-container`, **mic circular 48px `primary` glow** — dicta la pregunta a texto (speech ya implementado); mientras el LLM genera, hint `VECTOR IS TYPING...` mono 10px.
