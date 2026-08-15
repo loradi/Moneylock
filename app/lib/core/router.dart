@@ -104,7 +104,6 @@ class _BottomNav extends StatelessWidget {
       (icon: Icons.history_outlined, active: Icons.history, label: 'History'),
     ];
     return Container(
-      height: 64,
       decoration: BoxDecoration(
         color: AppColors.surface.withValues(alpha: 0.8),
         border: const Border(top: BorderSide(color: AppColors.borderSubtle)),

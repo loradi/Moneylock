@@ -1,8 +1,9 @@
-import 'package:flutter/cupertino.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../providers.dart';
 import '../../voice/speech_service.dart';
+import '../../theme/app_theme.dart';
 
 /// Botón de voz: mantén/haz tap para escuchar (Apple Speech on-device).
 /// Al llegar el resultado final se ejecuta AddTransactionFlow con source
@@ -49,8 +50,7 @@ class _VoiceButtonState extends ConsumerState<VoiceButton> {
           if (r.inserted) {
             widget.onStatus?.call('Recorded: $text');
           } else {
-            widget.onStatus
-                ?.call(r.error ?? 'Duplicate: already recorded.');
+            widget.onStatus?.call(r.error ?? 'Duplicate: already recorded.');
           }
         });
       });
@@ -89,29 +89,40 @@ class _VoiceButtonState extends ConsumerState<VoiceButton> {
             decoration: BoxDecoration(
               shape: BoxShape.circle,
               color: listening
-                  ? CupertinoColors.systemRed
-                  : CupertinoColors.systemGrey5,
+                  ? AppColors.primary
+                  : AppColors.surfaceContainerHigh,
             ),
             child: listening
                 ? const Padding(
                     padding: EdgeInsets.all(14),
-                    child: CupertinoActivityIndicator(color: CupertinoColors.white))
-                : const Icon(CupertinoIcons.mic_fill,
-                    size: 28, color: CupertinoColors.systemGrey),
+                    child: const CircularProgressIndicator(
+                      color: Colors.white,
+                      strokeWidth: 2,
+                    ),
+                  )
+                : const Icon(
+                    Icons.mic,
+                    size: 28,
+                    color: AppColors.onSurfaceVariant,
+                  ),
           ),
         ),
         const SizedBox(height: 8),
         Text(
           listening ? 'Listening… tap to stop' : 'Tap to speak a transaction',
-          style: const TextStyle(fontSize: 13, color: CupertinoColors.secondaryLabel),
+          style: AppTextStyles.bodyMd.copyWith(
+            fontSize: 13,
+            color: AppColors.onSurfaceVariant,
+          ),
         ),
         if (_state == _VoiceState.error && _error != null)
           Padding(
             padding: const EdgeInsets.only(top: 6),
-            child: Text(_error!,
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                    fontSize: 12, color: CupertinoColors.systemRed)),
+            child: Text(
+              _error!,
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontSize: 12, color: AppColors.primary),
+            ),
           ),
       ],
     );

@@ -1,59 +1,58 @@
-import 'package:flutter/cupertino.dart';
+import 'package:flutter/material.dart';
 
 import '../../core/format.dart';
+import '../../theme/app_theme.dart';
 
 Color budgetBarColor(double progress) {
-  if (progress >= 1.0) return CupertinoColors.systemRed;
-  if (progress >= 0.8) return CupertinoColors.systemOrange;
-  return CupertinoColors.systemGreen;
+  if (progress >= 1.0) return AppColors.primaryBright;
+  if (progress >= 0.8) return const Color(0xFFE58B00);
+  return const Color(0xFF258A56);
 }
 
 class BudgetBar extends StatelessWidget {
   final String category;
   final double spent;
   final double limit;
-
   const BudgetBar({
     super.key,
     required this.category,
     required this.spent,
     required this.limit,
   });
-
   @override
   Widget build(BuildContext context) {
     final progress = limit > 0 ? (spent / limit).clamp(0.0, 1.0) : 0.0;
-    final color = limit > 0 ? budgetBarColor(spent / limit) : CupertinoColors.systemGrey;
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6),
+      padding: const EdgeInsets.symmetric(vertical: 7),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(category, style: const TextStyle(fontSize: 14)),
-              Text('${fmtCurrency(spent)} / ${fmtCurrency(limit)}',
-                  style: const TextStyle(fontSize: 13, color: CupertinoColors.secondaryLabel)),
+              Text(
+                category,
+                style: AppTextStyles.bodyMd.copyWith(
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              Text(
+                '${fmtCurrency(spent)} / ${fmtCurrency(limit)}',
+                style: AppTextStyles.monoData.copyWith(
+                  fontSize: 12,
+                  color: AppColors.onSurfaceVariant,
+                ),
+              ),
             ],
           ),
-          const SizedBox(height: 5),
+          const SizedBox(height: 7),
           ClipRRect(
-            borderRadius: BorderRadius.circular(3),
-            child: SizedBox(
-              height: 6,
-              child: Row(
-                children: [
-                  Expanded(
-                    flex: (progress * 1000).round().clamp(0, 1000),
-                    child: ColoredBox(color: color),
-                  ),
-                  Expanded(
-                    flex: 1000 - (progress * 1000).round().clamp(0, 1000),
-                    child: const ColoredBox(color: CupertinoColors.systemFill),
-                  ),
-                ],
-              ),
+            borderRadius: BorderRadius.circular(8),
+            child: LinearProgressIndicator(
+              value: progress,
+              minHeight: 8,
+              backgroundColor: AppColors.surfaceContainerHigh,
+              color: budgetBarColor(limit > 0 ? spent / limit : 0),
             ),
           ),
         ],

@@ -1,7 +1,8 @@
-import 'package:flutter/cupertino.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../providers.dart';
+import '../../theme/app_theme.dart';
 
 /// Formulario de captura manual: texto libre -> AddTransactionFlow.
 /// Cierra el sheet devolviendo true si la transacción se insertó.
@@ -40,8 +41,10 @@ class _ManualFormState extends ConsumerState<ManualForm> {
       widget.onStatus?.call('Recorded');
       Navigator.of(context).maybePop(true);
     } else {
-      setState(() => _error =
-          result.error ?? 'Duplicate: this transaction was already recorded.');
+      setState(
+        () => _error =
+            result.error ?? 'Duplicate: this transaction was already recorded.',
+      );
     }
   }
 
@@ -53,29 +56,38 @@ class _ManualFormState extends ConsumerState<ManualForm> {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          CupertinoTextField(
+          TextField(
             controller: _controller,
-            placeholder: 'e.g. Starbucks 12.50',
+            decoration: InputDecoration(
+              hintText: 'e.g. Starbucks 12.50',
+              suffixIcon: _busy
+                  ? const Padding(
+                      padding: EdgeInsets.all(12),
+                      child: SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      ),
+                    )
+                  : IconButton(
+                      onPressed: _submit,
+                      icon: const Icon(
+                        Icons.arrow_circle_right,
+                        color: AppColors.primary,
+                      ),
+                    ),
+            ),
             keyboardType: TextInputType.text,
             autocorrect: true,
             onSubmitted: (_) => _submit(),
-            suffix: _busy
-                ? const Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 8),
-                    child: CupertinoActivityIndicator())
-                : CupertinoButton(
-                    padding: EdgeInsets.zero,
-                    onPressed: _submit,
-                    child: const Icon(CupertinoIcons.arrow_right_circle_fill,
-                        size: 28, color: CupertinoColors.activeBlue),
-                  ),
           ),
           if (_error != null)
             Padding(
               padding: const EdgeInsets.only(top: 6),
-              child: Text(_error!,
-                  style: const TextStyle(
-                      fontSize: 12, color: CupertinoColors.systemRed)),
+              child: Text(
+                _error!,
+                style: const TextStyle(fontSize: 12, color: AppColors.primary),
+              ),
             ),
         ],
       ),
