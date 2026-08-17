@@ -46,7 +46,13 @@ class AddTransactionFlow {
       if (!outcome.inserted) {
         return AddResult(inserted: false);
       }
-      await scheduler.refresh();
+      try {
+        await scheduler.refresh();
+      } catch (_) {
+        // A notification-scheduling failure shouldn't mask a transaction
+        // that was already committed; refresh() is idempotent and will be
+        // retried on the next app launch/resume/transaction anyway.
+      }
       final verdict = await mentor.evaluate(
           category: outcome.transaction!.category,
           amount: outcome.transaction!.amount,
