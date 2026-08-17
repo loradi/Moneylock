@@ -163,30 +163,10 @@ class _BudgetScreenState extends ConsumerState<BudgetScreen> {
   }
 
   Future<void> _addCategory() async {
-    final controller = TextEditingController();
     final created = await showDialog<String>(
       context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('New category'),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-          decoration: const InputDecoration(hintText: 'e.g. Pets'),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () =>
-                Navigator.pop(dialogContext, controller.text.trim()),
-            child: const Text('Add'),
-          ),
-        ],
-      ),
+      builder: (dialogContext) => const _AddCategoryDialog(),
     );
-    controller.dispose();
     if (created == null || created.isEmpty || !mounted) return;
     try {
       await ref.read(appDatabaseProvider).categoriesDao.add(created);
@@ -204,6 +184,42 @@ class _BudgetScreenState extends ConsumerState<BudgetScreen> {
         ? '${now.year.toString().padLeft(4, '0')}-${now.month.toString().padLeft(2, '0')}'
         : _cycle;
   }
+}
+
+class _AddCategoryDialog extends StatefulWidget {
+  const _AddCategoryDialog();
+  @override
+  State<_AddCategoryDialog> createState() => _AddCategoryDialogState();
+}
+
+class _AddCategoryDialogState extends State<_AddCategoryDialog> {
+  final _controller = TextEditingController();
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+    title: const Text('New category'),
+    content: TextField(
+      controller: _controller,
+      autofocus: true,
+      decoration: const InputDecoration(hintText: 'e.g. Pets'),
+    ),
+    actions: [
+      TextButton(
+        onPressed: () => Navigator.pop(context),
+        child: const Text('Cancel'),
+      ),
+      FilledButton(
+        onPressed: () => Navigator.pop(context, _controller.text.trim()),
+        child: const Text('Add'),
+      ),
+    ],
+  );
 }
 
 class _BudgetRow extends StatelessWidget {

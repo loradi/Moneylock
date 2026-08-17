@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:drift/drift.dart';
 
 import 'db.dart';
@@ -18,28 +20,33 @@ class CategoriesDao {
             ..orderBy([(c) => OrderingTerm.asc(c.name)]))
           .watch();
 
-  Future<void> ensureDefaults() async {
-    for (final name in defaultCategoryNames) {
-      await db
-          .into(db.categories)
-          .insertOnConflictUpdate(
-            CategoriesCompanion.insert(
-              name: name,
-              isDefault: const Value(true),
-            ),
-          );
-    }
-  }
+  Future<void> ensureDefaults() => db.batch(
+    (batch) => batch.insertAll(
+      db.categories,
+      [
+        for (final name in defaultCategoryNames)
+          CategoriesCompanion.insert(name: name, isDefault: const Value(true)),
+      ],
+      mode: InsertMode.insertOrIgnore,
+    ),
+  );
 
-  Future<void> add(String name) => db
-      .into(db.categories)
-      .insertOnConflictUpdate(
-        CategoriesCompanion.insert(
-          name: name.trim(),
-          isActive: const Value(true),
-          isDefault: const Value(false),
-        ),
-      );
+  Future<void> add(String name) {
+    final companion = CategoriesCompanion.insert(
+      name: name.trim(),
+      isActive: const Value(true),
+      isDefault: const Value(false),
+    );
+    return db
+        .into(db.categories)
+        .insert(
+          companion,
+          onConflict: DoUpdate(
+            (_) => companion,
+            target: [db.categories.name],
+          ),
+        );
+  }
 
   Future<void> remove(String name) =>
       (db.update(db.categories)..where((c) => c.name.equals(name))).write(
