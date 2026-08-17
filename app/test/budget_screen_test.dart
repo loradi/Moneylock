@@ -80,14 +80,40 @@ void main() {
       // checkmark fading in is the actual behavior under test here (auto-save
       // fires without a button); BudgetsDao.upsert's own persistence
       // correctness is already covered by test/budgets_dao_test.dart.
-      // 900ms (not 700ms) so the fake clock also flushes the 200ms
-      // fade-back-out Future.delayed that _triggerSave chains after the
-      // 600ms debounce fires — otherwise the test framework's teardown
-      // invariant check ("Timer is still pending") fails even though the
-      // checkmark assertion below already passes.
-      await tester.pump(const Duration(milliseconds: 900));
+      //
+      // find.byIcon(Icons.check) alone would always pass here regardless of
+      // whether auto-save ever fires: AnimatedOpacity keeps its child in the
+      // tree at opacity 0 rather than removing it, so the icon is present
+      // from the very first frame. Assert the AnimatedOpacity's actual
+      // opacity value instead, scoped to the edited row (there are two rows
+      // in this fixture; only "Bills & Utilities" was edited).
+      // Several other widgets (e.g. TextField's InputDecorator, for the
+      // hint/suffix fade) also use AnimatedOpacity, so scope down to the
+      // AnimatedOpacity that is a direct ancestor of this row's own
+      // checkmark icon rather than just "any AnimatedOpacity in the row".
+      final billsRow = find.ancestor(
+        of: find.text('Bills & Utilities'),
+        matching: find.byType(Dismissible),
+      );
+      final billsCheckIcon = find.descendant(
+        of: billsRow,
+        matching: find.byIcon(Icons.check),
+      );
+      final opacityFinder = find.ancestor(
+        of: billsCheckIcon,
+        matching: find.byType(AnimatedOpacity),
+      );
 
-      expect(find.byIcon(Icons.check), findsWidgets);
+      // 700ms: past the 600ms debounce (auto-save just triggered) but
+      // before the chained 200ms fade-out (due at 800ms) starts.
+      await tester.pump(const Duration(milliseconds: 700));
+      expect(tester.widget<AnimatedOpacity>(opacityFinder).opacity, 1.0);
+
+      // +300ms (1000ms elapsed total): past the fade-out's 800ms deadline,
+      // with margin so the framework's pending-timer teardown check is
+      // satisfied.
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(tester.widget<AnimatedOpacity>(opacityFinder).opacity, 0.0);
     },
   );
 
