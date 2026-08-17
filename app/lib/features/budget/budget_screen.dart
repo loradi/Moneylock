@@ -1,7 +1,8 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../core/format.dart';
 import '../../data/db.dart';
 import '../../providers.dart';
 import '../../theme/app_theme.dart';
@@ -106,7 +107,7 @@ class _BudgetScreenState extends ConsumerState<BudgetScreen> {
                       controller: _controllers[names[i]]!,
                       currency: _currency,
                       onSave: _save,
-                      onRemove: () => _removeCategory(names[i]),
+                      onConfirmRemove: () => _removeCategory(names[i]),
                       isDefault: records[names[i]]?.isDefault ?? false,
                     ),
                     childCount: names.length,
@@ -122,26 +123,39 @@ class _BudgetScreenState extends ConsumerState<BudgetScreen> {
   }
 
   Future<void> _save(String category, String raw) async {
-    final amount = double.tryParse(raw);
-    if (amount == null || amount <= 0) return;
-    await ref
-        .read(appDatabaseProvider)
-        .budgetsDao
-        .upsert(
-          category,
-          amount,
-          _periodKey(),
-          cycle: _cycle,
-          cycleDays: _cycleDays,
-          currency: _currency,
+    final trimmed = raw.trim();
+    if (trimmed.isEmpty) return;
+    final amount = double.tryParse(trimmed);
+    if (amount == null || amount <= 0) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Enter a valid amount')));
+      }
+      return;
+    }
+    try {
+      await ref
+          .read(appDatabaseProvider)
+          .budgetsDao
+          .upsert(
+            category,
+            amount,
+            _periodKey(),
+            cycle: _cycle,
+            cycleDays: _cycleDays,
+            currency: _currency,
+          );
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not save $category cap: $error')),
         );
-    if (mounted)
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('${fmtCurrency(amount)} $category cap saved')),
-      );
+      }
+    }
   }
 
-  Future<void> _removeCategory(String category) async {
+  Future<bool> _removeCategory(String category) async {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -161,9 +175,10 @@ class _BudgetScreenState extends ConsumerState<BudgetScreen> {
         ],
       ),
     );
-    if (confirmed != true) return;
+    if (confirmed != true) return false;
     await ref.read(appDatabaseProvider).categoriesDao.remove(category);
-    setState(() {});
+    if (mounted) setState(() {});
+    return true;
   }
 
   Future<void> _addCategory() async {
@@ -226,64 +241,128 @@ class _AddCategoryDialogState extends State<_AddCategoryDialog> {
   );
 }
 
-class _BudgetRow extends StatelessWidget {
+class _BudgetRow extends StatefulWidget {
   final String category;
   final TextEditingController controller;
   final String currency;
   final Future<void> Function(String, String) onSave;
-  final VoidCallback onRemove;
+  final Future<bool> Function() onConfirmRemove;
   final bool isDefault;
   const _BudgetRow({
     required this.category,
     required this.controller,
     required this.currency,
     required this.onSave,
-    required this.onRemove,
+    required this.onConfirmRemove,
     required this.isDefault,
   });
+
   @override
-  Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.only(bottom: 10),
-    child: AppCard(
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(14, 4, 6, 4),
-        child: Row(
-          children: [
-            Expanded(
-              child: Text(
-                category,
-                overflow: TextOverflow.ellipsis,
-                style: AppTextStyles.bodyMd.copyWith(
-                  fontWeight: FontWeight.w600,
+  State<_BudgetRow> createState() => _BudgetRowState();
+}
+
+class _BudgetRowState extends State<_BudgetRow> {
+  Timer? _debounce;
+  final _focusNode = FocusNode();
+  bool _showSaved = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _focusNode.addListener(_onFocusChange);
+  }
+
+  @override
+  void dispose() {
+    _debounce?.cancel();
+    _focusNode.removeListener(_onFocusChange);
+    _focusNode.dispose();
+    super.dispose();
+  }
+
+  void _onFocusChange() {
+    if (!_focusNode.hasFocus) {
+      _debounce?.cancel();
+      _triggerSave();
+    }
+  }
+
+  void _onChanged(String _) {
+    _debounce?.cancel();
+    _debounce = Timer(const Duration(milliseconds: 600), _triggerSave);
+  }
+
+  void _triggerSave() {
+    final text = widget.controller.text;
+    final parsed = double.tryParse(text.trim());
+    widget.onSave(widget.category, text);
+    if (parsed != null && parsed > 0 && mounted) {
+      setState(() => _showSaved = true);
+      Future.delayed(const Duration(milliseconds: 200), () {
+        if (mounted) setState(() => _showSaved = false);
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => Dismissible(
+    key: ValueKey(widget.category),
+    direction: DismissDirection.endToStart,
+    confirmDismiss: (_) => widget.onConfirmRemove(),
+    background: Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      alignment: Alignment.centerRight,
+      padding: const EdgeInsets.only(right: 20),
+      decoration: BoxDecoration(
+        color: AppColors.error,
+        borderRadius: BorderRadius.circular(AppRadii.full),
+      ),
+      child: const Icon(Icons.delete_outline, color: Colors.white),
+    ),
+    child: Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: AppCard(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(14, 4, 6, 4),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  widget.category,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTextStyles.bodyMd.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
               ),
-            ),
-            SizedBox(
-              width: 112,
-              child: TextField(
-                controller: controller,
-                keyboardType: const TextInputType.numberWithOptions(
-                  decimal: true,
-                ),
-                decoration: InputDecoration(
-                  hintText: 'No cap',
-                  suffixText: currency,
+              SizedBox(
+                width: 112,
+                child: TextField(
+                  controller: widget.controller,
+                  focusNode: _focusNode,
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
+                  ),
+                  textInputAction: TextInputAction.done,
+                  onChanged: _onChanged,
+                  decoration: InputDecoration(
+                    hintText: 'No cap',
+                    suffixText: widget.currency,
+                  ),
                 ),
               ),
-            ),
-            IconButton(
-              onPressed: () => onSave(category, controller.text),
-              icon: const Icon(Icons.check, color: AppColors.primary),
-            ),
-            IconButton(
-              tooltip: isDefault ? 'Remove system category' : 'Remove category',
-              onPressed: onRemove,
-              icon: const Icon(
-                Icons.remove_circle_outline,
-                color: AppColors.primary,
+              const SizedBox(width: 8),
+              AnimatedOpacity(
+                opacity: _showSaved ? 1 : 0,
+                duration: const Duration(milliseconds: 200),
+                child: const Icon(
+                  Icons.check,
+                  color: AppColors.primary,
+                  size: 20,
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     ),
