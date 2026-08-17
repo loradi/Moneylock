@@ -80,6 +80,26 @@ class TransactionsDao {
     return rows.fold<double>(0.0, (sum, r) => sum + r.amount);
   }
 
+  Future<bool> hasEntrySince(DateTime start) async {
+    final row = await (db.select(db.transactions)
+          ..where((t) => t.timestamp.isBiggerOrEqualValue(start))
+          ..limit(1))
+        .getSingleOrNull();
+    return row != null;
+  }
+
+  Future<double> totalSpentThisPeriod(String period) async {
+    final start = DateTime.parse('$period-01T00:00:00');
+    final end = DateTime(start.year, start.month + 1, 1);
+    final rows = await (db.select(db.transactions)..where(
+          (t) =>
+              t.timestamp.isBiggerOrEqualValue(start) &
+              t.timestamp.isSmallerThanValue(end),
+        ))
+        .get();
+    return rows.fold<double>(0.0, (sum, r) => sum + r.amount);
+  }
+
   Future<List<Transaction>> recent(int n) async {
     final q = db.select(db.transactions)
       ..orderBy([(t) => OrderingTerm.desc(t.timestamp)]);

@@ -33,6 +33,22 @@ class SettingsDao {
     return row?.value == 'true';
   }
 
+  Future<bool> notificationsEnabled() async {
+    final row = await (db.select(
+      db.settings,
+    )..where((s) => s.key.equals('notifications_enabled'))).getSingleOrNull();
+    return row?.value != 'false';
+  }
+
+  Future<void> setNotificationsEnabled(bool enabled) => db
+      .into(db.settings)
+      .insertOnConflictUpdate(
+        SettingsCompanion.insert(
+          key: 'notifications_enabled',
+          value: enabled ? 'true' : 'false',
+        ),
+      );
+
   Future<void> completeOnboarding({
     required String usedPlanner,
     required String shoppingHabits,
