@@ -102,14 +102,7 @@ class AppDatabase extends _$AppDatabase {
         await m.addColumn(budgets, budgets.enabled);
       }
       if (from < 4) {
-        for (final name in defaultCategoryNames) {
-          await into(categories).insertOnConflictUpdate(
-            CategoriesCompanion.insert(
-              name: name,
-              isDefault: const Value(true),
-            ),
-          );
-        }
+        await categoriesDao.ensureDefaults();
       }
     },
   );
