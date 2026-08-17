@@ -3,14 +3,15 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/format.dart';
 import '../../data/db.dart';
-import '../../llm/prompts.dart';
 import '../../providers.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/kit.dart';
 
-final categoriesProvider = StreamProvider<List<Category>>(
-  (ref) => ref.watch(appDatabaseProvider).categoriesDao.watchAll(),
-);
+final categoriesProvider = StreamProvider<List<Category>>((ref) async* {
+  final dao = ref.watch(appDatabaseProvider).categoriesDao;
+  await dao.ensureDefaults();
+  yield* dao.watchAll();
+});
 
 class BudgetScreen extends ConsumerStatefulWidget {
   const BudgetScreen({super.key});
@@ -34,11 +35,9 @@ class _BudgetScreenState extends ConsumerState<BudgetScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final custom = ref.watch(categoriesProvider).valueOrNull ?? const [];
-    final names = [
-      ...categoryCatalog,
-      ...custom.map((c) => c.name).where((n) => !categoryCatalog.contains(n)),
-    ];
+    final categories = ref.watch(categoriesProvider).valueOrNull ?? const [];
+    final names = categories.map((c) => c.name).toList();
+    final records = {for (final c in categories) c.name: c};
     for (final name in names) {
       _controllers.putIfAbsent(name, TextEditingController.new);
     }
@@ -106,9 +105,8 @@ class _BudgetScreenState extends ConsumerState<BudgetScreen> {
                     controller: _controllers[names[i]]!,
                     currency: _currency,
                     onSave: _save,
-                    onRemove: categoryCatalog.contains(names[i])
-                        ? null
-                        : () => _removeCategory(names[i]),
+                    onRemove: () => _removeCategory(names[i]),
+                    isDefault: records[names[i]]?.isDefault ?? false,
                   ),
                   childCount: names.length,
                 ),
@@ -142,6 +140,26 @@ class _BudgetScreenState extends ConsumerState<BudgetScreen> {
   }
 
   Future<void> _removeCategory(String category) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Remove $category?'),
+        content: const Text(
+          'It will disappear from your category list. Existing transactions will remain unchanged.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Remove'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
     await ref.read(appDatabaseProvider).categoriesDao.remove(category);
     setState(() {});
   }
@@ -187,13 +205,15 @@ class _BudgetRow extends StatelessWidget {
   final TextEditingController controller;
   final String currency;
   final Future<void> Function(String, String) onSave;
-  final VoidCallback? onRemove;
+  final VoidCallback onRemove;
+  final bool isDefault;
   const _BudgetRow({
     required this.category,
     required this.controller,
     required this.currency,
     required this.onSave,
-    this.onRemove,
+    required this.onRemove,
+    required this.isDefault,
   });
   @override
   Widget build(BuildContext context) => Padding(
@@ -229,14 +249,14 @@ class _BudgetRow extends StatelessWidget {
               onPressed: () => onSave(category, controller.text),
               icon: const Icon(Icons.check, color: AppColors.primary),
             ),
-            if (onRemove != null)
-              IconButton(
-                onPressed: onRemove,
-                icon: const Icon(
-                  Icons.remove_circle_outline,
-                  color: AppColors.primary,
-                ),
+            IconButton(
+              tooltip: isDefault ? 'Remove system category' : 'Remove category',
+              onPressed: onRemove,
+              icon: const Icon(
+                Icons.remove_circle_outline,
+                color: AppColors.primary,
               ),
+            ),
           ],
         ),
       ),

@@ -25,6 +25,42 @@ class SettingsDao {
       .insertOnConflictUpdate(
         SettingsCompanion.insert(key: 'mentor_tone', value: tone),
       );
+
+  Future<bool> onboardingCompleted() async {
+    final row = await (db.select(
+      db.settings,
+    )..where((s) => s.key.equals('onboarding_completed'))).getSingleOrNull();
+    return row?.value == 'true';
+  }
+
+  Future<void> completeOnboarding({
+    required String usedPlanner,
+    required String shoppingHabits,
+  }) async {
+    await db.batch((batch) {
+      batch.insert(
+        db.settings,
+        SettingsCompanion.insert(
+          key: 'onboarding_used_planner',
+          value: usedPlanner,
+        ),
+        mode: InsertMode.insertOrReplace,
+      );
+      batch.insert(
+        db.settings,
+        SettingsCompanion.insert(
+          key: 'onboarding_shopping_habits',
+          value: shoppingHabits,
+        ),
+        mode: InsertMode.insertOrReplace,
+      );
+      batch.insert(
+        db.settings,
+        SettingsCompanion.insert(key: 'onboarding_completed', value: 'true'),
+        mode: InsertMode.insertOrReplace,
+      );
+    });
+  }
 }
 
 @DriftDatabase(
@@ -42,11 +78,18 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.e);
 
   @override
-  int get schemaVersion => 3;
+  int get schemaVersion => 4;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
-    onCreate: (m) => m.createAll(),
+    onCreate: (m) async {
+      await m.createAll();
+      for (final name in defaultCategoryNames) {
+        await into(categories).insert(
+          CategoriesCompanion.insert(name: name, isDefault: const Value(true)),
+        );
+      }
+    },
     onUpgrade: (m, from, to) async {
       if (from < 2) {
         await m.addColumn(mentorMessages, mentorMessages.severity);
@@ -57,6 +100,16 @@ class AppDatabase extends _$AppDatabase {
         await m.addColumn(budgets, budgets.cycleDays);
         await m.addColumn(budgets, budgets.currency);
         await m.addColumn(budgets, budgets.enabled);
+      }
+      if (from < 4) {
+        for (final name in defaultCategoryNames) {
+          await into(categories).insertOnConflictUpdate(
+            CategoriesCompanion.insert(
+              name: name,
+              isDefault: const Value(true),
+            ),
+          );
+        }
       }
     },
   );

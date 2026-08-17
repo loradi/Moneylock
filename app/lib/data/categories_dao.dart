@@ -18,6 +18,19 @@ class CategoriesDao {
             ..orderBy([(c) => OrderingTerm.asc(c.name)]))
           .watch();
 
+  Future<void> ensureDefaults() async {
+    for (final name in defaultCategoryNames) {
+      await db
+          .into(db.categories)
+          .insertOnConflictUpdate(
+            CategoriesCompanion.insert(
+              name: name,
+              isDefault: const Value(true),
+            ),
+          );
+    }
+  }
+
   Future<void> add(String name) => db
       .into(db.categories)
       .insertOnConflictUpdate(
@@ -32,3 +45,16 @@ class CategoriesDao {
         const CategoriesCompanion(isActive: Value(false)),
       );
 }
+
+const defaultCategoryNames = [
+  'Coffee & Dining',
+  'Groceries',
+  'Transport',
+  'Entertainment',
+  'Shopping & E-commerce',
+  'Bills & Utilities',
+  'Health',
+  'Tech',
+  'Travel',
+  'Other',
+];

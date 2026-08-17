@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:moneylock/features/onboarding/onboarding_screen.dart';
 import 'package:moneylock/features/insights/insights_agent.dart';
 import 'package:moneylock/main.dart';
 import 'package:moneylock/providers.dart';
@@ -11,6 +12,7 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          onboardingCompletedProvider.overrideWith((ref) => Future.value(true)),
           transactionsStreamProvider.overrideWith(
             (ref) => Stream.value(const []),
           ),

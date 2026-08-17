@@ -7,6 +7,7 @@ import '../features/dashboard/dashboard_screen.dart';
 import '../features/history/history_screen.dart';
 import '../features/insights/insights_screen.dart';
 import '../features/settings/settings_screen.dart';
+import '../features/onboarding/onboarding_screen.dart';
 import '../theme/app_theme.dart';
 import '../widgets/kit.dart';
 
@@ -83,6 +84,7 @@ class AppShell extends StatelessWidget {
           bottom: 96,
           child: AppFabMentor(onTap: () => context.push('/chat')),
         ),
+        OnboardingGate(onOpenBudget: () => navigationShell.goBranch(1)),
       ],
     );
   }
