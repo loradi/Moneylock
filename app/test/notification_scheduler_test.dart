@@ -156,4 +156,18 @@ void main() {
     expect(fake.scheduled, isEmpty);
     await db.close();
   });
+
+  test('tomorrowMorning survives a DST fall-back day (25-hour day)', () async {
+    final db = _db();
+    final fake = _FakeNotifications();
+    final scheduler = NotificationScheduler(
+      db,
+      fake,
+      now: () => DateTime(2026, 11, 1, 7, 0),
+    );
+    await scheduler.refresh();
+
+    expect(fake.scheduled[9004]?.$1, DateTime(2026, 11, 2, 9, 0));
+    await db.close();
+  });
 }

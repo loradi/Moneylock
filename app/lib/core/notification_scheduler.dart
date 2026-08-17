@@ -30,9 +30,7 @@ class NotificationScheduler {
     final morning = DateTime(today.year, today.month, today.day, 9);
     final afternoon = DateTime(today.year, today.month, today.day, 14);
     final evening = DateTime(today.year, today.month, today.day, 20);
-    final tomorrow = startOfToday.add(const Duration(days: 1));
-    final tomorrowMorning =
-        DateTime(tomorrow.year, tomorrow.month, tomorrow.day, 9);
+    final tomorrowMorning = DateTime(today.year, today.month, today.day + 1, 9);
 
     if (!hasEntryToday) {
       if (today.isBefore(morning)) {
