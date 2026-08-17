@@ -3,6 +3,7 @@ import '../../data/transactions_dao.dart';
 import '../../llm/categorizer_agent.dart';
 import '../../llm/mentor_agent.dart';
 import '../../core/notifications.dart';
+import '../../core/notification_scheduler.dart';
 
 class AddResult {
   final bool inserted;
@@ -25,8 +26,9 @@ class AddTransactionFlow {
   final MentorAgent mentor;
   final AppDatabase db;
   final LocalNotifications notifications;
+  final NotificationScheduler scheduler;
   AddTransactionFlow({required this.categorizer, required this.mentor,
-      required this.db, required this.notifications});
+      required this.db, required this.notifications, required this.scheduler});
 
   Future<AddResult> run({required String rawText, required String source, DateTime? timestamp}) async {
     final ts = timestamp ?? DateTime.now();
@@ -44,6 +46,7 @@ class AddTransactionFlow {
       if (!outcome.inserted) {
         return AddResult(inserted: false);
       }
+      await scheduler.refresh();
       final verdict = await mentor.evaluate(
           category: outcome.transaction!.category,
           amount: outcome.transaction!.amount,

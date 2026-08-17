@@ -5,6 +5,7 @@ import 'package:drift_flutter/drift_flutter.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'core/deep_links.dart';
+import 'core/notification_scheduler.dart';
 import 'core/notifications.dart';
 import 'data/db.dart';
 import 'features/add/add_transaction_flow.dart';
@@ -44,6 +45,7 @@ final addFlowProvider = Provider<AddTransactionFlow>(
     mentor: ref.watch(mentorProvider),
     db: ref.watch(appDatabaseProvider),
     notifications: LocalNotifications(),
+    scheduler: NotificationScheduler(ref.watch(appDatabaseProvider), LocalNotifications()),
   ),
 );
 

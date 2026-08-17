@@ -1,5 +1,6 @@
 import 'package:drift_flutter/drift_flutter.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:moneylock/core/notification_scheduler.dart';
 import 'package:moneylock/core/notifications.dart';
 import 'package:moneylock/data/db.dart';
 import 'package:moneylock/features/add/add_transaction_flow.dart';
@@ -25,6 +26,13 @@ class _FakeNotifications extends LocalNotifications {
   }
 }
 
+class _FakeScheduling implements NotificationScheduling {
+  @override
+  Future<void> scheduleAt(int id, DateTime when, String title, String body) async {}
+  @override
+  Future<void> cancel(int id) async {}
+}
+
 AppDatabase _db() => AppDatabase.forTesting(
     driftDatabase(name: 'test_${DateTime.now().microsecondsSinceEpoch}'));
 
@@ -38,6 +46,7 @@ void main() {
       mentor: MentorAgent(_FakeLlm('irrelevant'), db),
       db: db,
       notifications: notif,
+      scheduler: NotificationScheduler(db, _FakeScheduling()),
     );
 
     final r = await flow.run(rawText: 'Starbucks 45.50 USD', source: 'shortcut');
@@ -64,6 +73,7 @@ void main() {
       mentor: MentorAgent(_FakeLlm('irrelevant'), db),
       db: db,
       notifications: notif,
+      scheduler: NotificationScheduler(db, _FakeScheduling()),
     );
 
     final r = await flow.run(rawText: 'starbucks 12.50', source: 'voice');
@@ -84,6 +94,7 @@ void main() {
       mentor: MentorAgent(_FakeLlm('irrelevant'), db),
       db: db,
       notifications: notif,
+      scheduler: NotificationScheduler(db, _FakeScheduling()),
     );
     final ts = DateTime(2026, 8, 13, 12);
 
@@ -109,6 +120,7 @@ void main() {
       mentor: MentorAgent(_FakeLlm('irrelevant'), db),
       db: db,
       notifications: notif,
+      scheduler: NotificationScheduler(db, _FakeScheduling()),
     );
 
     final r = await flow.run(rawText: 'unknown purchase', source: 'manual');
