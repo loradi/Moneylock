@@ -31,7 +31,7 @@ const _testCategories = [
 /// sidesteps that native round-trip entirely for list rendering, while
 /// `appDatabaseProvider` stays real so `_save`/`_removeCategory` still
 /// perform genuine DB writes that tests can verify.
-Future<AppDatabase> _pumpBudgetScreen(WidgetTester tester) async {
+Future<void> _pumpBudgetScreen(WidgetTester tester) async {
   final db = _db();
   await tester.pumpWidget(
     ProviderScope(
@@ -43,14 +43,13 @@ Future<AppDatabase> _pumpBudgetScreen(WidgetTester tester) async {
     ),
   );
   await tester.pumpAndSettle();
-  return db;
 }
 
 void main() {
   testWidgets('tapping outside a focused field dismisses the keyboard', (
     tester,
   ) async {
-    final db = await _pumpBudgetScreen(tester);
+    await _pumpBudgetScreen(tester);
 
     await tester.tap(find.widgetWithText(TextField, 'No cap').first);
     await tester.pump();

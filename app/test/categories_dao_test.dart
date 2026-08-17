@@ -24,4 +24,14 @@ void main() {
     expect(rows.where((c) => c.name == 'Pets' && c.isActive), hasLength(1));
     await db.close();
   });
+
+  test('remove marca una categoria como inactiva y ya no aparece en all()', () async {
+    final db = AppDatabase.forTesting(
+        driftDatabase(name: 'test_${DateTime.now().microsecondsSinceEpoch}'));
+    await db.categoriesDao.add('Pets');
+    await db.categoriesDao.remove('Pets');
+    final rows = await db.categoriesDao.all();
+    expect(rows.where((c) => c.name == 'Pets'), isEmpty);
+    await db.close();
+  });
 }
