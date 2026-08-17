@@ -13,18 +13,23 @@ class BudgetsDao {
     String cycle = 'monthly',
     int cycleDays = 30,
     String currency = 'USD',
-  }) => db
-      .into(db.budgets)
-      .insertOnConflictUpdate(
-        BudgetsCompanion.insert(
-          category: category,
-          monthlyLimit: limit,
-          period: period,
-          cycle: Value(cycle),
-          cycleDays: Value(cycleDays),
-          currency: Value(currency),
-        ),
-      );
+  }) {
+    final companion = BudgetsCompanion.insert(
+      category: category,
+      monthlyLimit: limit,
+      period: period,
+      cycle: Value(cycle),
+      cycleDays: Value(cycleDays),
+      currency: Value(currency),
+    );
+    return db.into(db.budgets).insert(
+          companion,
+          onConflict: DoUpdate(
+            (_) => companion,
+            target: [db.budgets.category, db.budgets.period],
+          ),
+        );
+  }
 
   Future<Map<String, double>> limitsForPeriod(String period) async {
     final rows = await (db.select(
