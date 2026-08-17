@@ -41,77 +41,81 @@ class _BudgetScreenState extends ConsumerState<BudgetScreen> {
     }
     return Scaffold(
       backgroundColor: AppColors.background,
-      body: SafeArea(
-        bottom: false,
-        child: CustomScrollView(
-          slivers: [
-            const SliverToBoxAdapter(
-              child: AppGlassHeader(eyebrow: 'MONEYLOCK', title: 'Budget'),
-            ),
-            SliverPadding(
-              padding: const EdgeInsets.all(AppSpacing.margin),
-              sliver: SliverToBoxAdapter(
-                child: _PeriodCard(
-                  cycle: _cycle,
-                  cycleDays: _cycleDays,
-                  currency: _currency,
-                  onCycleChanged: (value) => setState(() {
-                    _cycle = value;
-                    _cycleDays = switch (value) {
-                      'weekly' => 7,
-                      'biweekly' => 14,
-                      'monthly' => 30,
-                      _ => _cycleDays,
-                    };
-                  }),
-                  onDaysChanged: (value) =>
-                      _cycleDays = int.tryParse(value) ?? 30,
-                  onCurrencyChanged: (value) =>
-                      setState(() => _currency = value),
-                ),
+      body: GestureDetector(
+        behavior: HitTestBehavior.translucent,
+        onTap: () => FocusScope.of(context).unfocus(),
+        child: SafeArea(
+          bottom: false,
+          child: CustomScrollView(
+            slivers: [
+              const SliverToBoxAdapter(
+                child: AppGlassHeader(eyebrow: 'MONEYLOCK', title: 'Budget'),
               ),
-            ),
-            SliverPadding(
-              padding: const EdgeInsets.fromLTRB(
-                AppSpacing.margin,
-                8,
-                AppSpacing.margin,
-                8,
-              ),
-              sliver: SliverToBoxAdapter(
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    const AppSectionLabel('CATEGORY CAPS'),
-                    OutlinedButton.icon(
-                      onPressed: _addCategory,
-                      icon: const Icon(Icons.add),
-                      label: const Text('Add category'),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            SliverPadding(
-              padding: const EdgeInsets.symmetric(
-                horizontal: AppSpacing.margin,
-              ),
-              sliver: SliverList(
-                delegate: SliverChildBuilderDelegate(
-                  (_, i) => _BudgetRow(
-                    category: names[i],
-                    controller: _controllers[names[i]]!,
+              SliverPadding(
+                padding: const EdgeInsets.all(AppSpacing.margin),
+                sliver: SliverToBoxAdapter(
+                  child: _PeriodCard(
+                    cycle: _cycle,
+                    cycleDays: _cycleDays,
                     currency: _currency,
-                    onSave: _save,
-                    onRemove: () => _removeCategory(names[i]),
-                    isDefault: records[names[i]]?.isDefault ?? false,
+                    onCycleChanged: (value) => setState(() {
+                      _cycle = value;
+                      _cycleDays = switch (value) {
+                        'weekly' => 7,
+                        'biweekly' => 14,
+                        'monthly' => 30,
+                        _ => _cycleDays,
+                      };
+                    }),
+                    onDaysChanged: (value) =>
+                        _cycleDays = int.tryParse(value) ?? 30,
+                    onCurrencyChanged: (value) =>
+                        setState(() => _currency = value),
                   ),
-                  childCount: names.length,
                 ),
               ),
-            ),
-            const SliverToBoxAdapter(child: SizedBox(height: 90)),
-          ],
+              SliverPadding(
+                padding: const EdgeInsets.fromLTRB(
+                  AppSpacing.margin,
+                  8,
+                  AppSpacing.margin,
+                  8,
+                ),
+                sliver: SliverToBoxAdapter(
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const AppSectionLabel('CATEGORY CAPS'),
+                      OutlinedButton.icon(
+                        onPressed: _addCategory,
+                        icon: const Icon(Icons.add),
+                        label: const Text('Add category'),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              SliverPadding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: AppSpacing.margin,
+                ),
+                sliver: SliverList(
+                  delegate: SliverChildBuilderDelegate(
+                    (_, i) => _BudgetRow(
+                      category: names[i],
+                      controller: _controllers[names[i]]!,
+                      currency: _currency,
+                      onSave: _save,
+                      onRemove: () => _removeCategory(names[i]),
+                      isDefault: records[names[i]]?.isDefault ?? false,
+                    ),
+                    childCount: names.length,
+                  ),
+                ),
+              ),
+              const SliverToBoxAdapter(child: SizedBox(height: 90)),
+            ],
+          ),
         ),
       ),
     );
@@ -328,6 +332,7 @@ class _PeriodCard extends StatelessWidget {
               child: TextFormField(
                 initialValue: '$cycleDays',
                 keyboardType: TextInputType.number,
+                textInputAction: TextInputAction.done,
                 decoration: const InputDecoration(labelText: 'Days per cycle'),
                 onChanged: onDaysChanged,
               ),
