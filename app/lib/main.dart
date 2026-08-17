@@ -14,7 +14,11 @@ import 'theme/app_theme.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   tz_data.initializeTimeZones();
-  tz.setLocalLocation(tz.getLocation(await FlutterTimezone.getLocalTimezone()));
+  try {
+    tz.setLocalLocation(tz.getLocation(await FlutterTimezone.getLocalTimezone()));
+  } catch (_) {
+    tz.setLocalLocation(tz.UTC);
+  }
   await LocalNotifications().init();
   final container = ProviderContainer();
   unawaited(container.read(deepLinkHandlerProvider).startListening());
