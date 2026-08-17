@@ -36,6 +36,7 @@ class CategoriesDao {
       .insertOnConflictUpdate(
         CategoriesCompanion.insert(
           name: name.trim(),
+          isActive: const Value(true),
           isDefault: const Value(false),
         ),
       );

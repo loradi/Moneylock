@@ -24,12 +24,10 @@ class _BudgetScreenState extends ConsumerState<BudgetScreen> {
   int _cycleDays = 30;
   String _currency = 'USD';
   final _controllers = <String, TextEditingController>{};
-  final _customController = TextEditingController();
 
   @override
   void dispose() {
     for (final c in _controllers.values) c.dispose();
-    _customController.dispose();
     super.dispose();
   }
 
@@ -165,31 +163,39 @@ class _BudgetScreenState extends ConsumerState<BudgetScreen> {
   }
 
   Future<void> _addCategory() async {
-    _customController.clear();
+    final controller = TextEditingController();
     final created = await showDialog<String>(
       context: context,
-      builder: (_) => AlertDialog(
+      builder: (dialogContext) => AlertDialog(
         title: const Text('New category'),
         content: TextField(
-          controller: _customController,
+          controller: controller,
           autofocus: true,
           decoration: const InputDecoration(hintText: 'e.g. Pets'),
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () => Navigator.pop(dialogContext),
             child: const Text('Cancel'),
           ),
           FilledButton(
             onPressed: () =>
-                Navigator.pop(context, _customController.text.trim()),
+                Navigator.pop(dialogContext, controller.text.trim()),
             child: const Text('Add'),
           ),
         ],
       ),
     );
-    if (created != null && created.isNotEmpty)
+    controller.dispose();
+    if (created == null || created.isEmpty || !mounted) return;
+    try {
       await ref.read(appDatabaseProvider).categoriesDao.add(created);
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Could not add category: $error')));
+    }
   }
 
   String _periodKey() {
