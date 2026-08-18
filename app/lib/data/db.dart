@@ -4,6 +4,7 @@ import 'budgets_dao.dart';
 import 'categories_dao.dart';
 import 'memories_dao.dart';
 import 'messages_dao.dart';
+import 'subscriptions_dao.dart';
 import 'tables.dart';
 import 'transactions_dao.dart';
 
@@ -87,6 +88,7 @@ class SettingsDao {
     MentorMessages,
     AgentMemories,
     Settings,
+    Subscriptions,
   ],
 )
 class AppDatabase extends _$AppDatabase {
@@ -94,7 +96,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.e);
 
   @override
-  int get schemaVersion => 4;
+  int get schemaVersion => 5;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -120,6 +122,9 @@ class AppDatabase extends _$AppDatabase {
       if (from < 4) {
         await categoriesDao.ensureDefaults();
       }
+      if (from < 5) {
+        await m.createTable(subscriptions);
+      }
     },
   );
 
@@ -129,4 +134,5 @@ class AppDatabase extends _$AppDatabase {
   late final CategoriesDao categoriesDao = CategoriesDao(this);
   late final MessagesDao messagesDao = MessagesDao(this);
   late final MemoriesDao memoriesDao = MemoriesDao(this);
+  late final SubscriptionsDao subscriptionsDao = SubscriptionsDao(this);
 }

@@ -56,3 +56,15 @@ class Settings extends Table {
   @override
   Set<Column> get primaryKey => {key};
 }
+
+class Subscriptions extends Table {
+  IntColumn get id => integer().autoIncrement()();
+  TextColumn get name => text()();
+  TextColumn get brandKey => text().nullable()();
+  RealColumn get amount => real()();
+  TextColumn get currency => text().withDefault(const Constant('USD'))();
+  TextColumn get cycle => text()(); // 'monthly' | 'yearly'
+  DateTimeColumn get nextChargeDate => dateTime()();
+  TextColumn get source => text().withDefault(const Constant('manual'))(); // 'manual' | 'suggested'
+  DateTimeColumn get createdAt => dateTime()();
+}
