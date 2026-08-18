@@ -104,6 +104,7 @@ class _NotificationsCard extends ConsumerWidget {
             onChanged: (v) async {
               await ref.read(appDatabaseProvider).settingsDao.setNotificationsEnabled(v);
               ref.invalidate(notificationsEnabledProvider);
+              await ref.read(notificationSchedulerProvider).refresh();
             },
           ),
         ],

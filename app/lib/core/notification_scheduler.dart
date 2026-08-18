@@ -7,6 +7,10 @@ const afternoonReminderId = 9002;
 const eveningCheckInId = 9003;
 const nextMorningReminderId = 9004;
 
+const _morningReminderTitle = 'Log your first expense';
+const _morningReminderBody =
+    'Start the day by tracking your first expense — it only takes a second.';
+
 class NotificationScheduler {
   final AppDatabase db;
   final NotificationScheduling notifications;
@@ -37,8 +41,8 @@ class NotificationScheduler {
         await notifications.scheduleAt(
           morningReminderId,
           morning,
-          'Log your first expense',
-          'Start the day by tracking your first expense — it only takes a second.',
+          _morningReminderTitle,
+          _morningReminderBody,
         );
       }
       if (today.isBefore(afternoon)) {
@@ -71,8 +75,8 @@ class NotificationScheduler {
     await notifications.scheduleAt(
       nextMorningReminderId,
       tomorrowMorning,
-      'Log your first expense',
-      'Start the day by tracking your first expense — it only takes a second.',
+      _morningReminderTitle,
+      _morningReminderBody,
     );
   }
 }

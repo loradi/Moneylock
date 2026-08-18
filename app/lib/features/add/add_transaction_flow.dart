@@ -53,18 +53,26 @@ class AddTransactionFlow {
         // that was already committed; refresh() is idempotent and will be
         // retried on the next app launch/resume/transaction anyway.
       }
-      final verdict = await mentor.evaluate(
-          category: outcome.transaction!.category,
-          amount: outcome.transaction!.amount,
-          timestamp: ts);
-      await db.messagesDao
-          .add('mentor', verdict.message, severity: verdict.severity.name);
-      final title = switch (verdict.severity) {
-        Severity.alert => 'Over budget',
-        Severity.warning => 'Budget warning',
-        Severity.info => 'Transaction recorded',
-      };
-      await notifications.show(title, verdict.message, verdict.severity);
+      MentorVerdict? verdict;
+      try {
+        verdict = await mentor.evaluate(
+            category: outcome.transaction!.category,
+            amount: outcome.transaction!.amount,
+            timestamp: ts);
+        await db.messagesDao
+            .add('mentor', verdict.message, severity: verdict.severity.name);
+        final title = switch (verdict.severity) {
+          Severity.alert => 'Over budget',
+          Severity.warning => 'Budget warning',
+          Severity.info => 'Transaction recorded',
+        };
+        await notifications.show(title, verdict.message, verdict.severity);
+      } catch (_) {
+        // Same rationale as the scheduler guard above: the transaction is
+        // already committed, so a failure in the mentor evaluation, the
+        // message log, or the local notification must not report it as
+        // failed to the caller.
+      }
       return AddResult(inserted: true, verdict: verdict);
     } catch (e) {
       return AddResult(inserted: false, error: e.toString());

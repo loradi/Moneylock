@@ -39,13 +39,17 @@ final mentorProvider = Provider<MentorAgent>(
   ),
 );
 
+final notificationSchedulerProvider = Provider<NotificationScheduler>(
+  (ref) => NotificationScheduler(ref.watch(appDatabaseProvider), LocalNotifications()),
+);
+
 final addFlowProvider = Provider<AddTransactionFlow>(
   (ref) => AddTransactionFlow(
     categorizer: ref.watch(categorizerProvider),
     mentor: ref.watch(mentorProvider),
     db: ref.watch(appDatabaseProvider),
     notifications: LocalNotifications(),
-    scheduler: NotificationScheduler(ref.watch(appDatabaseProvider), LocalNotifications()),
+    scheduler: ref.watch(notificationSchedulerProvider),
   ),
 );
 

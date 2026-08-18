@@ -48,6 +48,15 @@ class _FakeLocalNotifications extends LocalNotifications {
   }
 }
 
+// A LocalNotifications whose show() always fails, to exercise the guard
+// around the post-insert mentor/message-log/notification block.
+class _ThrowingLocalNotifications extends LocalNotifications {
+  @override
+  Future<void> show(String title, String body, Severity severity) async {
+    throw Exception('notification failed');
+  }
+}
+
 AppDatabase _db() => AppDatabase.forTesting(
     driftDatabase(name: 'test_${DateTime.now().microsecondsSinceEpoch}'));
 
@@ -60,15 +69,16 @@ void main() {
       categorizer: CategorizerAgent(llm),
       mentor: MentorAgent(llm, db),
       db: db,
-      notifications: LocalNotifications(),
+      notifications: _FakeLocalNotifications(),
       scheduler: NotificationScheduler(db, fakeNotifications),
     );
 
-    await flow.run(rawText: 'Test 12 USD', source: 'manual');
+    final result = await flow.run(rawText: 'Test 12 USD', source: 'manual');
 
     // refresh() always cancels the 4 known IDs first; a non-zero count
     // proves refresh() ran as a result of this call.
     expect(fakeNotifications.refreshTriggeringCancelCalls, greaterThan(0));
+    expect(result.inserted, isTrue);
     await db.close();
   });
 
@@ -81,6 +91,23 @@ void main() {
       db: db,
       notifications: _FakeLocalNotifications(),
       scheduler: NotificationScheduler(db, _ThrowingNotifications(), now: () => DateTime(2024, 1, 1, 10, 0)),
+    );
+
+    final result = await flow.run(rawText: 'Test 12 USD', source: 'manual');
+
+    expect(result.inserted, isTrue);
+    await db.close();
+  });
+
+  test('a mentor/notification failure does not mask a successful transaction', () async {
+    final db = _db();
+    final llm = _FakeLlm();
+    final flow = AddTransactionFlow(
+      categorizer: CategorizerAgent(llm),
+      mentor: MentorAgent(llm, db),
+      db: db,
+      notifications: _ThrowingLocalNotifications(),
+      scheduler: NotificationScheduler(db, _NoOpNotifications()),
     );
 
     final result = await flow.run(rawText: 'Test 12 USD', source: 'manual');
