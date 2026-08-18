@@ -39,6 +39,9 @@ class SettingsScreen extends ConsumerWidget {
             const SizedBox(height: 28),
             const _Section('VOICE'),
             const _VoiceCard(),
+            const SizedBox(height: 28),
+            const _Section('NOTIFICATIONS'),
+            const _NotificationsCard(),
           ],
         ),
       ),
@@ -77,6 +80,34 @@ class _ToneSelector extends ConsumerWidget {
         ref.read(appDatabaseProvider).settingsDao.setMentorTone(v.first);
         ref.invalidate(mentorToneProvider);
       },
+    );
+  }
+}
+
+class _NotificationsCard extends ConsumerWidget {
+  const _NotificationsCard();
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final enabledAsync = ref.watch(notificationsEnabledProvider);
+    final enabled = enabledAsync.valueOrNull ?? true;
+    return _Card(
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              'Daily reminders and spending check-ins',
+              style: AppTextStyles.bodyMd,
+            ),
+          ),
+          Switch(
+            value: enabled,
+            onChanged: (v) async {
+              await ref.read(appDatabaseProvider).settingsDao.setNotificationsEnabled(v);
+              ref.invalidate(notificationsEnabledProvider);
+            },
+          ),
+        ],
+      ),
     );
   }
 }
