@@ -17,6 +17,8 @@ void main() {
         overrides: [
           appDatabaseProvider.overrideWithValue(db),
           subscriptionsProvider.overrideWith((ref) => Stream.value(const [])),
+          transactionsStreamProvider.overrideWith((ref) => Stream.value(const [])),
+          dismissedSubscriptionSuggestionsProvider.overrideWith((ref) => Future.value(const {})),
         ],
         child: const MaterialApp(home: SubscriptionsScreen()),
       ),

@@ -8,6 +8,22 @@ import '../../providers.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/brand_icon.dart';
 import '../../widgets/kit.dart';
+import 'subscription_suggestions.dart';
+
+final dismissedSubscriptionSuggestionsProvider = FutureProvider<Set<String>>(
+  (ref) => ref.watch(appDatabaseProvider).settingsDao.dismissedSubscriptionSuggestions(),
+);
+
+final subscriptionSuggestionsProvider = Provider<List<SuggestedSubscription>>((ref) {
+  final transactions = ref.watch(transactionsStreamProvider).valueOrNull ?? const [];
+  final subscriptions = ref.watch(subscriptionsProvider).valueOrNull ?? const [];
+  final dismissed = ref.watch(dismissedSubscriptionSuggestionsProvider).valueOrNull ?? const {};
+  return detectSuggestions(
+    transactions: transactions,
+    existingSubscriptions: subscriptions,
+    dismissedMerchants: dismissed,
+  );
+});
 
 class SubscriptionsScreen extends ConsumerWidget {
   const SubscriptionsScreen({super.key});
@@ -15,6 +31,7 @@ class SubscriptionsScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final subscriptions = ref.watch(subscriptionsProvider).valueOrNull ?? const [];
+    final suggestions = ref.watch(subscriptionSuggestionsProvider);
     return Scaffold(
       backgroundColor: AppColors.background,
       body: SafeArea(
@@ -38,6 +55,41 @@ class SubscriptionsScreen extends ConsumerWidget {
                 ],
               ),
             ),
+            if (suggestions.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(AppSpacing.margin, 12, AppSpacing.margin, 0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const AppSectionLabel('SUGGESTED'),
+                    const SizedBox(height: 8),
+                    for (final s in suggestions)
+                      _SuggestionCard(
+                        suggestion: s,
+                        onAdd: () => _openAddSheet(
+                          context,
+                          ref,
+                          prefill: SubscriptionsCompanion.insert(
+                            name: s.merchant,
+                            amount: s.averageAmount,
+                            cycle: 'monthly',
+                            nextChargeDate: DateTime(
+                              s.mostRecentDate.year,
+                              s.mostRecentDate.month + 1,
+                              s.mostRecentDate.day,
+                            ),
+                            source: const Value('suggested'),
+                            createdAt: DateTime.now(),
+                          ),
+                        ),
+                        onDismiss: () async {
+                          await ref.read(appDatabaseProvider).settingsDao.dismissSubscriptionSuggestion(s.merchant);
+                          ref.invalidate(dismissedSubscriptionSuggestionsProvider);
+                        },
+                      ),
+                  ],
+                ),
+              ),
             Expanded(
               child: subscriptions.isEmpty
                   ? const Center(
@@ -145,6 +197,38 @@ class _SubscriptionRow extends StatelessWidget {
             Text(fmtCurrency(subscription.amount), style: AppTextStyles.bodyMd.copyWith(fontWeight: FontWeight.w600)),
           ],
         ),
+      ),
+    ),
+  );
+}
+
+class _SuggestionCard extends StatelessWidget {
+  final SuggestedSubscription suggestion;
+  final VoidCallback onAdd;
+  final VoidCallback onDismiss;
+  const _SuggestionCard({required this.suggestion, required this.onAdd, required this.onDismiss});
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.only(bottom: 10),
+    child: AppCard(
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(suggestion.merchant, style: AppTextStyles.bodyMd.copyWith(fontWeight: FontWeight.w600)),
+                Text(
+                  '${suggestion.occurrenceCount}x seen, ~${fmtCurrency(suggestion.averageAmount)}',
+                  style: AppTextStyles.bodyMd.copyWith(fontSize: 13, color: AppColors.onSurfaceVariant),
+                ),
+              ],
+            ),
+          ),
+          TextButton(onPressed: onDismiss, child: const Text('Dismiss')),
+          FilledButton(onPressed: onAdd, child: const Text('Add')),
+        ],
       ),
     ),
   );

@@ -50,6 +50,27 @@ class SettingsDao {
         ),
       );
 
+  Future<Set<String>> dismissedSubscriptionSuggestions() async {
+    final row = await (db.select(
+      db.settings,
+    )..where((s) => s.key.equals('dismissed_subscription_suggestions'))).getSingleOrNull();
+    if (row == null || row.value.isEmpty) return {};
+    return row.value.split(',').toSet();
+  }
+
+  Future<void> dismissSubscriptionSuggestion(String merchant) async {
+    final current = await dismissedSubscriptionSuggestions();
+    final updated = {...current, merchant.trim().toLowerCase()};
+    await db
+        .into(db.settings)
+        .insertOnConflictUpdate(
+          SettingsCompanion.insert(
+            key: 'dismissed_subscription_suggestions',
+            value: updated.join(','),
+          ),
+        );
+  }
+
   Future<void> completeOnboarding({
     required String usedPlanner,
     required String shoppingHabits,
