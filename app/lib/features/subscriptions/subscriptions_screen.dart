@@ -290,6 +290,7 @@ class _AddSubscriptionSheetState extends ConsumerState<_AddSubscriptionSheet> {
             amount: amount,
             cycle: _cycle,
             nextChargeDate: _nextChargeDate,
+            source: widget.prefill?.source ?? const Value('manual'),
             createdAt: DateTime.now(),
           ),
         );

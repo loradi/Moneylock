@@ -77,6 +77,19 @@ void main() {
     await db.close();
   });
 
+  test('add preserves a non-default source value', () async {
+    final db = _db();
+    await db.subscriptionsDao.add(_entry(
+        name: 'Netflix',
+        source: 'suggested',
+        nextChargeDate: DateTime(2026, 9, 1)));
+
+    final rows = await db.subscriptionsDao.allForScheduling();
+
+    expect(rows.single.source, 'suggested');
+    await db.close();
+  });
+
   test('rollForwardTo updates nextChargeDate', () async {
     final db = _db();
     final id = await db.subscriptionsDao
