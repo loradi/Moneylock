@@ -8,6 +8,7 @@ import '../features/history/history_screen.dart';
 import '../features/insights/insights_screen.dart';
 import '../features/settings/settings_screen.dart';
 import '../features/onboarding/onboarding_screen.dart';
+import '../features/subscriptions/subscriptions_screen.dart';
 import '../theme/app_theme.dart';
 import '../widgets/kit.dart';
 
@@ -55,6 +56,12 @@ final appRouter = GoRouter(
       path: '/settings',
       parentNavigatorKey: _rootNavigatorKey,
       pageBuilder: (_, _) => const NoTransitionPage(child: SettingsScreen()),
+    ),
+    GoRoute(
+      path: '/subscriptions',
+      parentNavigatorKey: _rootNavigatorKey,
+      pageBuilder: (_, _) =>
+          const NoTransitionPage(child: SubscriptionsScreen()),
     ),
   ],
 );

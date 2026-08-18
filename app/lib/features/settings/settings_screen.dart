@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../providers.dart';
 import '../../theme/app_theme.dart';
@@ -42,6 +43,9 @@ class SettingsScreen extends ConsumerWidget {
             const SizedBox(height: 28),
             const _Section('NOTIFICATIONS'),
             const _NotificationsCard(),
+            const SizedBox(height: 28),
+            const _Section('SUBSCRIPTIONS'),
+            _SubscriptionsEntry(onTap: () => context.push('/subscriptions')),
           ],
         ),
       ),
@@ -111,6 +115,25 @@ class _NotificationsCard extends ConsumerWidget {
       ),
     );
   }
+}
+
+class _SubscriptionsEntry extends StatelessWidget {
+  final VoidCallback onTap;
+  const _SubscriptionsEntry({required this.onTap});
+  @override
+  Widget build(BuildContext context) => _Card(
+    child: InkWell(
+      onTap: onTap,
+      child: Row(
+        children: [
+          const Expanded(
+            child: Text('Manage subscriptions', style: AppTextStyles.bodyMd),
+          ),
+          Icon(Icons.chevron_right, color: AppColors.onSurfaceVariant),
+        ],
+      ),
+    ),
+  );
 }
 
 class _ModelCard extends ConsumerStatefulWidget {

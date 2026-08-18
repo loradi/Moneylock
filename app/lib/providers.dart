@@ -72,6 +72,10 @@ final messagesStreamProvider = StreamProvider<List<MentorMessage>>(
   (ref) => ref.watch(appDatabaseProvider).messagesDao.watchAll(),
 );
 
+final subscriptionsProvider = StreamProvider<List<Subscription>>(
+  (ref) => ref.watch(appDatabaseProvider).subscriptionsDao.watchAll(),
+);
+
 final mentorToneProvider = FutureProvider<String>(
   (ref) => ref.watch(appDatabaseProvider).settingsDao.mentorTone(),
 );
