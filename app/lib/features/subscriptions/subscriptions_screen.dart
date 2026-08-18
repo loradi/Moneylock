@@ -159,9 +159,11 @@ class _AddSubscriptionSheet extends ConsumerStatefulWidget {
 }
 
 class _AddSubscriptionSheetState extends ConsumerState<_AddSubscriptionSheet> {
-  late final _nameController = TextEditingController(text: widget.prefill?.name.value ?? '');
+  late final _nameController = TextEditingController(
+    text: widget.prefill?.name.present == true ? widget.prefill!.name.value : '',
+  );
   late final _amountController = TextEditingController(
-    text: widget.prefill?.amount.value == null ? '' : widget.prefill!.amount.value.toStringAsFixed(2),
+    text: widget.prefill?.amount.present == true ? widget.prefill!.amount.value.toStringAsFixed(2) : '',
   );
   String _cycle = 'monthly';
   DateTime _nextChargeDate = DateTime.now();
@@ -170,7 +172,9 @@ class _AddSubscriptionSheetState extends ConsumerState<_AddSubscriptionSheet> {
   @override
   void initState() {
     super.initState();
-    _nextChargeDate = widget.prefill?.nextChargeDate.value ?? DateTime.now();
+    _nextChargeDate = widget.prefill?.nextChargeDate.present == true
+        ? widget.prefill!.nextChargeDate.value
+        : DateTime.now();
     _brandKey = widget.prefill?.brandKey.value;
   }
 
