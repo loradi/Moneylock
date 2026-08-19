@@ -455,4 +455,32 @@ void main() {
     expect(result.content, 'General advice.');
     await db.close();
   });
+
+  test('update_budget_limit with a mis-cased category resolves to the canonical catalog casing', () async {
+    final db = _db();
+    await db.budgetsDao.upsert('Groceries', 300.0, '2026-08');
+    final llm = _ScriptedLlm(
+        ['{"intent": "update_budget_limit", "category": "groceries", "newLimit": 400}']);
+    final agent = MentorAgent(llm, db);
+
+    final result = await agent.chat('change my groceries limit to \$400');
+
+    expect(result.kind, 'budget_confirm');
+    final change = decodeBudgetChangeSummary(result.dataJson!);
+    expect(change.category, 'Groceries');
+    await db.close();
+  });
+
+  test('update_budget_limit with an off-catalog category falls back to chat', () async {
+    final db = _db();
+    final llm = _ScriptedLlm(
+        ['{"intent": "update_budget_limit", "category": "Foobar", "newLimit": 400}', 'General advice.']);
+    final agent = MentorAgent(llm, db);
+
+    final result = await agent.chat('change my foobar limit to \$400');
+
+    expect(result.kind, 'text');
+    expect(result.content, 'General advice.');
+    await db.close();
+  });
 }

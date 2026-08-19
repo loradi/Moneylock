@@ -23,4 +23,22 @@ void main() {
       isNull,
     );
   });
+
+  test('no hijacks a budget/limit request even when it names a category', () {
+    expect(
+      parseCategoryCorrection('change my groceries limit to \$400'),
+      isNull,
+    );
+    expect(
+      parseCategoryCorrection('move my travel budget to \$200'),
+      isNull,
+    );
+  });
+
+  test('a genuine transaction correction is still detected', () {
+    expect(
+      parseCategoryCorrection('change my Starbucks purchase to Groceries'),
+      'Groceries',
+    );
+  });
 }

@@ -75,13 +75,23 @@ ChatIntent _parseIntent(String raw) {
     if (intent == null || !recognized.contains(intent)) {
       return ChatIntent(intent: 'chat');
     }
-    if (intent == 'update_budget_limit' &&
-        (json['category'] == null || json['newLimit'] == null)) {
-      return ChatIntent(intent: 'chat');
+    var category = json['category'] as String?;
+    if (intent == 'update_budget_limit') {
+      if (category == null || json['newLimit'] == null) {
+        return ChatIntent(intent: 'chat');
+      }
+      final resolvedCategory = categoryCatalog.firstWhere(
+        (c) => c.toLowerCase() == category!.toLowerCase(),
+        orElse: () => '',
+      );
+      if (resolvedCategory.isEmpty) {
+        return ChatIntent(intent: 'chat');
+      }
+      category = resolvedCategory;
     }
     return ChatIntent(
       intent: intent,
-      category: json['category'] as String?,
+      category: category,
       merchant: json['merchant'] as String?,
       monthsBack: (json['monthsBack'] as num?)?.toInt(),
       newLimit: (json['newLimit'] as num?)?.toDouble(),
