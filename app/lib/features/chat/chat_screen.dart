@@ -1,12 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../data/subscription_summary.dart';
 import '../../data/transaction_summary.dart';
 import '../../llm/category_correction.dart';
 import '../../llm/mentor_guardrails.dart';
 import '../../providers.dart';
 import '../../theme/app_theme.dart';
 import '../../receipt/receipt_ocr_service.dart';
+import '../../widgets/subscription_row.dart';
 import '../../widgets/transaction_row.dart';
 
 final _amountRe = RegExp(r'\$\s?\d+(?:\.\d{1,2})?|\d+\.\d{2}');
@@ -259,6 +261,16 @@ class _BubbleState extends ConsumerState<_Bubble> {
     if (mounted) setState(() => _actionTaken = true);
   }
 
+  List<SubscriptionSummary> get _subscriptions =>
+      (widget.kind == 'subscription_list' || widget.kind == 'cancel_confirm') && widget.dataJson != null
+          ? decodeSubscriptionSummaries(widget.dataJson!)
+          : const [];
+
+  Future<void> _cancelSubscription(int id) async {
+    await ref.read(appDatabaseProvider).subscriptionsDao.remove(id);
+    if (mounted) setState(() => _actionTaken = true);
+  }
+
   @override
   Widget build(BuildContext context) {
     final user = widget.role == 'user';
@@ -326,6 +338,48 @@ class _BubbleState extends ConsumerState<_Bubble> {
                         ),
                       ),
                     if (widget.kind == 'delete_confirm' && _actionTaken)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 4),
+                        child: Text(
+                          'Done.',
+                          style: TextStyle(
+                            color: AppColors.darkOnSurfaceVariant,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ),
+                  ],
+                  if (_subscriptions.isNotEmpty) ...[
+                    const SizedBox(height: 8),
+                    for (final s in _subscriptions)
+                      Container(
+                        margin: const EdgeInsets.only(bottom: 4),
+                        decoration: BoxDecoration(
+                          color: AppColors.surface,
+                          borderRadius: BorderRadius.circular(AppRadii.xl),
+                        ),
+                        child: SubscriptionRow(s: s),
+                      ),
+                    if (widget.kind == 'cancel_confirm' && !_actionTaken)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 4),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            TextButton(
+                              onPressed: () => setState(() => _actionTaken = true),
+                              style: TextButton.styleFrom(foregroundColor: AppColors.darkPrimary),
+                              child: const Text('Keep It'),
+                            ),
+                            const SizedBox(width: 4),
+                            FilledButton(
+                              onPressed: () => _cancelSubscription(_subscriptions.first.id),
+                              child: const Text('Cancel Subscription'),
+                            ),
+                          ],
+                        ),
+                      ),
+                    if (widget.kind == 'cancel_confirm' && _actionTaken)
                       Padding(
                         padding: const EdgeInsets.only(top: 4),
                         child: Text(

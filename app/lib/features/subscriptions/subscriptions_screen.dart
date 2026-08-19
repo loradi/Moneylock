@@ -5,10 +5,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/format.dart';
 import '../../core/notification_scheduler.dart';
 import '../../data/db.dart';
+import '../../data/subscription_summary.dart';
 import '../../providers.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/brand_icon.dart';
 import '../../widgets/kit.dart';
+import '../../widgets/subscription_row.dart';
 import 'subscription_suggestions.dart';
 
 final dismissedSubscriptionSuggestionsProvider = FutureProvider<Set<String>>(
@@ -175,27 +177,7 @@ class _SubscriptionRow extends StatelessWidget {
     ),
     child: Padding(
       padding: const EdgeInsets.only(bottom: 10),
-      child: AppCard(
-        child: Row(
-          children: [
-            SubscriptionAvatar(brandKey: subscription.brandKey, name: subscription.name),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(subscription.name, style: AppTextStyles.bodyMd.copyWith(fontWeight: FontWeight.w600)),
-                  Text(
-                    'Renews ${fmtDate(subscription.nextChargeDate)}',
-                    style: AppTextStyles.bodyMd.copyWith(fontSize: 13, color: AppColors.onSurfaceVariant),
-                  ),
-                ],
-              ),
-            ),
-            Text(fmtCurrency(subscription.amount), style: AppTextStyles.bodyMd.copyWith(fontWeight: FontWeight.w600)),
-          ],
-        ),
-      ),
+      child: SubscriptionRow(s: SubscriptionSummary.fromSubscription(subscription)),
     ),
   );
 }
