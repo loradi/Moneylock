@@ -28,4 +28,14 @@ class SubscriptionsDao {
         id,
         SubscriptionsCompanion(nextChargeDate: Value(newNextChargeDate)),
       );
+
+  Future<List<Subscription>> search({String? nameKeyword, int limit = 20}) async {
+    final q = db.select(db.subscriptions)
+      ..orderBy([(s) => OrderingTerm.asc(s.nextChargeDate)])
+      ..limit(limit);
+    if (nameKeyword != null) {
+      q.where((s) => s.name.like('%$nameKeyword%'));
+    }
+    return q.get();
+  }
 }
