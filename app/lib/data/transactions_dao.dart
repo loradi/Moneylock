@@ -116,4 +116,45 @@ class TransactionsDao {
         .write(TransactionsCompanion(category: Value(category)));
     return transaction.copyWith(category: category);
   }
+
+  Future<Map<String, double>> spentByCategoryThisPeriod(String period) async {
+    final start = DateTime.parse('$period-01T00:00:00');
+    final end = DateTime(start.year, start.month + 1, 1);
+    final rows = await (db.select(db.transactions)..where(
+          (t) =>
+              t.timestamp.isBiggerOrEqualValue(start) &
+              t.timestamp.isSmallerThanValue(end),
+        ))
+        .get();
+    final result = <String, double>{};
+    for (final r in rows) {
+      result[r.category] = (result[r.category] ?? 0) + r.amount;
+    }
+    return result;
+  }
+
+  Future<List<Transaction>> search({
+    String? category,
+    String? merchantKeyword,
+    DateTime? since,
+    int limit = 20,
+  }) async {
+    final q = db.select(db.transactions)
+      ..orderBy([(t) => OrderingTerm.desc(t.timestamp)])
+      ..limit(limit);
+    if (category != null) {
+      q.where((t) => t.category.equals(category));
+    }
+    if (merchantKeyword != null) {
+      final pattern = '%$merchantKeyword%';
+      q.where((t) => t.merchant.like(pattern) | t.rawText.like(pattern));
+    }
+    if (since != null) {
+      q.where((t) => t.timestamp.isBiggerOrEqualValue(since));
+    }
+    return q.get();
+  }
+
+  Future<void> remove(int id) =>
+      (db.delete(db.transactions)..where((t) => t.id.equals(id))).go();
 }
