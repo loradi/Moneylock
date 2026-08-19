@@ -24,6 +24,7 @@ class _BudgetScreenState extends ConsumerState<BudgetScreen> {
   String _cycle = 'monthly';
   int _cycleDays = 30;
   String _currency = 'USD';
+  bool _currencyInitialized = false;
   final _controllers = <String, TextEditingController>{};
 
   @override
@@ -34,6 +35,11 @@ class _BudgetScreenState extends ConsumerState<BudgetScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final defaultCurrency = ref.watch(defaultCurrencyProvider).valueOrNull;
+    if (!_currencyInitialized && defaultCurrency != null) {
+      _currency = defaultCurrency;
+      _currencyInitialized = true;
+    }
     final categories = ref.watch(categoriesProvider).valueOrNull ?? const [];
     final names = categories.map((c) => c.name).toList();
     final records = {for (final c in categories) c.name: c};
@@ -70,8 +76,13 @@ class _BudgetScreenState extends ConsumerState<BudgetScreen> {
                     }),
                     onDaysChanged: (value) =>
                         _cycleDays = int.tryParse(value) ?? 30,
-                    onCurrencyChanged: (value) =>
-                        setState(() => _currency = value),
+                    onCurrencyChanged: (value) {
+                      setState(() => _currency = value);
+                      ref
+                          .read(appDatabaseProvider)
+                          .settingsDao
+                          .setDefaultCurrency(value);
+                    },
                   ),
                 ),
               ),

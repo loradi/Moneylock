@@ -50,6 +50,19 @@ class SettingsDao {
         ),
       );
 
+  Future<String> defaultCurrency() async {
+    final row = await (db.select(
+      db.settings,
+    )..where((s) => s.key.equals('default_currency'))).getSingleOrNull();
+    return row?.value ?? 'USD';
+  }
+
+  Future<void> setDefaultCurrency(String currency) => db
+      .into(db.settings)
+      .insertOnConflictUpdate(
+        SettingsCompanion.insert(key: 'default_currency', value: currency),
+      );
+
   Future<Set<String>> dismissedSubscriptionSuggestions() async {
     final row = await (db.select(
       db.settings,

@@ -13,6 +13,7 @@ SubscriptionsCompanion _entry({
   String cycle = 'monthly',
   required DateTime nextChargeDate,
   String source = 'manual',
+  String? currency,
 }) =>
     SubscriptionsCompanion.insert(
       name: name,
@@ -22,6 +23,7 @@ SubscriptionsCompanion _entry({
       nextChargeDate: nextChargeDate,
       source: Value(source),
       createdAt: DateTime(2026, 1, 1),
+      currency: currency == null ? const Value.absent() : Value(currency),
     );
 
 void main() {
@@ -87,6 +89,19 @@ void main() {
     final rows = await db.subscriptionsDao.allForScheduling();
 
     expect(rows.single.source, 'suggested');
+    await db.close();
+  });
+
+  test('add preserves a non-default currency value', () async {
+    final db = _db();
+    await db.subscriptionsDao.add(_entry(
+        name: 'Netflix',
+        currency: 'EUR',
+        nextChargeDate: DateTime(2026, 9, 1)));
+
+    final rows = await db.subscriptionsDao.allForScheduling();
+
+    expect(rows.single.currency, 'EUR');
     await db.close();
   });
 

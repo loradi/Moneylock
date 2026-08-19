@@ -248,6 +248,8 @@ class _AddSubscriptionSheetState extends ConsumerState<_AddSubscriptionSheet> {
     text: widget.prefill?.amount.present == true ? widget.prefill!.amount.value.toStringAsFixed(2) : '',
   );
   String _cycle = 'monthly';
+  String _currency = 'USD';
+  bool _currencyInitialized = false;
   DateTime _nextChargeDate = DateTime.now();
   String? _brandKey;
 
@@ -292,6 +294,7 @@ class _AddSubscriptionSheetState extends ConsumerState<_AddSubscriptionSheet> {
             name: name,
             brandKey: Value(_brandKey),
             amount: amount,
+            currency: Value(_currency),
             cycle: _cycle,
             nextChargeDate: _nextChargeDate,
             source: widget.prefill?.source ?? const Value('manual'),
@@ -303,7 +306,13 @@ class _AddSubscriptionSheetState extends ConsumerState<_AddSubscriptionSheet> {
   }
 
   @override
-  Widget build(BuildContext context) => Padding(
+  Widget build(BuildContext context) {
+    final defaultCurrency = ref.watch(defaultCurrencyProvider).valueOrNull;
+    if (!_currencyInitialized && defaultCurrency != null) {
+      _currency = defaultCurrency;
+      _currencyInitialized = true;
+    }
+    return Padding(
     padding: EdgeInsets.fromLTRB(
       AppSpacing.margin,
       AppSpacing.margin,
@@ -325,7 +334,7 @@ class _AddSubscriptionSheetState extends ConsumerState<_AddSubscriptionSheet> {
         TextField(
           controller: _amountController,
           keyboardType: const TextInputType.numberWithOptions(decimal: true),
-          decoration: const InputDecoration(labelText: 'Amount', suffixText: 'USD'),
+          decoration: InputDecoration(labelText: 'Amount', suffixText: _currency),
         ),
         const SizedBox(height: 12),
         SegmentedButton<String>(
@@ -371,4 +380,5 @@ class _AddSubscriptionSheetState extends ConsumerState<_AddSubscriptionSheet> {
       ],
     ),
   );
+  }
 }
