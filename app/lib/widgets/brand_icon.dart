@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:simple_icons/simple_icons.dart';
 
 class BrandIcon {
   final Color color;
@@ -6,27 +7,59 @@ class BrandIcon {
   const BrandIcon(this.color, this.icon);
 }
 
-/// Simplified, hand-drawn vector representations (color + a recognizable
-/// glyph) for common subscription services -- not reproductions of the
-/// official logos.
-const brandIcons = <String, BrandIcon>{
-  'netflix': BrandIcon(Color(0xFFE50914), Icons.play_arrow),
-  'spotify': BrandIcon(Color(0xFF1DB954), Icons.graphic_eq),
-  'disney_plus': BrandIcon(Color(0xFF113CCF), Icons.castle),
-  'youtube_premium': BrandIcon(Color(0xFFFF0000), Icons.smart_display),
-  'amazon_prime': BrandIcon(Color(0xFF00A8E1), Icons.shopping_bag),
-  'apple_music': BrandIcon(Color(0xFFFA243C), Icons.music_note),
-  'apple_tv_plus': BrandIcon(Color(0xFF000000), Icons.tv),
-  'hbo_max': BrandIcon(Color(0xFF5822B4), Icons.theaters),
-  'icloud_plus': BrandIcon(Color(0xFF3693F3), Icons.cloud),
-  'hulu': BrandIcon(Color(0xFF1CE783), Icons.live_tv),
-  'playstation_plus': BrandIcon(Color(0xFF0070D1), Icons.sports_esports),
-  'xbox_game_pass': BrandIcon(Color(0xFF107C10), Icons.videogame_asset),
-  'adobe_creative_cloud': BrandIcon(Color(0xFFDA1F26), Icons.brush),
-  'dropbox': BrandIcon(Color(0xFF0061FF), Icons.folder),
-  'onepassword': BrandIcon(Color(0xFF1A8CFF), Icons.key),
-  'chatgpt_plus': BrandIcon(Color(0xFF10A37F), Icons.chat_bubble),
-  'notion': BrandIcon(Color(0xFF000000), Icons.description),
+/// Real brand-logo silhouettes from the `simple_icons` package (CC0-licensed
+/// SVG artwork; the brand names/logos themselves remain trademarks of their
+/// owners -- used here only to identify which service a subscription is
+/// for, the same way Mint/Copilot/Rocket Money and similar apps do).
+///
+/// A handful of brands (Disney+, Amazon, Hulu, Xbox, Adobe, OpenAI/ChatGPT)
+/// were removed from simple_icons entirely following legal takedown
+/// requests and have no icon in the installed package at all -- those keep
+/// their original hand-picked Material glyph + brand color as a fallback.
+final brandIcons = <String, BrandIcon>{
+  'netflix': BrandIcon(SimpleIconColors.netflix, SimpleIcons.netflix),
+  'spotify': BrandIcon(SimpleIconColors.spotify, SimpleIcons.spotify),
+  // Disney+ icon was removed from simple_icons after a legal takedown
+  // request; no substitute exists in the package, so this keeps the
+  // original Material fallback glyph and color.
+  'disney_plus': const BrandIcon(Color(0xFF113CCF), Icons.castle),
+  // No "youtubepremium" variant exists in the package; the plain YouTube
+  // mark is the closest available icon.
+  'youtube_premium': BrandIcon(SimpleIconColors.youtube, SimpleIcons.youtube),
+  // Amazon icon (and any AWS/Prime variant) was removed from simple_icons
+  // after a legal takedown request; no substitute exists in the package.
+  'amazon_prime': const BrandIcon(Color(0xFF00A8E1), Icons.shopping_bag),
+  'apple_music': BrandIcon(SimpleIconColors.applemusic, SimpleIcons.applemusic),
+  // No "appletvplus" variant exists; the plain Apple TV mark is the
+  // closest available icon.
+  'apple_tv_plus': BrandIcon(SimpleIconColors.appletv, SimpleIcons.appletv),
+  // simple_icons ships "hbomax" (the current Max rebrand identifier, not
+  // "hbo"), which is a closer match to this key's intent than the old HBO
+  // mark; kept the existing 'hbo_max' map key for backward compatibility.
+  'hbo_max': BrandIcon(SimpleIconColors.hbomax, SimpleIcons.hbomax),
+  'icloud_plus': BrandIcon(SimpleIconColors.icloud, SimpleIcons.icloud),
+  // Hulu icon was removed from simple_icons after a legal takedown
+  // request; no substitute exists in the package.
+  'hulu': const BrandIcon(Color(0xFF1CE783), Icons.live_tv),
+  // No "playstationplus" variant exists; the plain PlayStation mark is the
+  // closest available icon.
+  'playstation_plus':
+      BrandIcon(SimpleIconColors.playstation, SimpleIcons.playstation),
+  // Xbox icon was removed from simple_icons after a legal takedown
+  // request; no substitute exists in the package.
+  'xbox_game_pass': const BrandIcon(Color(0xFF107C10), Icons.videogame_asset),
+  // Adobe (and Creative Cloud) icons were removed from simple_icons after
+  // a legal takedown request; no substitute exists in the package.
+  'adobe_creative_cloud': const BrandIcon(Color(0xFFDA1F26), Icons.brush),
+  'dropbox': BrandIcon(SimpleIconColors.dropbox, SimpleIcons.dropbox),
+  // The package slugifies "1Password" as "n1password" (names starting with
+  // a digit get an "n" prefix), not "onepassword".
+  'onepassword': BrandIcon(SimpleIconColors.n1password, SimpleIcons.n1password),
+  // OpenAI/ChatGPT icon was removed from simple_icons after a legal
+  // takedown request; only an unrelated "openaigym" mark remains, so this
+  // keeps the original Material fallback glyph and color.
+  'chatgpt_plus': const BrandIcon(Color(0xFF10A37F), Icons.chat_bubble),
+  'notion': BrandIcon(SimpleIconColors.notion, SimpleIcons.notion),
 };
 
 Color _colorForName(String name) {
