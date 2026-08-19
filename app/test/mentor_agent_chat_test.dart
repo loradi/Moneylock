@@ -1,0 +1,194 @@
+import 'package:drift_flutter/drift_flutter.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:moneylock/data/db.dart';
+import 'package:moneylock/data/transactions_dao.dart';
+import 'package:moneylock/llm/llm_provider.dart';
+import 'package:moneylock/llm/mentor_agent.dart';
+
+AppDatabase _db() => AppDatabase.forTesting(
+    driftDatabase(name: 'test_${DateTime.now().microsecondsSinceEpoch}'));
+
+class _ScriptedLlm implements LlmProvider {
+  final List<String> responses;
+  int _calls = 0;
+  _ScriptedLlm(this.responses);
+  @override
+  Future<String> complete(String system, String user, {double temperature = 0.2}) async {
+    final r = responses[_calls];
+    _calls++;
+    return r;
+  }
+}
+
+class _ThrowingLlm implements LlmProvider {
+  @override
+  Future<String> complete(String system, String user, {double temperature = 0.2}) async {
+    throw Exception('model unavailable');
+  }
+}
+
+void main() {
+  test('chat intent builds a monthly summary context and returns a text result', () async {
+    final db = _db();
+    await db.budgetsDao.upsert('Groceries', 200.0, '2026-08');
+    await db.transactionsDao.insertWithDedup(NewTransaction(
+      amount: 15.0,
+      currency: 'USD',
+      merchant: 'Store',
+      category: 'Groceries',
+      source: 'manual',
+      rawText: 'Store 15.0',
+      timestamp: DateTime.now(),
+    ));
+    final llm = _ScriptedLlm(['{"intent": "chat"}', 'Cut back on takeout this month.']);
+    final agent = MentorAgent(llm, db);
+
+    final result = await agent.chat('what can I cut?');
+
+    expect(result.kind, 'text');
+    expect(result.content, 'Cut back on takeout this month.');
+    expect(result.transactions, isEmpty);
+    await db.close();
+  });
+
+  test('malformed intent JSON falls back to chat', () async {
+    final db = _db();
+    final llm = _ScriptedLlm(['not json', 'General advice.']);
+    final agent = MentorAgent(llm, db);
+
+    final result = await agent.chat('random question');
+
+    expect(result.kind, 'text');
+    expect(result.content, 'General advice.');
+    await db.close();
+  });
+
+  test('an unrecognized intent string falls back to chat', () async {
+    final db = _db();
+    final llm = _ScriptedLlm(['{"intent": "do_something_else"}', 'Fallback reply.']);
+    final agent = MentorAgent(llm, db);
+
+    final result = await agent.chat('??');
+
+    expect(result.kind, 'text');
+    expect(result.content, 'Fallback reply.');
+    await db.close();
+  });
+
+  test('query_transactions finds matches and computes total in Dart', () async {
+    final db = _db();
+    await db.transactionsDao.insertWithDedup(NewTransaction(
+      amount: 50.0,
+      currency: 'USD',
+      merchant: 'Nike Store',
+      category: 'Shopping & E-commerce',
+      source: 'manual',
+      rawText: 'Nike Store 50.0',
+      timestamp: DateTime.now(),
+    ));
+    await db.transactionsDao.insertWithDedup(NewTransaction(
+      amount: 40.0,
+      currency: 'USD',
+      merchant: 'Nike Outlet',
+      category: 'Shopping & E-commerce',
+      source: 'manual',
+      rawText: 'Nike Outlet 40.0',
+      timestamp: DateTime.now(),
+    ));
+    final llm = _ScriptedLlm(['{"intent": "query_transactions", "merchant": "Nike"}']);
+    final agent = MentorAgent(llm, db);
+
+    final result = await agent.chat('how much on Nike?');
+
+    expect(result.kind, 'transaction_list');
+    expect(result.transactions, hasLength(2));
+    expect(result.content, contains('90.00'));
+    await db.close();
+  });
+
+  test('query_transactions with no matches returns a text-only result', () async {
+    final db = _db();
+    final llm = _ScriptedLlm(['{"intent": "query_transactions", "merchant": "nothing"}']);
+    final agent = MentorAgent(llm, db);
+
+    final result = await agent.chat('find nothing');
+
+    expect(result.kind, 'text');
+    expect(result.transactions, isEmpty);
+    await db.close();
+  });
+
+  test('delete_transaction with exactly one match returns delete_confirm', () async {
+    final db = _db();
+    await db.transactionsDao.insertWithDedup(NewTransaction(
+      amount: 89.99,
+      currency: 'USD',
+      merchant: 'Nike Store',
+      category: 'Shopping & E-commerce',
+      source: 'manual',
+      rawText: 'Nike Store 89.99',
+      timestamp: DateTime.now(),
+    ));
+    final llm = _ScriptedLlm(['{"intent": "delete_transaction", "merchant": "Nike"}']);
+    final agent = MentorAgent(llm, db);
+
+    final result = await agent.chat('delete that Nike purchase');
+
+    expect(result.kind, 'delete_confirm');
+    expect(result.transactions, hasLength(1));
+    await db.close();
+  });
+
+  test('delete_transaction with multiple matches returns an informational list, not delete_confirm', () async {
+    final db = _db();
+    await db.transactionsDao.insertWithDedup(NewTransaction(
+      amount: 50.0,
+      currency: 'USD',
+      merchant: 'Nike Store',
+      category: 'Shopping & E-commerce',
+      source: 'manual',
+      rawText: 'Nike Store 50.0',
+      timestamp: DateTime.now(),
+    ));
+    await db.transactionsDao.insertWithDedup(NewTransaction(
+      amount: 40.0,
+      currency: 'USD',
+      merchant: 'Nike Outlet',
+      category: 'Shopping & E-commerce',
+      source: 'manual',
+      rawText: 'Nike Outlet 40.0',
+      timestamp: DateTime.now(),
+    ));
+    final llm = _ScriptedLlm(['{"intent": "delete_transaction", "merchant": "Nike"}']);
+    final agent = MentorAgent(llm, db);
+
+    final result = await agent.chat('delete the Nike one');
+
+    expect(result.kind, 'transaction_list');
+    expect(result.transactions, hasLength(2));
+    await db.close();
+  });
+
+  test('delete_transaction with no matches returns text-only', () async {
+    final db = _db();
+    final llm = _ScriptedLlm(['{"intent": "delete_transaction", "merchant": "nothing"}']);
+    final agent = MentorAgent(llm, db);
+
+    final result = await agent.chat('delete nothing');
+
+    expect(result.kind, 'text');
+    expect(result.transactions, isEmpty);
+    await db.close();
+  });
+
+  test('a model failure on the general-chat path falls back to a canned message, never throws', () async {
+    final db = _db();
+    final agent = MentorAgent(_ThrowingLlm(), db);
+
+    final result = await agent.chat('anything');
+
+    expect(result.kind, 'text');
+    expect(result.content, isNotEmpty);
+    await db.close();
+  });
+}

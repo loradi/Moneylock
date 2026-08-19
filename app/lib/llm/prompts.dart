@@ -27,6 +27,33 @@ raw: "Apple.com 9.99 USD" -> {"amount": 9.99, "currency": "USD", "merchant": "Ap
 raw: "UBER *TRIP 18.40 CAD" -> {"amount": 18.40, "currency": "CAD", "merchant": "Uber", "category": "Transport", "confidence": 0.95}
 ''';
 
+final mentorIntentPrompt =
+    '''
+Classify the user's message about their personal finances into ONE JSON
+object, no markdown, no commentary:
+{"intent": "chat"|"query_transactions"|"delete_transaction",
+ "category": "<one of: ${categoryCatalog.join(', ')}>"|null,
+ "merchant": "<short keyword or null>", "monthsBack": <integer or null>}
+Rules:
+- "chat" is for general questions, advice requests, or anything not asking
+  to find, list, or delete specific past transactions.
+- "query_transactions" is for requests to find, list, or show past
+  transactions (by category, merchant, or time range).
+- "delete_transaction" is for requests to remove or delete a specific past
+  transaction.
+- "category" must be one of the listed categories if the user names one,
+  else null.
+- "merchant" is a short keyword describing what was bought (e.g. "shoes",
+  "Nike", "coffee"), else null.
+- "monthsBack" is how many months back to search if the user gives a time
+  hint (e.g. "two months ago" -> 2, "last six months" -> 6), else null.
+Examples:
+"what can I cut this month?" -> {"intent": "chat", "category": null, "merchant": null, "monthsBack": null}
+"show me groceries transactions from the last six months" -> {"intent": "query_transactions", "category": "Groceries", "merchant": null, "monthsBack": 6}
+"I bought shoes about two months ago, how much did they cost?" -> {"intent": "query_transactions", "category": null, "merchant": "shoes", "monthsBack": 2}
+"delete that Nike purchase" -> {"intent": "delete_transaction", "category": null, "merchant": "Nike", "monthsBack": null}
+''';
+
 const strictRamseyPrompt = '''
 You are a strict, pragmatic, no-nonsense Financial Mentor. Your goal is to
 make the user stick to their financial goals. If the user spends on

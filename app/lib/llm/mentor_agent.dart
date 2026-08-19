@@ -1,5 +1,9 @@
+import 'dart:convert';
+
 import 'package:moneylock/data/db.dart';
 
+import '../data/transaction_summary.dart';
+import 'mentor_guardrails.dart';
 import 'prompts.dart';
 import 'llm_provider.dart';
 
@@ -27,6 +31,49 @@ class MentorVerdict {
   final Severity severity;
   final String message;
   MentorVerdict(this.severity, this.message);
+}
+
+class MentorChatResult {
+  final String content;
+  final String kind; // 'text' | 'transaction_list' | 'delete_confirm'
+  final List<TransactionSummary> transactions;
+  MentorChatResult({
+    required this.content,
+    this.kind = 'text',
+    this.transactions = const [],
+  });
+}
+
+class _ChatIntent {
+  final String intent;
+  final String? category;
+  final String? merchant;
+  final int? monthsBack;
+  _ChatIntent({required this.intent, this.category, this.merchant, this.monthsBack});
+}
+
+_ChatIntent _parseIntent(String raw) {
+  try {
+    final json = jsonDecode(raw) as Map<String, dynamic>;
+    final intent = json['intent'] as String?;
+    if (intent != 'query_transactions' && intent != 'delete_transaction') {
+      return _ChatIntent(intent: 'chat');
+    }
+    return _ChatIntent(
+      intent: intent!,
+      category: json['category'] as String?,
+      merchant: json['merchant'] as String?,
+      monthsBack: (json['monthsBack'] as num?)?.toInt(),
+    );
+  } catch (_) {
+    return _ChatIntent(intent: 'chat');
+  }
+}
+
+DateTime? _sinceFromMonthsBack(int? monthsBack) {
+  if (monthsBack == null) return null;
+  final now = DateTime.now();
+  return DateTime(now.year, now.month - monthsBack, now.day);
 }
 
 class MentorAgent {
@@ -71,5 +118,104 @@ class MentorAgent {
       }
     }
     return MentorVerdict(severity, message);
+  }
+
+  Future<MentorChatResult> chat(String userMessage) async {
+    _ChatIntent parsed;
+    try {
+      final raw = await provider.complete(mentorIntentPrompt, userMessage, temperature: 0.0);
+      parsed = _parseIntent(raw);
+    } catch (_) {
+      parsed = _ChatIntent(intent: 'chat');
+    }
+
+    switch (parsed.intent) {
+      case 'query_transactions':
+        return _queryTransactions(parsed);
+      case 'delete_transaction':
+        return _deleteTransactionCandidate(parsed);
+      default:
+        return _generalChat(userMessage);
+    }
+  }
+
+  Future<MentorChatResult> _generalChat(String userMessage) async {
+    final tone = await db.settingsDao.mentorTone();
+    final now = DateTime.now();
+    final period = '${now.year.toString().padLeft(4, '0')}-${now.month.toString().padLeft(2, '0')}';
+    final spentByCategory = await db.transactionsDao.spentByCategoryThisPeriod(period);
+    final limits = await db.budgetsDao.limitsForPeriod(period);
+    final totalSpent = spentByCategory.values.fold<double>(0, (a, b) => a + b);
+    final totalLimit = limits.values.fold<double>(0, (a, b) => a + b);
+    final subs = await db.subscriptionsDao.allForScheduling();
+
+    final categoryLines = limits.entries
+        .map((e) =>
+            '- ${e.key}: \$${(spentByCategory[e.key] ?? 0).toStringAsFixed(2)} / \$${e.value.toStringAsFixed(2)}')
+        .join('\n');
+    final subsLines = subs.isEmpty
+        ? 'No subscriptions tracked.'
+        : subs
+            .map((s) =>
+                '- ${s.name}: \$${s.amount.toStringAsFixed(2)}/${s.cycle}, renews ${s.nextChargeDate.month}/${s.nextChargeDate.day}')
+            .join('\n');
+
+    final context = 'This month ($period) so far:\n'
+        'Total spent: \$${totalSpent.toStringAsFixed(2)} of \$${totalLimit.toStringAsFixed(2)} budgeted\n'
+        'By category:\n${categoryLines.isEmpty ? '(no budgets set)' : categoryLines}\n'
+        'Active subscriptions:\n$subsLines\n\n'
+        'User: $userMessage';
+
+    try {
+      final reply = await provider.complete(mentorPromptFor(tone), context);
+      return MentorChatResult(content: guardMentorResponse(reply));
+    } catch (_) {
+      return MentorChatResult(content: 'I could not reach my model right now.');
+    }
+  }
+
+  Future<MentorChatResult> _queryTransactions(_ChatIntent parsed) async {
+    final rows = await db.transactionsDao.search(
+      category: parsed.category,
+      merchantKeyword: parsed.merchant,
+      since: _sinceFromMonthsBack(parsed.monthsBack),
+    );
+    final summaries = rows.map(TransactionSummary.fromTransaction).toList();
+    if (summaries.isEmpty) {
+      return MentorChatResult(content: "I couldn't find any matching transactions.");
+    }
+    final total = summaries.fold<double>(0, (a, t) => a + t.amount);
+    final label = parsed.merchant ?? parsed.category ?? 'transactions';
+    return MentorChatResult(
+      content: 'Found ${summaries.length} matching "$label", totaling \$${total.toStringAsFixed(2)}.',
+      kind: 'transaction_list',
+      transactions: summaries,
+    );
+  }
+
+  Future<MentorChatResult> _deleteTransactionCandidate(_ChatIntent parsed) async {
+    final rows = await db.transactionsDao.search(
+      category: parsed.category,
+      merchantKeyword: parsed.merchant,
+      since: _sinceFromMonthsBack(parsed.monthsBack),
+      limit: 5,
+    );
+    final summaries = rows.map(TransactionSummary.fromTransaction).toList();
+    if (summaries.isEmpty) {
+      return MentorChatResult(content: "I couldn't find a transaction matching that.");
+    }
+    if (summaries.length > 1) {
+      return MentorChatResult(
+        content:
+            'Found ${summaries.length} transactions matching that -- can you be more specific (date, amount, or exact merchant)?',
+        kind: 'transaction_list',
+        transactions: summaries,
+      );
+    }
+    return MentorChatResult(
+      content: 'Found this transaction -- want me to delete it?',
+      kind: 'delete_confirm',
+      transactions: summaries,
+    );
   }
 }
