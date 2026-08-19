@@ -40,6 +40,8 @@ class MentorMessages extends Table {
   TextColumn get content => text()();
   DateTimeColumn get createdAt => dateTime()();
   TextColumn get severity => text().withDefault(const Constant('info'))();
+  TextColumn get kind => text().withDefault(const Constant('text'))(); // 'text' | 'transaction_list' | 'delete_confirm'
+  TextColumn get dataJson => text().nullable()();
 }
 
 class AgentMemories extends Table {

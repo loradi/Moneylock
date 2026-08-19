@@ -1,16 +1,26 @@
 import 'package:drift/drift.dart';
 import 'db.dart';
+import 'transaction_summary.dart';
 
 class MessagesDao {
   final AppDatabase db;
   MessagesDao(this.db);
 
-  Future<void> add(String role, String content, {String severity = 'info'}) =>
+  Future<void> add(
+    String role,
+    String content, {
+    String severity = 'info',
+    String kind = 'text',
+    List<TransactionSummary>? transactions,
+  }) =>
       db.into(db.mentorMessages).insert(MentorMessagesCompanion.insert(
           role: role,
           content: content,
           createdAt: DateTime.now(),
-          severity: Value(severity)));
+          severity: Value(severity),
+          kind: Value(kind),
+          dataJson: Value(transactions == null ? null : encodeTransactionSummaries(transactions)),
+      ));
 
   Stream<List<MentorMessage>> watchAll() {
     final q = db.select(db.mentorMessages)
