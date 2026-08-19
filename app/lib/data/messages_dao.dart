@@ -27,4 +27,15 @@ class MessagesDao {
       ..orderBy([(m) => OrderingTerm.asc(m.createdAt)]);
     return q.watch();
   }
+
+  Future<List<MentorMessage>> recent(int limit) async {
+    final rows = await (db.select(db.mentorMessages)
+          ..orderBy([
+            (m) => OrderingTerm.desc(m.createdAt),
+            (m) => OrderingTerm.desc(m.id),
+          ])
+          ..limit(limit))
+        .get();
+    return rows.reversed.toList();
+  }
 }

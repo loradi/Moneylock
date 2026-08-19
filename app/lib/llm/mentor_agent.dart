@@ -120,9 +120,32 @@ class MentorAgent {
     return MentorVerdict(severity, message);
   }
 
+  Future<String> _historyBlock() async {
+    // recent() includes the just-saved current turn as its newest row --
+    // every call site in chat_screen.dart persists the user's message via
+    // messagesDao.add() before calling classify()/chat(). Drop the newest
+    // row so it isn't duplicated against the userMessage param each caller
+    // already appends explicitly. Safe even when nothing was pre-saved
+    // (e.g. these unit tests calling agent.chat() directly): dropping "the
+    // newest of zero-to-N rows" never removes a real prior turn that
+    // wasn't already accounted for.
+    final rows = await db.messagesDao.recent(7);
+    final priorTurns = rows.isEmpty ? rows : rows.sublist(0, rows.length - 1);
+    if (priorTurns.isEmpty) return '';
+    final lines = priorTurns
+        .map((m) => '${m.role == 'user' ? 'User' : 'Mentor'}: ${m.content}')
+        .join('\n');
+    return 'Recent conversation:\n$lines\n\n';
+  }
+
   Future<ChatIntent> classify(String userMessage) async {
     try {
-      final raw = await provider.complete(mentorIntentPrompt, userMessage, temperature: 0.0);
+      final history = await _historyBlock();
+      final raw = await provider.complete(
+        mentorIntentPrompt,
+        '${history}User: $userMessage',
+        temperature: 0.0,
+      );
       return _parseIntent(raw);
     } catch (_) {
       return ChatIntent(intent: 'chat');
@@ -162,7 +185,8 @@ class MentorAgent {
                 '- ${s.name}: \$${s.amount.toStringAsFixed(2)}/${s.cycle}, renews ${s.nextChargeDate.month}/${s.nextChargeDate.day}')
             .join('\n');
 
-    final context = 'This month ($period) so far:\n'
+    final history = await _historyBlock();
+    final context = '${history}This month ($period) so far:\n'
         'Total spent: \$${totalSpent.toStringAsFixed(2)} of \$${totalLimit.toStringAsFixed(2)} budgeted\n'
         'By category:\n${categoryLines.isEmpty ? '(no budgets set)' : categoryLines}\n'
         'Active subscriptions:\n$subsLines\n\n'

@@ -28,6 +28,20 @@ class _ThrowingLlm implements LlmProvider {
   }
 }
 
+class _CapturingLlm implements LlmProvider {
+  final List<String> responses;
+  int _calls = 0;
+  String? lastUserPrompt;
+  _CapturingLlm(this.responses);
+  @override
+  Future<String> complete(String system, String user, {double temperature = 0.2}) async {
+    lastUserPrompt = user;
+    final r = responses[_calls];
+    _calls++;
+    return r;
+  }
+}
+
 void main() {
   test('chat intent builds a monthly summary context and returns a text result', () async {
     final db = _db();
@@ -241,6 +255,48 @@ void main() {
     expect(result.kind, 'text');
     expect(result.content, 'General advice.');
     expect(llm.callCount, 1);
+    await db.close();
+  });
+
+  test('classify() includes recent conversation history in the prompt sent to the model', () async {
+    final db = _db();
+    await db.messagesDao.add('user', 'search Nike transactions');
+    await db.messagesDao.add('mentor', 'Found 2 matching "Nike", totaling \$90.00.');
+    await db.messagesDao.add('user', 'cancel it');
+    final llm = _CapturingLlm(['{"intent": "chat"}']);
+    final agent = MentorAgent(llm, db);
+
+    await agent.classify('cancel it');
+
+    expect(llm.lastUserPrompt, contains('search Nike transactions'));
+    expect(llm.lastUserPrompt, contains('Found 2 matching "Nike"'));
+    expect(llm.lastUserPrompt, contains('User: cancel it'));
+    await db.close();
+  });
+
+  test('_generalChat includes recent conversation history ahead of the financial summary', () async {
+    final db = _db();
+    await db.messagesDao.add('user', 'what is my biggest expense?');
+    await db.messagesDao.add('mentor', 'Groceries, at \$300 this month.');
+    await db.messagesDao.add('user', 'how can I cut it?');
+    final llm = _CapturingLlm(['{"intent": "chat"}', 'Buy less at the store.']);
+    final agent = MentorAgent(llm, db);
+
+    await agent.chat('how can I cut it?');
+
+    expect(llm.lastUserPrompt, contains('what is my biggest expense?'));
+    expect(llm.lastUserPrompt, contains('Groceries, at \$300 this month.'));
+    await db.close();
+  });
+
+  test('classify() with no prior messages sends just the current message, no empty history header', () async {
+    final db = _db();
+    final llm = _CapturingLlm(['{"intent": "chat"}']);
+    final agent = MentorAgent(llm, db);
+
+    await agent.classify('hello');
+
+    expect(llm.lastUserPrompt, 'User: hello');
     await db.close();
   });
 }

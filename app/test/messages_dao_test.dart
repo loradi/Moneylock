@@ -43,4 +43,16 @@ void main() {
     expect(decoded.single.merchant, 'Nike');
     await db.close();
   });
+
+  test('recent returns the newest N messages in chronological order', () async {
+    final db = _db();
+    for (var i = 0; i < 5; i++) {
+      await db.messagesDao.add('user', 'message $i');
+    }
+
+    final recent = await db.messagesDao.recent(3);
+
+    expect(recent.map((m) => m.content).toList(), ['message 2', 'message 3', 'message 4']);
+    await db.close();
+  });
 }
