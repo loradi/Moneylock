@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:moneylock/data/db.dart';
 
+import '../data/subscription_summary.dart';
 import '../data/transaction_summary.dart';
 import 'mentor_guardrails.dart';
 import 'prompts.dart';
@@ -56,11 +57,17 @@ ChatIntent _parseIntent(String raw) {
   try {
     final json = jsonDecode(raw) as Map<String, dynamic>;
     final intent = json['intent'] as String?;
-    if (intent != 'query_transactions' && intent != 'delete_transaction') {
+    const recognized = {
+      'query_transactions',
+      'delete_transaction',
+      'query_subscriptions',
+      'cancel_subscription',
+    };
+    if (intent == null || !recognized.contains(intent)) {
       return ChatIntent(intent: 'chat');
     }
     return ChatIntent(
-      intent: intent!,
+      intent: intent,
       category: json['category'] as String?,
       merchant: json['merchant'] as String?,
       monthsBack: (json['monthsBack'] as num?)?.toInt(),
@@ -159,6 +166,10 @@ class MentorAgent {
         return _queryTransactions(parsed);
       case 'delete_transaction':
         return _deleteTransactionCandidate(parsed);
+      case 'query_subscriptions':
+        return _querySubscriptions(parsed);
+      case 'cancel_subscription':
+        return _cancelSubscriptionCandidate(parsed);
       default:
         return _generalChat(userMessage);
     }
@@ -243,6 +254,44 @@ class MentorAgent {
       content: 'Found this transaction -- want me to delete it?',
       kind: 'delete_confirm',
       dataJson: encodeTransactionSummaries(summaries),
+    );
+  }
+
+  Future<MentorChatResult> _querySubscriptions(ChatIntent parsed) async {
+    final rows = await db.subscriptionsDao.search(nameKeyword: parsed.merchant, limit: 100);
+    final summaries = rows.map(SubscriptionSummary.fromSubscription).toList();
+    if (summaries.isEmpty) {
+      return MentorChatResult(content: "I couldn't find any matching subscriptions.");
+    }
+    final monthlyTotal = summaries.fold<double>(
+      0,
+      (a, s) => a + (s.cycle == 'yearly' ? s.amount / 12 : s.amount),
+    );
+    return MentorChatResult(
+      content: 'Found ${summaries.length} subscription${summaries.length == 1 ? '' : 's'}, '
+          '~\$${monthlyTotal.toStringAsFixed(2)}/month.',
+      kind: 'subscription_list',
+      dataJson: encodeSubscriptionSummaries(summaries),
+    );
+  }
+
+  Future<MentorChatResult> _cancelSubscriptionCandidate(ChatIntent parsed) async {
+    final rows = await db.subscriptionsDao.search(nameKeyword: parsed.merchant, limit: 5);
+    final summaries = rows.map(SubscriptionSummary.fromSubscription).toList();
+    if (summaries.isEmpty) {
+      return MentorChatResult(content: "I couldn't find a subscription matching that.");
+    }
+    if (summaries.length > 1) {
+      return MentorChatResult(
+        content: 'Found ${summaries.length} subscriptions matching that -- can you be more specific?',
+        kind: 'subscription_list',
+        dataJson: encodeSubscriptionSummaries(summaries),
+      );
+    }
+    return MentorChatResult(
+      content: 'Found this subscription -- want me to cancel it?',
+      kind: 'cancel_confirm',
+      dataJson: encodeSubscriptionSummaries(summaries),
     );
   }
 }

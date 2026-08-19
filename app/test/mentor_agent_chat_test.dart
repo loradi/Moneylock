@@ -1,6 +1,7 @@
 import 'package:drift_flutter/drift_flutter.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:moneylock/data/db.dart';
+import 'package:moneylock/data/subscription_summary.dart';
 import 'package:moneylock/data/transaction_summary.dart';
 import 'package:moneylock/data/transactions_dao.dart';
 import 'package:moneylock/llm/llm_provider.dart';
@@ -298,6 +299,103 @@ void main() {
     await agent.classify('hello');
 
     expect(llm.lastUserPrompt, 'User: hello');
+    await db.close();
+  });
+
+  test('query_subscriptions reports a monthly-equivalent total across mixed cycles', () async {
+    final db = _db();
+    await db.subscriptionsDao.add(SubscriptionsCompanion.insert(
+      name: 'Netflix',
+      amount: 15.0,
+      cycle: 'monthly',
+      nextChargeDate: DateTime(2026, 9, 1),
+      createdAt: DateTime.now(),
+    ));
+    await db.subscriptionsDao.add(SubscriptionsCompanion.insert(
+      name: 'Amazon Prime',
+      amount: 120.0,
+      cycle: 'yearly',
+      nextChargeDate: DateTime(2027, 1, 1),
+      createdAt: DateTime.now(),
+    ));
+    final llm = _ScriptedLlm(['{"intent": "query_subscriptions"}']);
+    final agent = MentorAgent(llm, db);
+
+    final result = await agent.chat('how much do I pay in subscriptions?');
+
+    expect(result.kind, 'subscription_list');
+    expect(decodeSubscriptionSummaries(result.dataJson!), hasLength(2));
+    // 15.00 monthly + (120.00 / 12) = 25.00/month, computed in Dart.
+    expect(result.content, contains('25.00'));
+    await db.close();
+  });
+
+  test('query_subscriptions with no matches returns text-only', () async {
+    final db = _db();
+    final llm = _ScriptedLlm(['{"intent": "query_subscriptions", "merchant": "nothing"}']);
+    final agent = MentorAgent(llm, db);
+
+    final result = await agent.chat('find nothing');
+
+    expect(result.kind, 'text');
+    expect(result.dataJson, isNull);
+    await db.close();
+  });
+
+  test('cancel_subscription with exactly one match returns cancel_confirm', () async {
+    final db = _db();
+    await db.subscriptionsDao.add(SubscriptionsCompanion.insert(
+      name: 'Netflix',
+      amount: 15.0,
+      cycle: 'monthly',
+      nextChargeDate: DateTime(2026, 9, 1),
+      createdAt: DateTime.now(),
+    ));
+    final llm = _ScriptedLlm(['{"intent": "cancel_subscription", "merchant": "Netflix"}']);
+    final agent = MentorAgent(llm, db);
+
+    final result = await agent.chat('cancel Netflix');
+
+    expect(result.kind, 'cancel_confirm');
+    expect(decodeSubscriptionSummaries(result.dataJson!), hasLength(1));
+    await db.close();
+  });
+
+  test('cancel_subscription with multiple matches returns an informational list, not cancel_confirm', () async {
+    final db = _db();
+    await db.subscriptionsDao.add(SubscriptionsCompanion.insert(
+      name: 'Disney Plus',
+      amount: 10.0,
+      cycle: 'monthly',
+      nextChargeDate: DateTime(2026, 9, 1),
+      createdAt: DateTime.now(),
+    ));
+    await db.subscriptionsDao.add(SubscriptionsCompanion.insert(
+      name: 'Disney Bundle',
+      amount: 13.0,
+      cycle: 'monthly',
+      nextChargeDate: DateTime(2026, 9, 5),
+      createdAt: DateTime.now(),
+    ));
+    final llm = _ScriptedLlm(['{"intent": "cancel_subscription", "merchant": "Disney"}']);
+    final agent = MentorAgent(llm, db);
+
+    final result = await agent.chat('cancel the Disney one');
+
+    expect(result.kind, 'subscription_list');
+    expect(decodeSubscriptionSummaries(result.dataJson!), hasLength(2));
+    await db.close();
+  });
+
+  test('cancel_subscription with no matches returns text-only', () async {
+    final db = _db();
+    final llm = _ScriptedLlm(['{"intent": "cancel_subscription", "merchant": "nothing"}']);
+    final agent = MentorAgent(llm, db);
+
+    final result = await agent.chat('cancel nothing');
+
+    expect(result.kind, 'text');
+    expect(result.dataJson, isNull);
     await db.close();
   });
 }
