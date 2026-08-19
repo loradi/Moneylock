@@ -18,7 +18,7 @@ void main() {
     await db.close();
   });
 
-  test('add with transactions stores kind and encodes dataJson', () async {
+  test('add with a dataJson payload stores kind and dataJson as given', () async {
     final db = _db();
     final summaries = [
       TransactionSummary(
@@ -34,7 +34,7 @@ void main() {
       'mentor',
       'Found 1 matching "Nike"',
       kind: 'transaction_list',
-      transactions: summaries,
+      dataJson: encodeTransactionSummaries(summaries),
     );
 
     final rows = await db.messagesDao.watchAll().first;

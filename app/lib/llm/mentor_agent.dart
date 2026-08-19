@@ -36,11 +36,11 @@ class MentorVerdict {
 class MentorChatResult {
   final String content;
   final String kind; // 'text' | 'transaction_list' | 'delete_confirm'
-  final List<TransactionSummary> transactions;
+  final String? dataJson;
   MentorChatResult({
     required this.content,
     this.kind = 'text',
-    this.transactions = const [],
+    this.dataJson,
   });
 }
 
@@ -216,7 +216,7 @@ class MentorAgent {
     return MentorChatResult(
       content: 'Found ${summaries.length} matching "$label", totaling \$${total.toStringAsFixed(2)}.',
       kind: 'transaction_list',
-      transactions: summaries.take(20).toList(),
+      dataJson: encodeTransactionSummaries(summaries.take(20).toList()),
     );
   }
 
@@ -236,13 +236,13 @@ class MentorAgent {
         content:
             'Found ${summaries.length} transactions matching that -- can you be more specific (date, amount, or exact merchant)?',
         kind: 'transaction_list',
-        transactions: summaries,
+        dataJson: encodeTransactionSummaries(summaries),
       );
     }
     return MentorChatResult(
       content: 'Found this transaction -- want me to delete it?',
       kind: 'delete_confirm',
-      transactions: summaries,
+      dataJson: encodeTransactionSummaries(summaries),
     );
   }
 }

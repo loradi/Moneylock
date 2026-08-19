@@ -67,9 +67,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                     role: m.role,
                     content: m.content,
                     kind: m.kind,
-                    transactions: m.dataJson == null
-                        ? const []
-                        : decodeTransactionSummaries(m.dataJson!),
+                    dataJson: m.dataJson,
                   );
                 },
               ),
@@ -122,7 +120,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           'mentor',
           result.content,
           kind: result.kind,
-          transactions: result.transactions,
+          dataJson: result.dataJson,
         );
       }
     } else {
@@ -131,7 +129,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         'mentor',
         result.content,
         kind: result.kind,
-        transactions: result.transactions,
+        dataJson: result.dataJson,
       );
     }
     if (mounted) setState(() => _thinking = false);
@@ -234,13 +232,13 @@ class _Bubble extends ConsumerStatefulWidget {
   final String role;
   final String content;
   final String kind;
-  final List<TransactionSummary> transactions;
+  final String? dataJson;
   final bool thinking;
   const _Bubble({
     required this.role,
     required this.content,
     this.kind = 'text',
-    this.transactions = const [],
+    this.dataJson,
     this.thinking = false,
   });
 
@@ -250,6 +248,11 @@ class _Bubble extends ConsumerStatefulWidget {
 
 class _BubbleState extends ConsumerState<_Bubble> {
   bool _actionTaken = false;
+
+  List<TransactionSummary> get _transactions =>
+      (widget.kind == 'transaction_list' || widget.kind == 'delete_confirm') && widget.dataJson != null
+          ? decodeTransactionSummaries(widget.dataJson!)
+          : const [];
 
   Future<void> _delete(int id) async {
     await ref.read(appDatabaseProvider).transactionsDao.remove(id);
@@ -292,9 +295,9 @@ class _BubbleState extends ConsumerState<_Bubble> {
                         height: 1.35,
                       ),
                     ),
-                  if (widget.transactions.isNotEmpty) ...[
+                  if (_transactions.isNotEmpty) ...[
                     const SizedBox(height: 8),
-                    for (final t in widget.transactions)
+                    for (final t in _transactions)
                       Container(
                         margin: const EdgeInsets.only(bottom: 4),
                         decoration: BoxDecoration(
@@ -316,7 +319,7 @@ class _BubbleState extends ConsumerState<_Bubble> {
                             ),
                             const SizedBox(width: 4),
                             FilledButton(
-                              onPressed: () => _delete(widget.transactions.first.id),
+                              onPressed: () => _delete(_transactions.first.id),
                               child: const Text('Delete'),
                             ),
                           ],

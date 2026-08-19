@@ -1,6 +1,7 @@
 import 'package:drift_flutter/drift_flutter.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:moneylock/data/db.dart';
+import 'package:moneylock/data/transaction_summary.dart';
 import 'package:moneylock/data/transactions_dao.dart';
 import 'package:moneylock/llm/llm_provider.dart';
 import 'package:moneylock/llm/mentor_agent.dart';
@@ -62,7 +63,7 @@ void main() {
 
     expect(result.kind, 'text');
     expect(result.content, 'Cut back on takeout this month.');
-    expect(result.transactions, isEmpty);
+    expect(result.dataJson, isNull);
     await db.close();
   });
 
@@ -116,7 +117,7 @@ void main() {
     final result = await agent.chat('how much on Nike?');
 
     expect(result.kind, 'transaction_list');
-    expect(result.transactions, hasLength(2));
+    expect(decodeTransactionSummaries(result.dataJson!), hasLength(2));
     expect(result.content, contains('90.00'));
     await db.close();
   });
@@ -129,7 +130,7 @@ void main() {
     final result = await agent.chat('find nothing');
 
     expect(result.kind, 'text');
-    expect(result.transactions, isEmpty);
+    expect(result.dataJson, isNull);
     await db.close();
   });
 
@@ -150,7 +151,7 @@ void main() {
     final result = await agent.chat('delete that Nike purchase');
 
     expect(result.kind, 'delete_confirm');
-    expect(result.transactions, hasLength(1));
+    expect(decodeTransactionSummaries(result.dataJson!), hasLength(1));
     await db.close();
   });
 
@@ -180,7 +181,7 @@ void main() {
     final result = await agent.chat('delete the Nike one');
 
     expect(result.kind, 'transaction_list');
-    expect(result.transactions, hasLength(2));
+    expect(decodeTransactionSummaries(result.dataJson!), hasLength(2));
     await db.close();
   });
 
@@ -192,7 +193,7 @@ void main() {
     final result = await agent.chat('delete nothing');
 
     expect(result.kind, 'text');
-    expect(result.transactions, isEmpty);
+    expect(result.dataJson, isNull);
     await db.close();
   });
 
@@ -228,7 +229,7 @@ void main() {
     expect(result.kind, 'transaction_list');
     expect(result.content, contains('Found 25'));
     expect(result.content, contains('250.00'));
-    expect(result.transactions, hasLength(20));
+    expect(decodeTransactionSummaries(result.dataJson!), hasLength(20));
     await db.close();
   });
 

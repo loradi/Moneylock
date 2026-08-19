@@ -1,6 +1,5 @@
 import 'package:drift/drift.dart';
 import 'db.dart';
-import 'transaction_summary.dart';
 
 class MessagesDao {
   final AppDatabase db;
@@ -11,7 +10,7 @@ class MessagesDao {
     String content, {
     String severity = 'info',
     String kind = 'text',
-    List<TransactionSummary>? transactions,
+    String? dataJson,
   }) =>
       db.into(db.mentorMessages).insert(MentorMessagesCompanion.insert(
           role: role,
@@ -19,7 +18,7 @@ class MessagesDao {
           createdAt: DateTime.now(),
           severity: Value(severity),
           kind: Value(kind),
-          dataJson: Value(transactions == null ? null : encodeTransactionSummaries(transactions)),
+          dataJson: Value(dataJson),
       ));
 
   Stream<List<MentorMessage>> watchAll() {
