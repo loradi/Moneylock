@@ -12,6 +12,7 @@ void main() {
 
     final seedDb = AppDatabase.forTesting(NativeDatabase(file));
     await seedDb.categoriesDao.all(); // forces onCreate to run at schemaVersion 5
+    await seedDb.customStatement('DROP TABLE subscriptions');
     await seedDb.customStatement('PRAGMA user_version = 4');
     await seedDb.close();
 

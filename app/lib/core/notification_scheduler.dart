@@ -9,6 +9,16 @@ const nextMorningReminderId = 9004;
 
 int subscriptionNotificationId(int subscriptionId) => 10000 + subscriptionId;
 
+DateTime addCycle(DateTime date, String cycle) {
+  final months = cycle == 'yearly' ? 12 : 1;
+  final totalMonths = date.month - 1 + months;
+  final year = date.year + totalMonths ~/ 12;
+  final month = totalMonths % 12 + 1;
+  final lastDayOfMonth = DateTime(year, month + 1, 0).day;
+  final day = date.day < lastDayOfMonth ? date.day : lastDayOfMonth;
+  return DateTime(year, month, day);
+}
+
 const _morningReminderTitle = 'Log your first expense';
 const _morningReminderBody =
     'Start the day by tracking your first expense — it only takes a second.';
@@ -87,9 +97,7 @@ class NotificationScheduler {
     for (final subscription in subscriptions) {
       var nextCharge = subscription.nextChargeDate;
       while (nextCharge.isBefore(startOfToday)) {
-        nextCharge = subscription.cycle == 'yearly'
-            ? DateTime(nextCharge.year + 1, nextCharge.month, nextCharge.day)
-            : DateTime(nextCharge.year, nextCharge.month + 1, nextCharge.day);
+        nextCharge = addCycle(nextCharge, subscription.cycle);
       }
       if (nextCharge != subscription.nextChargeDate) {
         await db.subscriptionsDao.rollForwardTo(subscription.id, nextCharge);
@@ -100,7 +108,7 @@ class NotificationScheduler {
       final daysOut = DateTime(nextCharge.year, nextCharge.month, nextCharge.day)
           .difference(startOfToday)
           .inDays;
-      final reminderTime = DateTime(today.year, today.month, today.day, 10);
+      final reminderTime = DateTime(nextCharge.year, nextCharge.month, nextCharge.day - 1, 10);
       if (daysOut >= 1 && daysOut <= 2 && today.isBefore(reminderTime)) {
         await notifications.scheduleAt(
           id,

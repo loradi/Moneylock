@@ -231,6 +231,10 @@ void main() {
     await db.close();
   });
 
+  test('addCycle on Jan 31 clamps to Feb 28, not the overflowed March 3', () {
+    expect(addCycle(DateTime(2026, 1, 31), 'monthly'), DateTime(2026, 2, 28));
+  });
+
   test('a past-due yearly subscription rolls forward by a year', () async {
     final db = _db();
     await db.subscriptionsDao.add(SubscriptionsCompanion.insert(

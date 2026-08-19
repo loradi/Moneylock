@@ -74,11 +74,7 @@ class SubscriptionsScreen extends ConsumerWidget {
                             name: s.merchant,
                             amount: s.averageAmount,
                             cycle: 'monthly',
-                            nextChargeDate: DateTime(
-                              s.mostRecentDate.year,
-                              s.mostRecentDate.month + 1,
-                              s.mostRecentDate.day,
-                            ),
+                            nextChargeDate: addCycle(s.mostRecentDate, 'monthly'),
                             source: const Value('suggested'),
                             createdAt: DateTime.now(),
                           ),
@@ -272,11 +268,12 @@ class _AddSubscriptionSheetState extends ConsumerState<_AddSubscriptionSheet> {
   }
 
   Future<void> _pickDate() async {
+    final now = DateTime.now();
     final picked = await showDatePicker(
       context: context,
       initialDate: _nextChargeDate,
-      firstDate: DateTime.now().subtract(const Duration(days: 1)),
-      lastDate: DateTime.now().add(const Duration(days: 3650)),
+      firstDate: _nextChargeDate.isBefore(now) ? _nextChargeDate : now.subtract(const Duration(days: 1)),
+      lastDate: now.add(const Duration(days: 3650)),
     );
     if (picked != null) setState(() => _nextChargeDate = picked);
   }
@@ -284,7 +281,12 @@ class _AddSubscriptionSheetState extends ConsumerState<_AddSubscriptionSheet> {
   Future<void> _save() async {
     final name = _nameController.text.trim();
     final amount = double.tryParse(_amountController.text.trim());
-    if (name.isEmpty || amount == null || amount <= 0) return;
+    if (name.isEmpty || amount == null || amount <= 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Enter a name and a valid amount')),
+      );
+      return;
+    }
     await ref.read(appDatabaseProvider).subscriptionsDao.add(
           SubscriptionsCompanion.insert(
             name: name,
