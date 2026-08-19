@@ -31,9 +31,10 @@ final mentorIntentPrompt =
     '''
 Classify the user's message about their personal finances into ONE JSON
 object, no markdown, no commentary:
-{"intent": "chat"|"query_transactions"|"delete_transaction"|"query_subscriptions"|"cancel_subscription",
+{"intent": "chat"|"query_transactions"|"delete_transaction"|"query_subscriptions"|"cancel_subscription"|"update_budget_limit",
  "category": "<one of: ${categoryCatalog.join(', ')}>"|null,
- "merchant": "<short keyword or null>", "monthsBack": <integer or null>}
+ "merchant": "<short keyword or null>", "monthsBack": <integer or null>,
+ "newLimit": <number or null>}
 Rules:
 - "chat" is for general questions, advice requests, or anything not asking
   to find, list, cancel, or delete a specific past transaction or
@@ -47,6 +48,12 @@ Rules:
   does Netflix renew?").
 - "cancel_subscription" is for requests to cancel or remove a specific
   subscription.
+- "update_budget_limit" is for requests to change a category's monthly
+  spending limit (e.g. "raise my groceries limit to \$400", "set travel
+  budget to \$200"). Requires both "category" (one of the listed
+  categories) and "newLimit" (the target amount as a plain number, no
+  currency symbol) -- if either can't be confidently determined, use
+  "chat" instead of guessing.
 - "category" must be one of the listed categories if the user names one,
   else null. Not used for subscription intents.
 - "merchant" is a short keyword identifying what was bought or which
@@ -54,6 +61,8 @@ Rules:
 - "monthsBack" is how many months back to search if the user gives a time
   hint (e.g. "two months ago" -> 2, "last six months" -> 6), else null. Not
   used for subscription intents.
+- "newLimit" is the requested new limit as a plain number if the intent is
+  "update_budget_limit", else null.
 Examples:
 "what can I cut this month?" -> {"intent": "chat", "category": null, "merchant": null, "monthsBack": null}
 "show me groceries transactions from the last six months" -> {"intent": "query_transactions", "category": "Groceries", "merchant": null, "monthsBack": 6}
@@ -61,6 +70,7 @@ Examples:
 "delete that Nike purchase" -> {"intent": "delete_transaction", "category": null, "merchant": "Nike", "monthsBack": null}
 "how much do I pay in subscriptions?" -> {"intent": "query_subscriptions", "category": null, "merchant": null, "monthsBack": null}
 "cancel my Netflix" -> {"intent": "cancel_subscription", "category": null, "merchant": "Netflix", "monthsBack": null}
+"raise my groceries limit to \$400" -> {"intent": "update_budget_limit", "category": "Groceries", "merchant": null, "monthsBack": null, "newLimit": 400}
 ''';
 
 const strictRamseyPrompt = '''

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../data/budget_change_summary.dart';
 import '../../data/subscription_summary.dart';
 import '../../data/transaction_summary.dart';
 import '../../llm/category_correction.dart';
@@ -271,6 +272,20 @@ class _BubbleState extends ConsumerState<_Bubble> {
     if (mounted) setState(() => _actionTaken = true);
   }
 
+  BudgetChangeSummary? get _budgetChange =>
+      widget.kind == 'budget_confirm' && widget.dataJson != null
+          ? decodeBudgetChangeSummary(widget.dataJson!)
+          : null;
+
+  Future<void> _confirmBudgetChange(BudgetChangeSummary change) async {
+    await ref.read(appDatabaseProvider).budgetsDao.upsert(
+          change.category,
+          change.proposedLimit,
+          change.period,
+        );
+    if (mounted) setState(() => _actionTaken = true);
+  }
+
   @override
   Widget build(BuildContext context) {
     final user = widget.role == 'user';
@@ -380,6 +395,39 @@ class _BubbleState extends ConsumerState<_Bubble> {
                         ),
                       ),
                     if (widget.kind == 'cancel_confirm' && _actionTaken)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 4),
+                        child: Text(
+                          'Done.',
+                          style: TextStyle(
+                            color: AppColors.darkOnSurfaceVariant,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ),
+                  ],
+                  if (_budgetChange != null) ...[
+                    const SizedBox(height: 8),
+                    if (!_actionTaken)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 4),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            TextButton(
+                              onPressed: () => setState(() => _actionTaken = true),
+                              style: TextButton.styleFrom(foregroundColor: AppColors.darkPrimary),
+                              child: const Text('Cancel'),
+                            ),
+                            const SizedBox(width: 4),
+                            FilledButton(
+                              onPressed: () => _confirmBudgetChange(_budgetChange!),
+                              child: const Text('Confirm'),
+                            ),
+                          ],
+                        ),
+                      ),
+                    if (_actionTaken)
                       Padding(
                         padding: const EdgeInsets.only(top: 4),
                         child: Text(

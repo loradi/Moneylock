@@ -1,5 +1,6 @@
 import 'package:drift_flutter/drift_flutter.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:moneylock/data/budget_change_summary.dart';
 import 'package:moneylock/data/db.dart';
 import 'package:moneylock/data/subscription_summary.dart';
 import 'package:moneylock/data/transaction_summary.dart';
@@ -396,6 +397,62 @@ void main() {
 
     expect(result.kind, 'text');
     expect(result.dataJson, isNull);
+    await db.close();
+  });
+
+  test('update_budget_limit with a resolvable category and limit returns budget_confirm', () async {
+    final db = _db();
+    await db.budgetsDao.upsert('Groceries', 300.0, '2026-08');
+    final llm = _ScriptedLlm(
+        ['{"intent": "update_budget_limit", "category": "Groceries", "newLimit": 400}']);
+    final agent = MentorAgent(llm, db);
+
+    final result = await agent.chat('raise my groceries limit to \$400');
+
+    expect(result.kind, 'budget_confirm');
+    final change = decodeBudgetChangeSummary(result.dataJson!);
+    expect(change.category, 'Groceries');
+    expect(change.currentLimit, 300.0);
+    expect(change.proposedLimit, 400.0);
+    await db.close();
+  });
+
+  test('update_budget_limit with no existing limit for the category treats current as 0', () async {
+    final db = _db();
+    final llm = _ScriptedLlm(
+        ['{"intent": "update_budget_limit", "category": "Travel", "newLimit": 200}']);
+    final agent = MentorAgent(llm, db);
+
+    final result = await agent.chat('set my travel limit to \$200');
+
+    expect(result.kind, 'budget_confirm');
+    final change = decodeBudgetChangeSummary(result.dataJson!);
+    expect(change.currentLimit, 0.0);
+    expect(change.proposedLimit, 200.0);
+    await db.close();
+  });
+
+  test('update_budget_limit with a missing category falls back to chat', () async {
+    final db = _db();
+    final llm = _ScriptedLlm(['{"intent": "update_budget_limit", "newLimit": 400}', 'General advice.']);
+    final agent = MentorAgent(llm, db);
+
+    final result = await agent.chat('raise my limit to \$400');
+
+    expect(result.kind, 'text');
+    expect(result.content, 'General advice.');
+    await db.close();
+  });
+
+  test('update_budget_limit with a missing newLimit falls back to chat', () async {
+    final db = _db();
+    final llm = _ScriptedLlm(['{"intent": "update_budget_limit", "category": "Groceries"}', 'General advice.']);
+    final agent = MentorAgent(llm, db);
+
+    final result = await agent.chat('change my groceries limit');
+
+    expect(result.kind, 'text');
+    expect(result.content, 'General advice.');
     await db.close();
   });
 }

@@ -2,6 +2,7 @@ import 'package:drift_flutter/drift_flutter.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:moneylock/data/budget_change_summary.dart';
 import 'package:moneylock/data/db.dart';
 import 'package:moneylock/data/subscription_summary.dart';
 import 'package:moneylock/data/transaction_summary.dart';
@@ -193,6 +194,39 @@ void main() {
     expect(find.byType(SubscriptionRow), findsOneWidget);
     expect(find.text('Cancel Subscription'), findsOneWidget);
     expect(find.text('Keep It'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+
+    await tester.runAsync(() => db.close());
+  });
+
+  testWidgets('renders a budget_confirm bubble with Confirm and Cancel buttons',
+      (tester) async {
+    final db = _db();
+    final message = _msg(
+      id: 1,
+      kind: 'budget_confirm',
+      content: 'Change your Groceries limit from \$300.00 to \$400.00?',
+      dataJson: encodeBudgetChangeSummary(const BudgetChangeSummary(
+        category: 'Groceries',
+        currentLimit: 300.0,
+        proposedLimit: 400.0,
+        period: '2026-08',
+      )),
+    );
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          appDatabaseProvider.overrideWithValue(db),
+          messagesStreamProvider.overrideWith((ref) => Stream.value([message])),
+        ],
+        child: const MaterialApp(home: ChatScreen()),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('Groceries limit'), findsOneWidget);
+    expect(find.text('Confirm'), findsOneWidget);
+    expect(find.text('Cancel'), findsOneWidget);
     expect(tester.takeException(), isNull);
 
     await tester.runAsync(() => db.close());

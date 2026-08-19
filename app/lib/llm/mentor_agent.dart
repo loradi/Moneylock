@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:moneylock/data/db.dart';
 
+import '../data/budget_change_summary.dart';
 import '../data/subscription_summary.dart';
 import '../data/transaction_summary.dart';
 import 'mentor_guardrails.dart';
@@ -50,7 +51,14 @@ class ChatIntent {
   final String? category;
   final String? merchant;
   final int? monthsBack;
-  ChatIntent({required this.intent, this.category, this.merchant, this.monthsBack});
+  final double? newLimit;
+  ChatIntent({
+    required this.intent,
+    this.category,
+    this.merchant,
+    this.monthsBack,
+    this.newLimit,
+  });
 }
 
 ChatIntent _parseIntent(String raw) {
@@ -62,8 +70,13 @@ ChatIntent _parseIntent(String raw) {
       'delete_transaction',
       'query_subscriptions',
       'cancel_subscription',
+      'update_budget_limit',
     };
     if (intent == null || !recognized.contains(intent)) {
+      return ChatIntent(intent: 'chat');
+    }
+    if (intent == 'update_budget_limit' &&
+        (json['category'] == null || json['newLimit'] == null)) {
       return ChatIntent(intent: 'chat');
     }
     return ChatIntent(
@@ -71,6 +84,7 @@ ChatIntent _parseIntent(String raw) {
       category: json['category'] as String?,
       merchant: json['merchant'] as String?,
       monthsBack: (json['monthsBack'] as num?)?.toInt(),
+      newLimit: (json['newLimit'] as num?)?.toDouble(),
     );
   } catch (_) {
     return ChatIntent(intent: 'chat');
@@ -170,6 +184,8 @@ class MentorAgent {
         return _querySubscriptions(parsed);
       case 'cancel_subscription':
         return _cancelSubscriptionCandidate(parsed);
+      case 'update_budget_limit':
+        return _updateBudgetLimit(parsed);
       default:
         return _generalChat(userMessage);
     }
@@ -292,6 +308,27 @@ class MentorAgent {
       content: 'Found this subscription -- want me to cancel it?',
       kind: 'cancel_confirm',
       dataJson: encodeSubscriptionSummaries(summaries),
+    );
+  }
+
+  Future<MentorChatResult> _updateBudgetLimit(ChatIntent parsed) async {
+    final category = parsed.category!;
+    final newLimit = parsed.newLimit!;
+    final now = DateTime.now();
+    final period = '${now.year.toString().padLeft(4, '0')}-${now.month.toString().padLeft(2, '0')}';
+    final limits = await db.budgetsDao.limitsForPeriod(period);
+    final currentLimit = limits[category] ?? 0.0;
+    final change = BudgetChangeSummary(
+      category: category,
+      currentLimit: currentLimit,
+      proposedLimit: newLimit,
+      period: period,
+    );
+    return MentorChatResult(
+      content: 'Change your $category limit from \$${currentLimit.toStringAsFixed(2)} '
+          'to \$${newLimit.toStringAsFixed(2)}?',
+      kind: 'budget_confirm',
+      dataJson: encodeBudgetChangeSummary(change),
     );
   }
 }
