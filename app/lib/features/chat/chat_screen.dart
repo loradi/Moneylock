@@ -106,14 +106,25 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     } else if (!mentorRequestAllowed(text)) {
       await db.messagesDao.add('mentor', mentorScopeRefusal);
     } else if (hasMonetaryAmount(text)) {
-      final result = await ref
-          .read(addFlowProvider)
-          .run(rawText: text, source: 'manual');
-      if (result.error != null)
+      final intent = await ref.read(mentorProvider).classify(text);
+      if (intent.intent == 'chat') {
+        final result = await ref
+            .read(addFlowProvider)
+            .run(rawText: text, source: 'manual');
+        if (result.error != null)
+          await db.messagesDao.add(
+            'mentor',
+            'Could not record that: ${result.error}',
+          );
+      } else {
+        final result = await ref.read(mentorProvider).chat(text, preclassified: intent);
         await db.messagesDao.add(
           'mentor',
-          'Could not record that: ${result.error}',
+          result.content,
+          kind: result.kind,
+          transactions: result.transactions,
         );
+      }
     } else {
       final result = await ref.read(mentorProvider).chat(text);
       await db.messagesDao.add(
@@ -300,6 +311,7 @@ class _BubbleState extends ConsumerState<_Bubble> {
                           children: [
                             TextButton(
                               onPressed: () => setState(() => _actionTaken = true),
+                              style: TextButton.styleFrom(foregroundColor: AppColors.darkPrimary),
                               child: const Text('Cancel'),
                             ),
                             const SizedBox(width: 4),

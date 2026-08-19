@@ -11,6 +11,7 @@ AppDatabase _db() => AppDatabase.forTesting(
 class _ScriptedLlm implements LlmProvider {
   final List<String> responses;
   int _calls = 0;
+  int get callCount => _calls;
   _ScriptedLlm(this.responses);
   @override
   Future<String> complete(String system, String user, {double temperature = 0.2}) async {
@@ -189,6 +190,57 @@ void main() {
 
     expect(result.kind, 'text');
     expect(result.content, isNotEmpty);
+    await db.close();
+  });
+
+  test('query_transactions with more than 20 matches reports the true count/total but caps rendered cards at 20', () async {
+    final db = _db();
+    for (var i = 0; i < 25; i++) {
+      await db.transactionsDao.insertWithDedup(NewTransaction(
+        amount: 10.0,
+        currency: 'USD',
+        merchant: 'Nike Store',
+        category: 'Shopping & E-commerce',
+        source: 'manual',
+        rawText: 'Nike Store 10.0 #$i',
+        timestamp: DateTime.now(),
+      ));
+    }
+    final llm = _ScriptedLlm(['{"intent": "query_transactions", "merchant": "Nike"}']);
+    final agent = MentorAgent(llm, db);
+
+    final result = await agent.chat('how much on Nike?');
+
+    expect(result.kind, 'transaction_list');
+    expect(result.content, contains('Found 25'));
+    expect(result.content, contains('250.00'));
+    expect(result.transactions, hasLength(20));
+    await db.close();
+  });
+
+  test('classify() returns the parsed ChatIntent for a scripted response', () async {
+    final db = _db();
+    final llm = _ScriptedLlm(['{"intent": "query_transactions", "merchant": "Nike"}']);
+    final agent = MentorAgent(llm, db);
+
+    final intent = await agent.classify('how much on Nike?');
+
+    expect(intent.intent, 'query_transactions');
+    expect(intent.merchant, 'Nike');
+    expect(llm.callCount, 1);
+    await db.close();
+  });
+
+  test('chat() with a preclassified intent skips the classification LLM call', () async {
+    final db = _db();
+    final llm = _ScriptedLlm(['General advice.']);
+    final agent = MentorAgent(llm, db);
+
+    final result = await agent.chat('what can I cut?', preclassified: ChatIntent(intent: 'chat'));
+
+    expect(result.kind, 'text');
+    expect(result.content, 'General advice.');
+    expect(llm.callCount, 1);
     await db.close();
   });
 }

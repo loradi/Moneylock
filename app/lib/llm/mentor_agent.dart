@@ -44,29 +44,29 @@ class MentorChatResult {
   });
 }
 
-class _ChatIntent {
+class ChatIntent {
   final String intent;
   final String? category;
   final String? merchant;
   final int? monthsBack;
-  _ChatIntent({required this.intent, this.category, this.merchant, this.monthsBack});
+  ChatIntent({required this.intent, this.category, this.merchant, this.monthsBack});
 }
 
-_ChatIntent _parseIntent(String raw) {
+ChatIntent _parseIntent(String raw) {
   try {
     final json = jsonDecode(raw) as Map<String, dynamic>;
     final intent = json['intent'] as String?;
     if (intent != 'query_transactions' && intent != 'delete_transaction') {
-      return _ChatIntent(intent: 'chat');
+      return ChatIntent(intent: 'chat');
     }
-    return _ChatIntent(
+    return ChatIntent(
       intent: intent!,
       category: json['category'] as String?,
       merchant: json['merchant'] as String?,
       monthsBack: (json['monthsBack'] as num?)?.toInt(),
     );
   } catch (_) {
-    return _ChatIntent(intent: 'chat');
+    return ChatIntent(intent: 'chat');
   }
 }
 
@@ -120,15 +120,17 @@ class MentorAgent {
     return MentorVerdict(severity, message);
   }
 
-  Future<MentorChatResult> chat(String userMessage) async {
-    _ChatIntent parsed;
+  Future<ChatIntent> classify(String userMessage) async {
     try {
       final raw = await provider.complete(mentorIntentPrompt, userMessage, temperature: 0.0);
-      parsed = _parseIntent(raw);
+      return _parseIntent(raw);
     } catch (_) {
-      parsed = _ChatIntent(intent: 'chat');
+      return ChatIntent(intent: 'chat');
     }
+  }
 
+  Future<MentorChatResult> chat(String userMessage, {ChatIntent? preclassified}) async {
+    final parsed = preclassified ?? await classify(userMessage);
     switch (parsed.intent) {
       case 'query_transactions':
         return _queryTransactions(parsed);
@@ -174,11 +176,12 @@ class MentorAgent {
     }
   }
 
-  Future<MentorChatResult> _queryTransactions(_ChatIntent parsed) async {
+  Future<MentorChatResult> _queryTransactions(ChatIntent parsed) async {
     final rows = await db.transactionsDao.search(
       category: parsed.category,
       merchantKeyword: parsed.merchant,
       since: _sinceFromMonthsBack(parsed.monthsBack),
+      limit: 500,
     );
     final summaries = rows.map(TransactionSummary.fromTransaction).toList();
     if (summaries.isEmpty) {
@@ -189,11 +192,11 @@ class MentorAgent {
     return MentorChatResult(
       content: 'Found ${summaries.length} matching "$label", totaling \$${total.toStringAsFixed(2)}.',
       kind: 'transaction_list',
-      transactions: summaries,
+      transactions: summaries.take(20).toList(),
     );
   }
 
-  Future<MentorChatResult> _deleteTransactionCandidate(_ChatIntent parsed) async {
+  Future<MentorChatResult> _deleteTransactionCandidate(ChatIntent parsed) async {
     final rows = await db.transactionsDao.search(
       category: parsed.category,
       merchantKeyword: parsed.merchant,
