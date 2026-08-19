@@ -7,6 +7,8 @@ const afternoonReminderId = 9002;
 const eveningCheckInId = 9003;
 const nextMorningReminderId = 9004;
 
+int subscriptionNotificationId(int subscriptionId) => 10000 + subscriptionId;
+
 const _morningReminderTitle = 'Log your first expense';
 const _morningReminderBody =
     'Start the day by tracking your first expense — it only takes a second.';
@@ -18,6 +20,8 @@ class NotificationScheduler {
 
   NotificationScheduler(this.db, this.notifications, {DateTime Function()? now})
       : now = now ?? DateTime.now;
+
+  Future<void> cancel(int id) => notifications.cancel(id);
 
   Future<void> refresh() async {
     await notifications.cancel(morningReminderId);
@@ -78,5 +82,33 @@ class NotificationScheduler {
       _morningReminderTitle,
       _morningReminderBody,
     );
+
+    final subscriptions = await db.subscriptionsDao.allForScheduling();
+    for (final subscription in subscriptions) {
+      var nextCharge = subscription.nextChargeDate;
+      while (nextCharge.isBefore(startOfToday)) {
+        nextCharge = subscription.cycle == 'yearly'
+            ? DateTime(nextCharge.year + 1, nextCharge.month, nextCharge.day)
+            : DateTime(nextCharge.year, nextCharge.month + 1, nextCharge.day);
+      }
+      if (nextCharge != subscription.nextChargeDate) {
+        await db.subscriptionsDao.rollForwardTo(subscription.id, nextCharge);
+      }
+
+      final id = subscriptionNotificationId(subscription.id);
+      await notifications.cancel(id);
+      final daysOut = DateTime(nextCharge.year, nextCharge.month, nextCharge.day)
+          .difference(startOfToday)
+          .inDays;
+      final reminderTime = DateTime(today.year, today.month, today.day, 10);
+      if (daysOut >= 1 && daysOut <= 2 && today.isBefore(reminderTime)) {
+        await notifications.scheduleAt(
+          id,
+          reminderTime,
+          '${subscription.name} renews soon',
+          '${subscription.name} charges ${fmtCurrency(subscription.amount)} on ${fmtDate(nextCharge)}.',
+        );
+      }
+    }
   }
 }

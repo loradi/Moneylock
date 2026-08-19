@@ -170,4 +170,83 @@ void main() {
     expect(fake.scheduled[9004]?.$1, DateTime(2026, 11, 2, 9, 0));
     await db.close();
   });
+
+  test('a subscription 1 day out gets a reminder scheduled', () async {
+    final db = _db();
+    await db.subscriptionsDao.add(SubscriptionsCompanion.insert(
+      name: 'Netflix',
+      amount: 15.99,
+      cycle: 'monthly',
+      nextChargeDate: DateTime(2026, 8, 18),
+      createdAt: DateTime(2026, 1, 1),
+    ));
+    final fake = _FakeNotifications();
+    final scheduler = NotificationScheduler(db, fake, now: () => DateTime(2026, 8, 17, 7, 0));
+
+    await scheduler.refresh();
+
+    final rows = await db.subscriptionsDao.allForScheduling();
+    final id = subscriptionNotificationId(rows.single.id);
+    expect(fake.scheduled[id]?.$2, contains('Netflix'));
+    await db.close();
+  });
+
+  test('a subscription 5 days out gets no reminder', () async {
+    final db = _db();
+    await db.subscriptionsDao.add(SubscriptionsCompanion.insert(
+      name: 'Netflix',
+      amount: 15.99,
+      cycle: 'monthly',
+      nextChargeDate: DateTime(2026, 8, 22),
+      createdAt: DateTime(2026, 1, 1),
+    ));
+    final fake = _FakeNotifications();
+    final scheduler = NotificationScheduler(db, fake, now: () => DateTime(2026, 8, 17, 7, 0));
+
+    await scheduler.refresh();
+
+    final rows = await db.subscriptionsDao.allForScheduling();
+    final id = subscriptionNotificationId(rows.single.id);
+    expect(fake.scheduled.containsKey(id), isFalse);
+    await db.close();
+  });
+
+  test('a past-due monthly subscription rolls forward to next month', () async {
+    final db = _db();
+    final id = await db.subscriptionsDao.add(SubscriptionsCompanion.insert(
+      name: 'Netflix',
+      amount: 15.99,
+      cycle: 'monthly',
+      nextChargeDate: DateTime(2026, 7, 1),
+      createdAt: DateTime(2026, 1, 1),
+    ));
+    final fake = _FakeNotifications();
+    final scheduler = NotificationScheduler(db, fake, now: () => DateTime(2026, 8, 17, 7, 0));
+
+    await scheduler.refresh();
+
+    final rows = await db.subscriptionsDao.allForScheduling();
+    expect(rows.single.nextChargeDate, DateTime(2026, 9, 1));
+    expect(id, isNotNull);
+    await db.close();
+  });
+
+  test('a past-due yearly subscription rolls forward by a year', () async {
+    final db = _db();
+    await db.subscriptionsDao.add(SubscriptionsCompanion.insert(
+      name: 'iCloud+',
+      amount: 99.0,
+      cycle: 'yearly',
+      nextChargeDate: DateTime(2025, 8, 1),
+      createdAt: DateTime(2026, 1, 1),
+    ));
+    final fake = _FakeNotifications();
+    final scheduler = NotificationScheduler(db, fake, now: () => DateTime(2026, 8, 17, 7, 0));
+
+    await scheduler.refresh();
+
+    final rows = await db.subscriptionsDao.allForScheduling();
+    expect(rows.single.nextChargeDate, DateTime(2027, 8, 1));
+    await db.close();
+  });
 }

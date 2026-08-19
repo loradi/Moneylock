@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/format.dart';
+import '../../core/notification_scheduler.dart';
 import '../../data/db.dart';
 import '../../providers.dart';
 import '../../theme/app_theme.dart';
@@ -150,6 +151,7 @@ class SubscriptionsScreen extends ConsumerWidget {
       ),
     );
     if (confirmed != true) return false;
+    await ref.read(notificationSchedulerProvider).cancel(subscriptionNotificationId(subscription.id));
     await ref.read(appDatabaseProvider).subscriptionsDao.remove(subscription.id);
     return true;
   }
@@ -294,6 +296,7 @@ class _AddSubscriptionSheetState extends ConsumerState<_AddSubscriptionSheet> {
             createdAt: DateTime.now(),
           ),
         );
+    await ref.read(notificationSchedulerProvider).refresh();
     if (mounted) Navigator.of(context).pop(true);
   }
 
