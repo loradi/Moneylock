@@ -3,11 +3,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/format.dart';
-import '../../data/db.dart';
+import '../../data/transaction_summary.dart';
 import '../../providers.dart';
 import '../../theme/app_theme.dart';
-import '../../theme/category_style.dart';
 import '../../widgets/kit.dart';
+import '../../widgets/transaction_row.dart';
 import '../insights/insights_agent.dart';
 import '../add/manual_form.dart';
 import '../add/voice_button.dart';
@@ -77,7 +77,8 @@ class DashboardScreen extends ConsumerWidget {
             ),
             SliverList(
               delegate: SliverChildBuilderDelegate(
-                (context, i) => _TransactionRow(t: txs[i]),
+                (context, i) =>
+                    TransactionRow(t: TransactionSummary.fromTransaction(txs[i])),
                 childCount: txs.length > 20 ? 20 : txs.length,
               ),
             ),
@@ -173,58 +174,6 @@ class _BudgetList extends StatelessWidget {
     },
     loading: () => const LinearProgressIndicator(),
     error: (e, _) => Text('Could not load budgets: $e'),
-  );
-}
-
-class _TransactionRow extends StatelessWidget {
-  final Transaction t;
-  const _TransactionRow({required this.t});
-  @override
-  Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.symmetric(
-      horizontal: AppSpacing.margin,
-      vertical: 7,
-    ),
-    child: Row(
-      children: [
-        Container(
-          width: 42,
-          height: 42,
-          decoration: BoxDecoration(
-            color: categoryContainerColor(t.category),
-            borderRadius: BorderRadius.circular(AppRadii.xl),
-          ),
-          child: Icon(
-            categoryIcon(t.category),
-            color: AppColors.onSurface,
-            size: 20,
-          ),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                t.merchant.isEmpty ? t.category : t.merchant,
-                style: AppTextStyles.bodyMd.copyWith(
-                  fontWeight: FontWeight.w600,
-                ),
-                overflow: TextOverflow.ellipsis,
-              ),
-              Text(
-                '${t.category} · ${fmtDate(t.timestamp)}',
-                style: AppTextStyles.bodyMd.copyWith(
-                  fontSize: 12,
-                  color: AppColors.onSurfaceVariant,
-                ),
-              ),
-            ],
-          ),
-        ),
-        Text(fmtCurrency(t.amount), style: AppTextStyles.monoData),
-      ],
-    ),
   );
 }
 

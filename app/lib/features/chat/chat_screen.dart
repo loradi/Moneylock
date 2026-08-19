@@ -1,12 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../llm/mentor_agent.dart';
+import '../../data/transaction_summary.dart';
 import '../../llm/category_correction.dart';
 import '../../llm/mentor_guardrails.dart';
 import '../../providers.dart';
 import '../../theme/app_theme.dart';
 import '../../receipt/receipt_ocr_service.dart';
+import '../../widgets/transaction_row.dart';
 
 final _amountRe = RegExp(r'\$\s?\d+(?:\.\d{1,2})?|\d+\.\d{2}');
 bool hasMonetaryAmount(String text) => _amountRe.hasMatch(text);
@@ -62,7 +63,14 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                       thinking: true,
                     );
                   final m = messages[i];
-                  return _Bubble(role: m.role, content: m.content);
+                  return _Bubble(
+                    role: m.role,
+                    content: m.content,
+                    kind: m.kind,
+                    transactions: m.dataJson == null
+                        ? const []
+                        : decodeTransactionSummaries(m.dataJson!),
+                  );
                 },
               ),
             ),
@@ -107,18 +115,13 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           'Could not record that: ${result.error}',
         );
     } else {
-      final tone = await db.settingsDao.mentorTone();
-      try {
-        final reply = await ref
-            .read(llmProviderProvider)
-            .complete(mentorPromptFor(tone), text);
-        await db.messagesDao.add('mentor', guardMentorResponse(reply));
-      } catch (_) {
-        await db.messagesDao.add(
-          'mentor',
-          'I could not reach my model right now.',
-        );
-      }
+      final result = await ref.read(mentorProvider).chat(text);
+      await db.messagesDao.add(
+        'mentor',
+        result.content,
+        kind: result.kind,
+        transactions: result.transactions,
+      );
     }
     if (mounted) setState(() => _thinking = false);
   }
@@ -216,18 +219,35 @@ class _ChatHeader extends StatelessWidget {
   );
 }
 
-class _Bubble extends StatelessWidget {
+class _Bubble extends ConsumerStatefulWidget {
   final String role;
   final String content;
+  final String kind;
+  final List<TransactionSummary> transactions;
   final bool thinking;
   const _Bubble({
     required this.role,
     required this.content,
+    this.kind = 'text',
+    this.transactions = const [],
     this.thinking = false,
   });
+
+  @override
+  ConsumerState<_Bubble> createState() => _BubbleState();
+}
+
+class _BubbleState extends ConsumerState<_Bubble> {
+  bool _actionTaken = false;
+
+  Future<void> _delete(int id) async {
+    await ref.read(appDatabaseProvider).transactionsDao.remove(id);
+    if (mounted) setState(() => _actionTaken = true);
+  }
+
   @override
   Widget build(BuildContext context) {
-    final user = role == 'user';
+    final user = widget.role == 'user';
     return Align(
       alignment: user ? Alignment.centerRight : Alignment.centerLeft,
       child: Container(
@@ -240,7 +260,7 @@ class _Bubble extends StatelessWidget {
           color: user ? AppColors.primary : AppColors.darkSurfaceContainerHigh,
           borderRadius: BorderRadius.circular(16),
         ),
-        child: thinking
+        child: widget.thinking
             ? const SizedBox(
                 width: 18,
                 height: 18,
@@ -249,12 +269,60 @@ class _Bubble extends StatelessWidget {
                   color: AppColors.darkOnSurfaceVariant,
                 ),
               )
-            : Text(
-                content,
-                style: TextStyle(
-                  color: user ? Colors.white : AppColors.darkOnSurface,
-                  height: 1.35,
-                ),
+            : Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (widget.content.isNotEmpty)
+                    Text(
+                      widget.content,
+                      style: TextStyle(
+                        color: user ? Colors.white : AppColors.darkOnSurface,
+                        height: 1.35,
+                      ),
+                    ),
+                  if (widget.transactions.isNotEmpty) ...[
+                    const SizedBox(height: 8),
+                    for (final t in widget.transactions)
+                      Container(
+                        margin: const EdgeInsets.only(bottom: 4),
+                        decoration: BoxDecoration(
+                          color: AppColors.surface,
+                          borderRadius: BorderRadius.circular(AppRadii.xl),
+                        ),
+                        child: TransactionRow(t: t),
+                      ),
+                    if (widget.kind == 'delete_confirm' && !_actionTaken)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 4),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            TextButton(
+                              onPressed: () => setState(() => _actionTaken = true),
+                              child: const Text('Cancel'),
+                            ),
+                            const SizedBox(width: 4),
+                            FilledButton(
+                              onPressed: () => _delete(widget.transactions.first.id),
+                              child: const Text('Delete'),
+                            ),
+                          ],
+                        ),
+                      ),
+                    if (widget.kind == 'delete_confirm' && _actionTaken)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 4),
+                        child: Text(
+                          'Done.',
+                          style: TextStyle(
+                            color: AppColors.darkOnSurfaceVariant,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ),
+                  ],
+                ],
               ),
       ),
     );
