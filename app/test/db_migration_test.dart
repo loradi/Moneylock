@@ -17,6 +17,11 @@ void main() {
     // inserts the 10 default categories.
     final seedDb = AppDatabase.forTesting(NativeDatabase(file));
     await seedDb.categoriesDao.all();
+    // Also undo the v6 mentor_messages columns: onCreate already includes
+    // them, so leaving them in place would make the from<6 migration step
+    // collide with columns that already exist when this test upgrades past it.
+    await seedDb.customStatement('ALTER TABLE mentor_messages DROP COLUMN kind');
+    await seedDb.customStatement('ALTER TABLE mentor_messages DROP COLUMN data_json');
     // Force the on-disk version back to 3 so the next open replays the
     // from<4 migration step against a database that already has
     // categories populated -- the exact scenario that used to throw
