@@ -106,9 +106,15 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       );
     } else if (!mentorRequestAllowed(text)) {
       await db.messagesDao.add('mentor', mentorScopeRefusal);
-    } else if (hasMonetaryAmount(text)) {
+    } else {
       final intent = await ref.read(mentorProvider).classify(text);
-      if (intent.intent == 'chat') {
+      // The classifier recognizes "record_transaction" explicitly; the
+      // regex is kept as a safety net for confident cases where the
+      // classifier fell back to "chat" (e.g. an LLM failure) but the text
+      // still obviously names a dollar amount.
+      final shouldRecord = intent.intent == 'record_transaction' ||
+          (intent.intent == 'chat' && hasMonetaryAmount(text));
+      if (shouldRecord) {
         final result = await ref
             .read(addFlowProvider)
             .run(rawText: text, source: 'manual');
@@ -126,14 +132,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           dataJson: result.dataJson,
         );
       }
-    } else {
-      final result = await ref.read(mentorProvider).chat(text);
-      await db.messagesDao.add(
-        'mentor',
-        result.content,
-        kind: result.kind,
-        dataJson: result.dataJson,
-      );
     }
     if (mounted) setState(() => _thinking = false);
   }
