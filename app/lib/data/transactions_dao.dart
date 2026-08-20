@@ -117,6 +117,14 @@ class TransactionsDao {
     return transaction.copyWith(category: category);
   }
 
+  Future<void> updateFields(int id, {double? amount, String? merchant}) =>
+      (db.update(db.transactions)..where((row) => row.id.equals(id))).write(
+        TransactionsCompanion(
+          amount: amount == null ? const Value.absent() : Value(amount),
+          merchant: merchant == null ? const Value.absent() : Value(merchant),
+        ),
+      );
+
   Future<Map<String, double>> spentByCategoryThisPeriod(String period) async {
     final start = DateTime.parse('$period-01T00:00:00');
     final end = DateTime(start.year, start.month + 1, 1);
