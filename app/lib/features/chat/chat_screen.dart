@@ -1,8 +1,13 @@
+import 'package:drift/drift.dart' show Value;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../data/budget_change_summary.dart';
+import '../../data/db.dart';
+import '../../data/new_subscription_summary.dart';
+import '../../data/subscription_edit_summary.dart';
 import '../../data/subscription_summary.dart';
+import '../../data/transaction_edit_summary.dart';
 import '../../data/transaction_summary.dart';
 import '../../llm/category_correction.dart';
 import '../../llm/mentor_guardrails.dart';
@@ -284,6 +289,51 @@ class _BubbleState extends ConsumerState<_Bubble> {
     if (mounted) setState(() => _actionTaken = true);
   }
 
+  NewSubscriptionSummary? get _newSubscription =>
+      widget.kind == 'add_subscription_confirm' && widget.dataJson != null
+          ? decodeNewSubscriptionSummary(widget.dataJson!)
+          : null;
+
+  Future<void> _confirmAddSubscription(NewSubscriptionSummary s) async {
+    await ref.read(appDatabaseProvider).subscriptionsDao.add(
+          SubscriptionsCompanion.insert(
+            name: s.name,
+            amount: s.amount,
+            cycle: 'monthly',
+            nextChargeDate: s.nextChargeDate,
+            createdAt: DateTime.now(),
+          ),
+        );
+    if (mounted) setState(() => _actionTaken = true);
+  }
+
+  TransactionEditSummary? get _transactionEdit =>
+      widget.kind == 'edit_transaction_confirm' && widget.dataJson != null
+          ? decodeTransactionEditSummary(widget.dataJson!)
+          : null;
+
+  Future<void> _confirmTransactionEdit(TransactionEditSummary edit) async {
+    await ref.read(appDatabaseProvider).transactionsDao.updateFields(
+          edit.transaction.id,
+          amount: edit.newAmount,
+          merchant: edit.newMerchant,
+        );
+    if (mounted) setState(() => _actionTaken = true);
+  }
+
+  SubscriptionEditSummary? get _subscriptionEdit =>
+      widget.kind == 'edit_subscription_confirm' && widget.dataJson != null
+          ? decodeSubscriptionEditSummary(widget.dataJson!)
+          : null;
+
+  Future<void> _confirmSubscriptionEdit(SubscriptionEditSummary edit) async {
+    await ref.read(appDatabaseProvider).subscriptionsDao.update(
+          edit.subscription.id,
+          SubscriptionsCompanion(amount: Value(edit.newAmount)),
+        );
+    if (mounted) setState(() => _actionTaken = true);
+  }
+
   @override
   Widget build(BuildContext context) {
     final user = widget.role == 'user';
@@ -434,6 +484,96 @@ class _BubbleState extends ConsumerState<_Bubble> {
                             color: AppColors.darkOnSurfaceVariant,
                             fontSize: 12,
                           ),
+                        ),
+                      ),
+                  ],
+                  if (_newSubscription != null) ...[
+                    const SizedBox(height: 8),
+                    if (!_actionTaken)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 4),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            TextButton(
+                              onPressed: () => setState(() => _actionTaken = true),
+                              style: TextButton.styleFrom(foregroundColor: AppColors.darkPrimary),
+                              child: const Text('Cancel'),
+                            ),
+                            const SizedBox(width: 4),
+                            FilledButton(
+                              onPressed: () => _confirmAddSubscription(_newSubscription!),
+                              child: const Text('Confirm'),
+                            ),
+                          ],
+                        ),
+                      ),
+                    if (_actionTaken)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 4),
+                        child: Text(
+                          'Done.',
+                          style: TextStyle(color: AppColors.darkOnSurfaceVariant, fontSize: 12),
+                        ),
+                      ),
+                  ],
+                  if (_transactionEdit != null) ...[
+                    const SizedBox(height: 8),
+                    if (!_actionTaken)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 4),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            TextButton(
+                              onPressed: () => setState(() => _actionTaken = true),
+                              style: TextButton.styleFrom(foregroundColor: AppColors.darkPrimary),
+                              child: const Text('Cancel'),
+                            ),
+                            const SizedBox(width: 4),
+                            FilledButton(
+                              onPressed: () => _confirmTransactionEdit(_transactionEdit!),
+                              child: const Text('Confirm'),
+                            ),
+                          ],
+                        ),
+                      ),
+                    if (_actionTaken)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 4),
+                        child: Text(
+                          'Done.',
+                          style: TextStyle(color: AppColors.darkOnSurfaceVariant, fontSize: 12),
+                        ),
+                      ),
+                  ],
+                  if (_subscriptionEdit != null) ...[
+                    const SizedBox(height: 8),
+                    if (!_actionTaken)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 4),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            TextButton(
+                              onPressed: () => setState(() => _actionTaken = true),
+                              style: TextButton.styleFrom(foregroundColor: AppColors.darkPrimary),
+                              child: const Text('Cancel'),
+                            ),
+                            const SizedBox(width: 4),
+                            FilledButton(
+                              onPressed: () => _confirmSubscriptionEdit(_subscriptionEdit!),
+                              child: const Text('Confirm'),
+                            ),
+                          ],
+                        ),
+                      ),
+                    if (_actionTaken)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 4),
+                        child: Text(
+                          'Done.',
+                          style: TextStyle(color: AppColors.darkOnSurfaceVariant, fontSize: 12),
                         ),
                       ),
                   ],

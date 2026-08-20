@@ -4,7 +4,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:moneylock/data/budget_change_summary.dart';
 import 'package:moneylock/data/db.dart';
+import 'package:moneylock/data/new_subscription_summary.dart';
+import 'package:moneylock/data/subscription_edit_summary.dart';
 import 'package:moneylock/data/subscription_summary.dart';
+import 'package:moneylock/data/transaction_edit_summary.dart';
 import 'package:moneylock/data/transaction_summary.dart';
 import 'package:moneylock/features/chat/chat_screen.dart';
 import 'package:moneylock/providers.dart';
@@ -225,6 +228,111 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.textContaining('Groceries limit'), findsOneWidget);
+    expect(find.text('Confirm'), findsOneWidget);
+    expect(find.text('Cancel'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+
+    await tester.runAsync(() => db.close());
+  });
+
+  testWidgets('renders an add_subscription_confirm bubble with Confirm and Cancel buttons',
+      (tester) async {
+    final db = _db();
+    final message = _msg(
+      id: 1,
+      kind: 'add_subscription_confirm',
+      content: 'Add Netflix at \$30.00/month, starting Sep 20?',
+      dataJson: encodeNewSubscriptionSummary(NewSubscriptionSummary(
+        name: 'Netflix',
+        amount: 30.0,
+        nextChargeDate: DateTime(2026, 9, 20),
+      )),
+    );
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          appDatabaseProvider.overrideWithValue(db),
+          messagesStreamProvider.overrideWith((ref) => Stream.value([message])),
+        ],
+        child: const MaterialApp(home: ChatScreen()),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Confirm'), findsOneWidget);
+    expect(find.text('Cancel'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+
+    await tester.runAsync(() => db.close());
+  });
+
+  testWidgets('renders an edit_transaction_confirm bubble with Confirm and Cancel buttons',
+      (tester) async {
+    final db = _db();
+    final message = _msg(
+      id: 1,
+      kind: 'edit_transaction_confirm',
+      content: "Change this transaction's amount from \$45.00 to \$50.00?",
+      dataJson: encodeTransactionEditSummary(TransactionEditSummary(
+        transaction: TransactionSummary(
+          id: 1,
+          merchant: 'Nike Store',
+          amount: 45.0,
+          category: 'Shopping & E-commerce',
+          timestamp: DateTime(2026, 8, 1),
+        ),
+        newAmount: 50.0,
+      )),
+    );
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          appDatabaseProvider.overrideWithValue(db),
+          messagesStreamProvider.overrideWith((ref) => Stream.value([message])),
+        ],
+        child: const MaterialApp(home: ChatScreen()),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Confirm'), findsOneWidget);
+    expect(find.text('Cancel'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+
+    await tester.runAsync(() => db.close());
+  });
+
+  testWidgets('renders an edit_subscription_confirm bubble with Confirm and Cancel buttons',
+      (tester) async {
+    final db = _db();
+    final message = _msg(
+      id: 1,
+      kind: 'edit_subscription_confirm',
+      content: 'Change Netflix from \$15.99 to \$18.99?',
+      dataJson: encodeSubscriptionEditSummary(SubscriptionEditSummary(
+        subscription: SubscriptionSummary(
+          id: 1,
+          name: 'Netflix',
+          brandKey: 'netflix',
+          amount: 15.99,
+          currency: 'USD',
+          cycle: 'monthly',
+          nextChargeDate: DateTime(2026, 9, 1),
+        ),
+        newAmount: 18.99,
+      )),
+    );
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          appDatabaseProvider.overrideWithValue(db),
+          messagesStreamProvider.overrideWith((ref) => Stream.value([message])),
+        ],
+        child: const MaterialApp(home: ChatScreen()),
+      ),
+    );
+    await tester.pumpAndSettle();
+
     expect(find.text('Confirm'), findsOneWidget);
     expect(find.text('Cancel'), findsOneWidget);
     expect(tester.takeException(), isNull);
