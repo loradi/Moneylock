@@ -35,7 +35,7 @@ object, no markdown, no commentary:
  "category": "<one of: ${categoryCatalog.join(', ')}>"|null,
  "merchant": "<short keyword or null>", "monthsBack": <integer or null>,
  "newLimit": <number or null>, "amount": <number or null>, "dayOfMonth": <integer 1-31 or null>,
- "newMerchant": "<string or null>"}
+ "newMerchant": "<string or null>", "count": <integer or null>}
 Rules:
 - "chat" is for general questions, advice requests, or anything not asking
   to find, list, cancel, or delete a specific past transaction or
@@ -88,6 +88,10 @@ Rules:
   on, used only by "add_subscription", else null.
 - "newMerchant" is the corrected merchant name if the intent is
   "edit_transaction", else null.
+- "count" is how many results the user explicitly asked for (e.g. "my
+  last 5 transactions" -> 5, "the last three purchases" -> 3), used only
+  by "query_transactions", else null. Do not guess a count if the user
+  didn't give one.
 - "category" must be one of the listed categories if the user names one,
   else null. Not used for subscription intents.
 - "merchant" is a short keyword identifying what was bought or which
@@ -110,6 +114,7 @@ Examples:
 "add Netflix for \$30 recurring on the 20th" -> {"intent": "add_subscription", "category": null, "merchant": "Netflix", "monthsBack": null, "newLimit": null, "amount": 30, "dayOfMonth": 20}
 "change my Nike purchase to \$50" -> {"intent": "edit_transaction", "category": null, "merchant": "Nike", "monthsBack": null, "newLimit": null, "amount": 50, "dayOfMonth": null, "newMerchant": null}
 "change Netflix to \$18.99" -> {"intent": "edit_subscription", "category": null, "merchant": "Netflix", "monthsBack": null, "newLimit": null, "amount": 18.99, "dayOfMonth": null, "newMerchant": null}
+"give me my last 5 transactions" -> {"intent": "query_transactions", "category": null, "merchant": null, "monthsBack": null, "count": 5}
 ''';
 
 const strictRamseyPrompt = '''

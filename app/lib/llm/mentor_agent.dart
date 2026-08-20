@@ -58,6 +58,7 @@ class ChatIntent {
   final double? amount;
   final int? dayOfMonth;
   final String? newMerchant;
+  final int? count;
   ChatIntent({
     required this.intent,
     this.category,
@@ -67,6 +68,7 @@ class ChatIntent {
     this.amount,
     this.dayOfMonth,
     this.newMerchant,
+    this.count,
   });
 }
 
@@ -121,6 +123,7 @@ ChatIntent _parseIntent(String raw) {
       amount: (json['amount'] as num?)?.toDouble(),
       dayOfMonth: (json['dayOfMonth'] as num?)?.toInt(),
       newMerchant: json['newMerchant'] as String?,
+      count: (json['count'] as num?)?.toInt(),
     );
   } catch (_) {
     return ChatIntent(intent: 'chat');
@@ -258,11 +261,18 @@ class MentorAgent {
             .map((s) =>
                 '- ${s.name}: \$${s.amount.toStringAsFixed(2)}/${s.cycle}, renews ${s.nextChargeDate.month}/${s.nextChargeDate.day}')
             .join('\n');
+    final topCategoryLine = spentByCategory.isEmpty
+        ? ''
+        : (() {
+            final top = spentByCategory.entries.reduce((a, b) => a.value > b.value ? a : b);
+            return 'Highest spending category this month: ${top.key} (\$${top.value.toStringAsFixed(2)}).\n';
+          })();
 
     final history = await _historyBlock();
     final context = '${history}This month ($period) so far:\n'
         'Total spent: \$${totalSpent.toStringAsFixed(2)} of \$${totalLimit.toStringAsFixed(2)} budgeted\n'
         'By category:\n${categoryLines.isEmpty ? '(no budgets set)' : categoryLines}\n'
+        '$topCategoryLine'
         'Active subscriptions:\n$subsLines\n\n'
         'User: $userMessage';
 
@@ -275,17 +285,25 @@ class MentorAgent {
   }
 
   Future<MentorChatResult> _queryTransactions(ChatIntent parsed) async {
+    final effectiveLimit = parsed.count != null ? parsed.count!.clamp(1, 50) : 500;
     final rows = await db.transactionsDao.search(
       category: parsed.category,
       merchantKeyword: parsed.merchant,
       since: _sinceFromMonthsBack(parsed.monthsBack),
-      limit: 500,
+      limit: effectiveLimit,
     );
     final summaries = rows.map(TransactionSummary.fromTransaction).toList();
     if (summaries.isEmpty) {
       return MentorChatResult(content: "I couldn't find any matching transactions.");
     }
     final total = summaries.fold<double>(0, (a, t) => a + t.amount);
+    if (parsed.count != null) {
+      return MentorChatResult(
+        content: 'Here are your last ${summaries.length} transactions, totaling \$${total.toStringAsFixed(2)}.',
+        kind: 'transaction_list',
+        dataJson: encodeTransactionSummaries(summaries),
+      );
+    }
     final label = parsed.merchant ?? parsed.category ?? 'transactions';
     return MentorChatResult(
       content: 'Found ${summaries.length} matching "$label", totaling \$${total.toStringAsFixed(2)}.',

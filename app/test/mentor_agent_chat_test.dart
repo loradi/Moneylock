@@ -767,4 +767,81 @@ void main() {
     expect(result.content, 'General advice.');
     await db.close();
   });
+
+  test('query_transactions with a count set returns exactly that many, total scoped to them', () async {
+    final db = _db();
+    for (var i = 0; i < 10; i++) {
+      await db.transactionsDao.insertWithDedup(NewTransaction(
+        amount: 10.0,
+        currency: 'USD',
+        merchant: 'Store',
+        category: 'Other',
+        source: 'manual',
+        rawText: 'Store 10.0 #$i',
+        timestamp: DateTime.now(),
+      ));
+    }
+    final llm = _ScriptedLlm(['{"intent": "query_transactions", "count": 5}']);
+    final agent = MentorAgent(llm, db);
+
+    final result = await agent.chat('give me my last 5 transactions');
+
+    expect(result.kind, 'transaction_list');
+    final summaries = decodeTransactionSummaries(result.dataJson!);
+    expect(summaries, hasLength(5));
+    expect(result.content, contains('last 5'));
+    expect(result.content, contains('50.00'));
+    await db.close();
+  });
+
+  test('query_transactions without a count keeps the existing "Found N matching" wording', () async {
+    final db = _db();
+    await db.transactionsDao.insertWithDedup(NewTransaction(
+      amount: 10.0,
+      currency: 'USD',
+      merchant: 'Store',
+      category: 'Other',
+      source: 'manual',
+      rawText: 'Store 10.0',
+      timestamp: DateTime.now(),
+    ));
+    final llm = _ScriptedLlm(['{"intent": "query_transactions", "merchant": "Store"}']);
+    final agent = MentorAgent(llm, db);
+
+    final result = await agent.chat('show me my Store purchases');
+
+    expect(result.content, contains('Found 1 matching'));
+    await db.close();
+  });
+
+  test('_generalChat context includes the highest-spending category, computed in Dart', () async {
+    final db = _db();
+    await db.budgetsDao.upsert('Groceries', 400.0, '2026-08');
+    await db.budgetsDao.upsert('Travel', 400.0, '2026-08');
+    await db.transactionsDao.insertWithDedup(NewTransaction(
+      amount: 300.0,
+      currency: 'USD',
+      merchant: 'Store',
+      category: 'Groceries',
+      source: 'manual',
+      rawText: 'Store 300.0',
+      timestamp: DateTime.now(),
+    ));
+    await db.transactionsDao.insertWithDedup(NewTransaction(
+      amount: 50.0,
+      currency: 'USD',
+      merchant: 'Airline',
+      category: 'Travel',
+      source: 'manual',
+      rawText: 'Airline 50.0',
+      timestamp: DateTime.now(),
+    ));
+    final llm = _CapturingLlm(['{"intent": "chat"}', 'Reply.']);
+    final agent = MentorAgent(llm, db);
+
+    await agent.chat('what am I spending the most on?');
+
+    expect(llm.lastUserPrompt, contains('Highest spending category this month: Groceries'));
+    await db.close();
+  });
 }
