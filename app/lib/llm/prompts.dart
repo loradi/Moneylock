@@ -31,7 +31,7 @@ final mentorIntentPrompt =
     '''
 Classify the user's message about their personal finances into ONE JSON
 object, no markdown, no commentary:
-{"intent": "chat"|"query_transactions"|"delete_transaction"|"query_subscriptions"|"cancel_subscription"|"update_budget_limit"|"record_transaction"|"add_subscription"|"edit_transaction",
+{"intent": "chat"|"query_transactions"|"delete_transaction"|"query_subscriptions"|"cancel_subscription"|"update_budget_limit"|"record_transaction"|"add_subscription"|"edit_transaction"|"edit_subscription",
  "category": "<one of: ${categoryCatalog.join(', ')}>"|null,
  "merchant": "<short keyword or null>", "monthsBack": <integer or null>,
  "newLimit": <number or null>, "amount": <number or null>, "dayOfMonth": <integer 1-31 or null>,
@@ -78,6 +78,10 @@ Rules:
   amount) and/or "newMerchant" (the corrected merchant name) for WHAT to
   change -- at least one of "amount"/"newMerchant" is required, else use
   "chat".
+- "edit_subscription" is for requests to change an existing subscription's
+  monthly amount (e.g. "change Netflix to \$18.99", "Spotify is now \$13").
+  "merchant" identifies WHICH subscription (same as "cancel_subscription"),
+  "amount" is the corrected monthly charge -- required, else use "chat".
 - "amount" is the requested monetary amount as a plain number, used by
   "add_subscription" (the subscription's charge), else null.
 - "dayOfMonth" is the day of the month (1-31) a new subscription recurs
@@ -105,6 +109,7 @@ Examples:
 "log 12 dollars for parking" -> {"intent": "record_transaction", "category": "Transport", "merchant": "parking", "monthsBack": null, "newLimit": null}
 "add Netflix for \$30 recurring on the 20th" -> {"intent": "add_subscription", "category": null, "merchant": "Netflix", "monthsBack": null, "newLimit": null, "amount": 30, "dayOfMonth": 20}
 "change my Nike purchase to \$50" -> {"intent": "edit_transaction", "category": null, "merchant": "Nike", "monthsBack": null, "newLimit": null, "amount": 50, "dayOfMonth": null, "newMerchant": null}
+"change Netflix to \$18.99" -> {"intent": "edit_subscription", "category": null, "merchant": "Netflix", "monthsBack": null, "newLimit": null, "amount": 18.99, "dayOfMonth": null, "newMerchant": null}
 ''';
 
 const strictRamseyPrompt = '''

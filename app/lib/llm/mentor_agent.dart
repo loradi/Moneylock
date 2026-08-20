@@ -4,6 +4,7 @@ import 'package:moneylock/data/db.dart';
 
 import '../data/budget_change_summary.dart';
 import '../data/new_subscription_summary.dart';
+import '../data/subscription_edit_summary.dart';
 import '../data/subscription_summary.dart';
 import '../data/transaction_edit_summary.dart';
 import '../data/transaction_summary.dart';
@@ -82,6 +83,7 @@ ChatIntent _parseIntent(String raw) {
       'record_transaction',
       'add_subscription',
       'edit_transaction',
+      'edit_subscription',
     };
     if (intent == null || !recognized.contains(intent)) {
       return ChatIntent(intent: 'chat');
@@ -105,6 +107,9 @@ ChatIntent _parseIntent(String raw) {
       return ChatIntent(intent: 'chat');
     }
     if (intent == 'edit_transaction' && json['amount'] == null && json['newMerchant'] == null) {
+      return ChatIntent(intent: 'chat');
+    }
+    if (intent == 'edit_subscription' && json['amount'] == null) {
       return ChatIntent(intent: 'chat');
     }
     return ChatIntent(
@@ -221,6 +226,8 @@ class MentorAgent {
         return _addSubscription(parsed);
       case 'edit_transaction':
         return _editTransactionCandidate(parsed);
+      case 'edit_subscription':
+        return _editSubscriptionCandidate(parsed);
       // 'record_transaction' has no case here: chat_screen.dart's _send()
       // intercepts that intent before ever calling chat(), routing it to
       // the add-transaction flow instead. If it ever does reach here
@@ -433,6 +440,30 @@ class MentorAgent {
       content: 'Change this transaction\'s ${parts.join(' and ')}?',
       kind: 'edit_transaction_confirm',
       dataJson: encodeTransactionEditSummary(edit),
+    );
+  }
+
+  Future<MentorChatResult> _editSubscriptionCandidate(ChatIntent parsed) async {
+    final rows = await db.subscriptionsDao.search(nameKeyword: parsed.merchant, limit: 5);
+    final summaries = rows.map(SubscriptionSummary.fromSubscription).toList();
+    if (summaries.isEmpty) {
+      return MentorChatResult(content: "I couldn't find a subscription matching that.");
+    }
+    if (summaries.length > 1) {
+      return MentorChatResult(
+        content: 'Found ${summaries.length} subscriptions matching that -- can you be more specific?',
+        kind: 'subscription_list',
+        dataJson: encodeSubscriptionSummaries(summaries),
+      );
+    }
+    final target = summaries.first;
+    final newAmount = parsed.amount!;
+    final edit = SubscriptionEditSummary(subscription: target, newAmount: newAmount);
+    return MentorChatResult(
+      content: 'Change ${target.name} from \$${target.amount.toStringAsFixed(2)} '
+          'to \$${newAmount.toStringAsFixed(2)}?',
+      kind: 'edit_subscription_confirm',
+      dataJson: encodeSubscriptionEditSummary(edit),
     );
   }
 }

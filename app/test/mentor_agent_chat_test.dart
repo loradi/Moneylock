@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:moneylock/data/budget_change_summary.dart';
 import 'package:moneylock/data/db.dart';
 import 'package:moneylock/data/new_subscription_summary.dart';
+import 'package:moneylock/data/subscription_edit_summary.dart';
 import 'package:moneylock/data/subscription_summary.dart';
 import 'package:moneylock/data/transaction_edit_summary.dart';
 import 'package:moneylock/data/transaction_summary.dart';
@@ -695,6 +696,75 @@ void main() {
     final edit = decodeTransactionEditSummary(result.dataJson!);
     expect(edit.newAmount, isNull);
     expect(edit.newMerchant, 'Starbucks');
+    await db.close();
+  });
+
+  test('edit_subscription with exactly one match returns edit_subscription_confirm', () async {
+    final db = _db();
+    await db.subscriptionsDao.add(SubscriptionsCompanion.insert(
+      name: 'Netflix',
+      amount: 15.99,
+      cycle: 'monthly',
+      nextChargeDate: DateTime(2026, 9, 1),
+      createdAt: DateTime.now(),
+    ));
+    final llm = _ScriptedLlm(['{"intent": "edit_subscription", "merchant": "Netflix", "amount": 18.99}']);
+    final agent = MentorAgent(llm, db);
+
+    final result = await agent.chat('change Netflix to \$18.99');
+
+    expect(result.kind, 'edit_subscription_confirm');
+    final edit = decodeSubscriptionEditSummary(result.dataJson!);
+    expect(edit.subscription.name, 'Netflix');
+    expect(edit.newAmount, 18.99);
+    await db.close();
+  });
+
+  test('edit_subscription with multiple matches returns an informational list, not a confirm card', () async {
+    final db = _db();
+    await db.subscriptionsDao.add(SubscriptionsCompanion.insert(
+      name: 'Disney Plus',
+      amount: 10.0,
+      cycle: 'monthly',
+      nextChargeDate: DateTime(2026, 9, 1),
+      createdAt: DateTime.now(),
+    ));
+    await db.subscriptionsDao.add(SubscriptionsCompanion.insert(
+      name: 'Disney Bundle',
+      amount: 13.0,
+      cycle: 'monthly',
+      nextChargeDate: DateTime(2026, 9, 5),
+      createdAt: DateTime.now(),
+    ));
+    final llm = _ScriptedLlm(['{"intent": "edit_subscription", "merchant": "Disney", "amount": 15}']);
+    final agent = MentorAgent(llm, db);
+
+    final result = await agent.chat('change the Disney one to \$15');
+
+    expect(result.kind, 'subscription_list');
+    await db.close();
+  });
+
+  test('edit_subscription with no matches returns text-only', () async {
+    final db = _db();
+    final llm = _ScriptedLlm(['{"intent": "edit_subscription", "merchant": "nothing", "amount": 15}']);
+    final agent = MentorAgent(llm, db);
+
+    final result = await agent.chat('change nothing to \$15');
+
+    expect(result.kind, 'text');
+    await db.close();
+  });
+
+  test('edit_subscription with a missing amount falls back to chat', () async {
+    final db = _db();
+    final llm = _ScriptedLlm(['{"intent": "edit_subscription", "merchant": "Netflix"}', 'General advice.']);
+    final agent = MentorAgent(llm, db);
+
+    final result = await agent.chat('change Netflix');
+
+    expect(result.kind, 'text');
+    expect(result.content, 'General advice.');
     await db.close();
   });
 }
