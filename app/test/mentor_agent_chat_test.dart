@@ -2,6 +2,7 @@ import 'package:drift_flutter/drift_flutter.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:moneylock/data/budget_change_summary.dart';
 import 'package:moneylock/data/db.dart';
+import 'package:moneylock/data/new_subscription_summary.dart';
 import 'package:moneylock/data/subscription_summary.dart';
 import 'package:moneylock/data/transaction_summary.dart';
 import 'package:moneylock/data/transactions_dao.dart';
@@ -478,6 +479,118 @@ void main() {
     final agent = MentorAgent(llm, db);
 
     final result = await agent.chat('change my foobar limit to \$400');
+
+    expect(result.kind, 'text');
+    expect(result.content, 'General advice.');
+    await db.close();
+  });
+
+  test('classify() recognizes record_transaction and extracts its params', () async {
+    final db = _db();
+    final llm = _ScriptedLlm(
+        ['{"intent": "record_transaction", "category": "Coffee & Dining", "merchant": null}']);
+    final agent = MentorAgent(llm, db);
+
+    final intent = await agent.classify('add a new expense for 35 on coffee');
+
+    expect(intent.intent, 'record_transaction');
+    expect(intent.category, 'Coffee & Dining');
+    await db.close();
+  });
+
+  test('chat() with a preclassified record_transaction intent falls through to general chat rather than throwing', () async {
+    final db = _db();
+    final llm = _ScriptedLlm(['General advice.']);
+    final agent = MentorAgent(llm, db);
+
+    final result = await agent.chat(
+      'add a new expense for 35 on coffee',
+      preclassified: ChatIntent(intent: 'record_transaction', category: 'Coffee & Dining'),
+    );
+
+    expect(result.kind, 'text');
+    expect(result.content, 'General advice.');
+    await db.close();
+  });
+
+  test('add_subscription with a day not yet reached this month computes the next charge this month', () async {
+    final db = _db();
+    final now = DateTime.now();
+    final futureDay = (now.day % 27) + 1 > now.day ? (now.day % 27) + 1 : now.day;
+    final llm = _ScriptedLlm(
+        ['{"intent": "add_subscription", "merchant": "Netflix", "amount": 30, "dayOfMonth": $futureDay}']);
+    final agent = MentorAgent(llm, db);
+
+    final result = await agent.chat('add Netflix for \$30 recurring on the ${futureDay}th');
+
+    expect(result.kind, 'add_subscription_confirm');
+    final summary = decodeNewSubscriptionSummary(result.dataJson!);
+    expect(summary.name, 'Netflix');
+    expect(summary.amount, 30.0);
+    expect(summary.nextChargeDate.day, futureDay);
+    expect(summary.nextChargeDate.month, now.month);
+    expect(summary.nextChargeDate.year, now.year);
+    await db.close();
+  });
+
+  test('add_subscription with a day already passed this month rolls to next month', () async {
+    final db = _db();
+    final now = DateTime.now();
+    final pastDay = now.day > 1 ? now.day - 1 : now.day;
+    if (pastDay >= now.day) {
+      // Guard: on the 1st of the month there's no "already passed" day to
+      // pick, so this scenario doesn't apply today; nothing to assert.
+      await db.close();
+      return;
+    }
+    final llm = _ScriptedLlm(
+        ['{"intent": "add_subscription", "merchant": "Netflix", "amount": 30, "dayOfMonth": $pastDay}']);
+    final agent = MentorAgent(llm, db);
+
+    final result = await agent.chat('add Netflix for \$30 recurring on the ${pastDay}th');
+
+    final summary = decodeNewSubscriptionSummary(result.dataJson!);
+    final expectedMonth = now.month == 12 ? 1 : now.month + 1;
+    final expectedYear = now.month == 12 ? now.year + 1 : now.year;
+    expect(summary.nextChargeDate.month, expectedMonth);
+    expect(summary.nextChargeDate.year, expectedYear);
+    expect(summary.nextChargeDate.day, pastDay);
+    await db.close();
+  });
+
+  test('add_subscription with a missing amount falls back to chat', () async {
+    final db = _db();
+    final llm = _ScriptedLlm(
+        ['{"intent": "add_subscription", "merchant": "Netflix", "dayOfMonth": 20}', 'General advice.']);
+    final agent = MentorAgent(llm, db);
+
+    final result = await agent.chat('add Netflix recurring on the 20th');
+
+    expect(result.kind, 'text');
+    expect(result.content, 'General advice.');
+    await db.close();
+  });
+
+  test('add_subscription with a missing dayOfMonth falls back to chat', () async {
+    final db = _db();
+    final llm = _ScriptedLlm(
+        ['{"intent": "add_subscription", "merchant": "Netflix", "amount": 30}', 'General advice.']);
+    final agent = MentorAgent(llm, db);
+
+    final result = await agent.chat('add Netflix for \$30');
+
+    expect(result.kind, 'text');
+    expect(result.content, 'General advice.');
+    await db.close();
+  });
+
+  test('add_subscription with a missing name falls back to chat', () async {
+    final db = _db();
+    final llm = _ScriptedLlm(
+        ['{"intent": "add_subscription", "amount": 30, "dayOfMonth": 20}', 'General advice.']);
+    final agent = MentorAgent(llm, db);
+
+    final result = await agent.chat('add a subscription for \$30 on the 20th');
 
     expect(result.kind, 'text');
     expect(result.content, 'General advice.');

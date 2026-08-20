@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:moneylock/data/db.dart';
 
 import '../data/budget_change_summary.dart';
+import '../data/new_subscription_summary.dart';
 import '../data/subscription_summary.dart';
 import '../data/transaction_summary.dart';
 import 'mentor_guardrails.dart';
@@ -52,12 +53,16 @@ class ChatIntent {
   final String? merchant;
   final int? monthsBack;
   final double? newLimit;
+  final double? amount;
+  final int? dayOfMonth;
   ChatIntent({
     required this.intent,
     this.category,
     this.merchant,
     this.monthsBack,
     this.newLimit,
+    this.amount,
+    this.dayOfMonth,
   });
 }
 
@@ -71,6 +76,8 @@ ChatIntent _parseIntent(String raw) {
       'query_subscriptions',
       'cancel_subscription',
       'update_budget_limit',
+      'record_transaction',
+      'add_subscription',
     };
     if (intent == null || !recognized.contains(intent)) {
       return ChatIntent(intent: 'chat');
@@ -89,12 +96,18 @@ ChatIntent _parseIntent(String raw) {
       }
       category = resolvedCategory;
     }
+    if (intent == 'add_subscription' &&
+        (json['merchant'] == null || json['amount'] == null || json['dayOfMonth'] == null)) {
+      return ChatIntent(intent: 'chat');
+    }
     return ChatIntent(
       intent: intent,
       category: category,
       merchant: json['merchant'] as String?,
       monthsBack: (json['monthsBack'] as num?)?.toInt(),
       newLimit: (json['newLimit'] as num?)?.toDouble(),
+      amount: (json['amount'] as num?)?.toDouble(),
+      dayOfMonth: (json['dayOfMonth'] as num?)?.toInt(),
     );
   } catch (_) {
     return ChatIntent(intent: 'chat');
@@ -196,6 +209,8 @@ class MentorAgent {
         return _cancelSubscriptionCandidate(parsed);
       case 'update_budget_limit':
         return _updateBudgetLimit(parsed);
+      case 'add_subscription':
+        return _addSubscription(parsed);
       default:
         return _generalChat(userMessage);
     }
@@ -339,6 +354,31 @@ class MentorAgent {
           'to \$${newLimit.toStringAsFixed(2)}?',
       kind: 'budget_confirm',
       dataJson: encodeBudgetChangeSummary(change),
+    );
+  }
+
+  Future<MentorChatResult> _addSubscription(ChatIntent parsed) async {
+    final name = parsed.merchant!;
+    final amount = parsed.amount!;
+    final dayOfMonth = parsed.dayOfMonth!;
+    final now = DateTime.now();
+    final nextChargeDate = now.day <= dayOfMonth
+        ? DateTime(now.year, now.month, dayOfMonth)
+        : DateTime(now.year, now.month + 1, dayOfMonth);
+    final summary = NewSubscriptionSummary(
+      name: name,
+      amount: amount,
+      nextChargeDate: nextChargeDate,
+    );
+    final monthName = const [
+      'January', 'February', 'March', 'April', 'May', 'June',
+      'July', 'August', 'September', 'October', 'November', 'December',
+    ][nextChargeDate.month - 1];
+    return MentorChatResult(
+      content: 'Add $name at \$${amount.toStringAsFixed(2)}/month, '
+          'starting $monthName ${nextChargeDate.day}?',
+      kind: 'add_subscription_confirm',
+      dataJson: encodeNewSubscriptionSummary(summary),
     );
   }
 }

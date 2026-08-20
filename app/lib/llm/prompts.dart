@@ -31,14 +31,14 @@ final mentorIntentPrompt =
     '''
 Classify the user's message about their personal finances into ONE JSON
 object, no markdown, no commentary:
-{"intent": "chat"|"query_transactions"|"delete_transaction"|"query_subscriptions"|"cancel_subscription"|"update_budget_limit",
+{"intent": "chat"|"query_transactions"|"delete_transaction"|"query_subscriptions"|"cancel_subscription"|"update_budget_limit"|"record_transaction"|"add_subscription",
  "category": "<one of: ${categoryCatalog.join(', ')}>"|null,
  "merchant": "<short keyword or null>", "monthsBack": <integer or null>,
- "newLimit": <number or null>}
+ "newLimit": <number or null>, "amount": <number or null>, "dayOfMonth": <integer 1-31 or null>}
 Rules:
 - "chat" is for general questions, advice requests, or anything not asking
   to find, list, cancel, or delete a specific past transaction or
-  subscription.
+  subscription, and not asking to log a new one.
 - "query_transactions" is for requests to find, list, or show past
   transactions (by category, merchant, or time range).
 - "delete_transaction" is for requests to remove or delete a specific past
@@ -48,12 +48,31 @@ Rules:
   does Netflix renew?").
 - "cancel_subscription" is for requests to cancel or remove a specific
   subscription.
-- "update_budget_limit" is for requests to change a category's monthly
-  spending limit (e.g. "raise my groceries limit to \$400", "set travel
-  budget to \$200"). Requires both "category" (one of the listed
-  categories) and "newLimit" (the target amount as a plain number, no
-  currency symbol) -- if either can't be confidently determined, use
-  "chat" instead of guessing.
+- "update_budget_limit" is for requests to change a category's ongoing
+  monthly spending LIMIT/CAP going forward (e.g. "raise my groceries limit
+  to \$400", "set travel budget to \$200"). Requires both "category" (one
+  of the listed categories) and "newLimit" (the target amount as a plain
+  number, no currency symbol) -- if either can't be confidently determined,
+  use "chat" instead of guessing.
+- "record_transaction" is for requests to log, add, or record a NEW
+  purchase or expense that just happened (e.g. "add a new expense for 35
+  on coffee", "log 12 dollars for parking", "I spent 20 on groceries").
+  Look for verbs like "add"/"log"/"record"/"spent"/"bought" describing
+  something the user paid for, as opposed to "update_budget_limit"'s
+  "raise"/"set"/"change ... limit/budget/cap" describing a future spending
+  cap.
+- "add_subscription" is for requests to add a new recurring monthly
+  subscription (e.g. "add Netflix for \$30 recurring on the 20th", "add a
+  new subscription: Spotify, \$12, charges on the 5th"). Requires "merchant"
+  (the subscription's name), "amount" (the monthly charge as a plain
+  number), and "dayOfMonth" (the day of the month it recurs on, 1-31) --
+  if any of the three can't be confidently determined, use "chat" instead
+  of guessing. Only monthly subscriptions can be added this way; if the
+  user asks for a yearly one, use "chat".
+- "amount" is the requested monetary amount as a plain number, used by
+  "add_subscription" (the subscription's charge), else null.
+- "dayOfMonth" is the day of the month (1-31) a new subscription recurs
+  on, used only by "add_subscription", else null.
 - "category" must be one of the listed categories if the user names one,
   else null. Not used for subscription intents.
 - "merchant" is a short keyword identifying what was bought or which
@@ -71,6 +90,9 @@ Examples:
 "how much do I pay in subscriptions?" -> {"intent": "query_subscriptions", "category": null, "merchant": null, "monthsBack": null}
 "cancel my Netflix" -> {"intent": "cancel_subscription", "category": null, "merchant": "Netflix", "monthsBack": null}
 "raise my groceries limit to \$400" -> {"intent": "update_budget_limit", "category": "Groceries", "merchant": null, "monthsBack": null, "newLimit": 400}
+"add a new expense for 35 on coffee" -> {"intent": "record_transaction", "category": "Coffee & Dining", "merchant": null, "monthsBack": null, "newLimit": null}
+"log 12 dollars for parking" -> {"intent": "record_transaction", "category": "Transport", "merchant": "parking", "monthsBack": null, "newLimit": null}
+"add Netflix for \$30 recurring on the 20th" -> {"intent": "add_subscription", "category": null, "merchant": "Netflix", "monthsBack": null, "newLimit": null, "amount": 30, "dayOfMonth": 20}
 ''';
 
 const strictRamseyPrompt = '''
