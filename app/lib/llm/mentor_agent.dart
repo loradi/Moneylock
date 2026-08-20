@@ -5,6 +5,7 @@ import 'package:moneylock/data/db.dart';
 import '../data/budget_change_summary.dart';
 import '../data/new_subscription_summary.dart';
 import '../data/subscription_summary.dart';
+import '../data/transaction_edit_summary.dart';
 import '../data/transaction_summary.dart';
 import 'mentor_guardrails.dart';
 import 'prompts.dart';
@@ -55,6 +56,7 @@ class ChatIntent {
   final double? newLimit;
   final double? amount;
   final int? dayOfMonth;
+  final String? newMerchant;
   ChatIntent({
     required this.intent,
     this.category,
@@ -63,6 +65,7 @@ class ChatIntent {
     this.newLimit,
     this.amount,
     this.dayOfMonth,
+    this.newMerchant,
   });
 }
 
@@ -78,6 +81,7 @@ ChatIntent _parseIntent(String raw) {
       'update_budget_limit',
       'record_transaction',
       'add_subscription',
+      'edit_transaction',
     };
     if (intent == null || !recognized.contains(intent)) {
       return ChatIntent(intent: 'chat');
@@ -100,6 +104,9 @@ ChatIntent _parseIntent(String raw) {
         (json['merchant'] == null || json['amount'] == null || json['dayOfMonth'] == null)) {
       return ChatIntent(intent: 'chat');
     }
+    if (intent == 'edit_transaction' && json['amount'] == null && json['newMerchant'] == null) {
+      return ChatIntent(intent: 'chat');
+    }
     return ChatIntent(
       intent: intent,
       category: category,
@@ -108,6 +115,7 @@ ChatIntent _parseIntent(String raw) {
       newLimit: (json['newLimit'] as num?)?.toDouble(),
       amount: (json['amount'] as num?)?.toDouble(),
       dayOfMonth: (json['dayOfMonth'] as num?)?.toInt(),
+      newMerchant: json['newMerchant'] as String?,
     );
   } catch (_) {
     return ChatIntent(intent: 'chat');
@@ -211,6 +219,8 @@ class MentorAgent {
         return _updateBudgetLimit(parsed);
       case 'add_subscription':
         return _addSubscription(parsed);
+      case 'edit_transaction':
+        return _editTransactionCandidate(parsed);
       // 'record_transaction' has no case here: chat_screen.dart's _send()
       // intercepts that intent before ever calling chat(), routing it to
       // the add-transaction flow instead. If it ever does reach here
@@ -384,6 +394,45 @@ class MentorAgent {
           'starting $monthName ${nextChargeDate.day}?',
       kind: 'add_subscription_confirm',
       dataJson: encodeNewSubscriptionSummary(summary),
+    );
+  }
+
+  Future<MentorChatResult> _editTransactionCandidate(ChatIntent parsed) async {
+    final rows = await db.transactionsDao.search(
+      category: parsed.category,
+      merchantKeyword: parsed.merchant,
+      since: _sinceFromMonthsBack(parsed.monthsBack),
+      limit: 5,
+    );
+    final summaries = rows.map(TransactionSummary.fromTransaction).toList();
+    if (summaries.isEmpty) {
+      return MentorChatResult(content: "I couldn't find a transaction matching that.");
+    }
+    if (summaries.length > 1) {
+      return MentorChatResult(
+        content:
+            'Found ${summaries.length} transactions matching that -- can you be more specific (date, amount, or exact merchant)?',
+        kind: 'transaction_list',
+        dataJson: encodeTransactionSummaries(summaries),
+      );
+    }
+    final target = summaries.first;
+    final parts = <String>[];
+    if (parsed.amount != null) {
+      parts.add('amount from \$${target.amount.toStringAsFixed(2)} to \$${parsed.amount!.toStringAsFixed(2)}');
+    }
+    if (parsed.newMerchant != null) {
+      parts.add("merchant from '${target.merchant}' to '${parsed.newMerchant}'");
+    }
+    final edit = TransactionEditSummary(
+      transaction: target,
+      newAmount: parsed.amount,
+      newMerchant: parsed.newMerchant,
+    );
+    return MentorChatResult(
+      content: 'Change this transaction\'s ${parts.join(' and ')}?',
+      kind: 'edit_transaction_confirm',
+      dataJson: encodeTransactionEditSummary(edit),
     );
   }
 }

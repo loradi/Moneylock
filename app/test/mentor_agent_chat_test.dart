@@ -4,6 +4,7 @@ import 'package:moneylock/data/budget_change_summary.dart';
 import 'package:moneylock/data/db.dart';
 import 'package:moneylock/data/new_subscription_summary.dart';
 import 'package:moneylock/data/subscription_summary.dart';
+import 'package:moneylock/data/transaction_edit_summary.dart';
 import 'package:moneylock/data/transaction_summary.dart';
 import 'package:moneylock/data/transactions_dao.dart';
 import 'package:moneylock/llm/llm_provider.dart';
@@ -594,6 +595,106 @@ void main() {
 
     expect(result.kind, 'text');
     expect(result.content, 'General advice.');
+    await db.close();
+  });
+
+  test('edit_transaction with exactly one match and a new amount returns edit_transaction_confirm', () async {
+    final db = _db();
+    await db.transactionsDao.insertWithDedup(NewTransaction(
+      amount: 45.0,
+      currency: 'USD',
+      merchant: 'Nike Store',
+      category: 'Shopping & E-commerce',
+      source: 'manual',
+      rawText: 'Nike Store 45.0',
+      timestamp: DateTime.now(),
+    ));
+    final llm = _ScriptedLlm(['{"intent": "edit_transaction", "merchant": "Nike", "amount": 50}']);
+    final agent = MentorAgent(llm, db);
+
+    final result = await agent.chat('change my Nike purchase to \$50');
+
+    expect(result.kind, 'edit_transaction_confirm');
+    final edit = decodeTransactionEditSummary(result.dataJson!);
+    expect(edit.transaction.merchant, 'Nike Store');
+    expect(edit.newAmount, 50.0);
+    expect(edit.newMerchant, isNull);
+    await db.close();
+  });
+
+  test('edit_transaction with multiple matches returns an informational list, not a confirm card', () async {
+    final db = _db();
+    await db.transactionsDao.insertWithDedup(NewTransaction(
+      amount: 45.0,
+      currency: 'USD',
+      merchant: 'Nike Store',
+      category: 'Shopping & E-commerce',
+      source: 'manual',
+      rawText: 'Nike Store 45.0',
+      timestamp: DateTime.now(),
+    ));
+    await db.transactionsDao.insertWithDedup(NewTransaction(
+      amount: 30.0,
+      currency: 'USD',
+      merchant: 'Nike Outlet',
+      category: 'Shopping & E-commerce',
+      source: 'manual',
+      rawText: 'Nike Outlet 30.0',
+      timestamp: DateTime.now(),
+    ));
+    final llm = _ScriptedLlm(['{"intent": "edit_transaction", "merchant": "Nike", "amount": 50}']);
+    final agent = MentorAgent(llm, db);
+
+    final result = await agent.chat('change the Nike one to \$50');
+
+    expect(result.kind, 'transaction_list');
+    await db.close();
+  });
+
+  test('edit_transaction with no matches returns text-only', () async {
+    final db = _db();
+    final llm = _ScriptedLlm(['{"intent": "edit_transaction", "merchant": "nothing", "amount": 50}']);
+    final agent = MentorAgent(llm, db);
+
+    final result = await agent.chat('change the nothing purchase to \$50');
+
+    expect(result.kind, 'text');
+    await db.close();
+  });
+
+  test('edit_transaction with neither amount nor newMerchant falls back to chat', () async {
+    final db = _db();
+    final llm = _ScriptedLlm(['{"intent": "edit_transaction", "merchant": "Nike"}', 'General advice.']);
+    final agent = MentorAgent(llm, db);
+
+    final result = await agent.chat('change my Nike purchase');
+
+    expect(result.kind, 'text');
+    expect(result.content, 'General advice.');
+    await db.close();
+  });
+
+  test('edit_transaction can change the merchant instead of the amount', () async {
+    final db = _db();
+    await db.transactionsDao.insertWithDedup(NewTransaction(
+      amount: 45.0,
+      currency: 'USD',
+      merchant: 'Store',
+      category: 'Shopping & E-commerce',
+      source: 'manual',
+      rawText: 'Store 45.0',
+      timestamp: DateTime.now(),
+    ));
+    final llm = _ScriptedLlm(
+        ['{"intent": "edit_transaction", "merchant": "Store", "newMerchant": "Starbucks"}']);
+    final agent = MentorAgent(llm, db);
+
+    final result = await agent.chat('rename my store purchase to Starbucks');
+
+    expect(result.kind, 'edit_transaction_confirm');
+    final edit = decodeTransactionEditSummary(result.dataJson!);
+    expect(edit.newAmount, isNull);
+    expect(edit.newMerchant, 'Starbucks');
     await db.close();
   });
 }

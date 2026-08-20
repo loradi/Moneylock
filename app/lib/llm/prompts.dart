@@ -31,10 +31,11 @@ final mentorIntentPrompt =
     '''
 Classify the user's message about their personal finances into ONE JSON
 object, no markdown, no commentary:
-{"intent": "chat"|"query_transactions"|"delete_transaction"|"query_subscriptions"|"cancel_subscription"|"update_budget_limit"|"record_transaction"|"add_subscription",
+{"intent": "chat"|"query_transactions"|"delete_transaction"|"query_subscriptions"|"cancel_subscription"|"update_budget_limit"|"record_transaction"|"add_subscription"|"edit_transaction",
  "category": "<one of: ${categoryCatalog.join(', ')}>"|null,
  "merchant": "<short keyword or null>", "monthsBack": <integer or null>,
- "newLimit": <number or null>, "amount": <number or null>, "dayOfMonth": <integer 1-31 or null>}
+ "newLimit": <number or null>, "amount": <number or null>, "dayOfMonth": <integer 1-31 or null>,
+ "newMerchant": "<string or null>"}
 Rules:
 - "chat" is for general questions, advice requests, or anything not asking
   to find, list, cancel, or delete a specific past transaction or
@@ -69,10 +70,20 @@ Rules:
   if any of the three can't be confidently determined, use "chat" instead
   of guessing. Only monthly subscriptions can be added this way; if the
   user asks for a yearly one, use "chat".
+- "edit_transaction" is for requests to correct a specific past
+  transaction's amount and/or merchant name (e.g. "change my Nike purchase
+  to \$50", "the Starbucks charge should say Peet's Coffee instead"). Same
+  search fields as "delete_transaction" ("category"/"merchant"/
+  "monthsBack" identify WHICH transaction), plus "amount" (the corrected
+  amount) and/or "newMerchant" (the corrected merchant name) for WHAT to
+  change -- at least one of "amount"/"newMerchant" is required, else use
+  "chat".
 - "amount" is the requested monetary amount as a plain number, used by
   "add_subscription" (the subscription's charge), else null.
 - "dayOfMonth" is the day of the month (1-31) a new subscription recurs
   on, used only by "add_subscription", else null.
+- "newMerchant" is the corrected merchant name if the intent is
+  "edit_transaction", else null.
 - "category" must be one of the listed categories if the user names one,
   else null. Not used for subscription intents.
 - "merchant" is a short keyword identifying what was bought or which
@@ -93,6 +104,7 @@ Examples:
 "add a new expense for 35 on coffee" -> {"intent": "record_transaction", "category": "Coffee & Dining", "merchant": null, "monthsBack": null, "newLimit": null}
 "log 12 dollars for parking" -> {"intent": "record_transaction", "category": "Transport", "merchant": "parking", "monthsBack": null, "newLimit": null}
 "add Netflix for \$30 recurring on the 20th" -> {"intent": "add_subscription", "category": null, "merchant": "Netflix", "monthsBack": null, "newLimit": null, "amount": 30, "dayOfMonth": 20}
+"change my Nike purchase to \$50" -> {"intent": "edit_transaction", "category": null, "merchant": "Nike", "monthsBack": null, "newLimit": null, "amount": 50, "dayOfMonth": null, "newMerchant": null}
 ''';
 
 const strictRamseyPrompt = '''
