@@ -71,13 +71,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
       setState(() => _step++);
       return;
     }
-    await ref
-        .read(appDatabaseProvider)
-        .settingsDao
-        .completeOnboarding(
-          usedPlanner: _usedPlanner ?? 'not_answered',
-          shoppingHabits: _shoppingHabits ?? 'not_answered',
-        );
+    await ref.read(appDatabaseProvider).settingsDao.completeOnboarding();
     if (mounted) widget.onComplete();
   }
 

@@ -84,34 +84,11 @@ class SettingsDao {
         );
   }
 
-  Future<void> completeOnboarding({
-    required String usedPlanner,
-    required String shoppingHabits,
-  }) async {
-    await db.batch((batch) {
-      batch.insert(
-        db.settings,
-        SettingsCompanion.insert(
-          key: 'onboarding_used_planner',
-          value: usedPlanner,
-        ),
-        mode: InsertMode.insertOrReplace,
-      );
-      batch.insert(
-        db.settings,
-        SettingsCompanion.insert(
-          key: 'onboarding_shopping_habits',
-          value: shoppingHabits,
-        ),
-        mode: InsertMode.insertOrReplace,
-      );
-      batch.insert(
-        db.settings,
+  Future<void> completeOnboarding() => db
+      .into(db.settings)
+      .insertOnConflictUpdate(
         SettingsCompanion.insert(key: 'onboarding_completed', value: 'true'),
-        mode: InsertMode.insertOrReplace,
       );
-    });
-  }
 }
 
 @DriftDatabase(
