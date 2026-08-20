@@ -83,7 +83,9 @@ Rules:
   "merchant" identifies WHICH subscription (same as "cancel_subscription"),
   "amount" is the corrected monthly charge -- required, else use "chat".
 - "amount" is the requested monetary amount as a plain number, used by
-  "add_subscription" (the subscription's charge), else null.
+  "add_subscription" (the subscription's charge), "edit_transaction" (the
+  corrected amount), and "edit_subscription" (the corrected monthly
+  charge), else null.
 - "dayOfMonth" is the day of the month (1-31) a new subscription recurs
   on, used only by "add_subscription", else null.
 - "newMerchant" is the corrected merchant name if the intent is

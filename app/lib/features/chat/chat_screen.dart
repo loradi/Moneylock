@@ -118,7 +118,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       // classifier fell back to "chat" (e.g. an LLM failure) but the text
       // still obviously names a dollar amount.
       final shouldRecord = intent.intent == 'record_transaction' ||
-          (intent.intent == 'chat' && hasMonetaryAmount(text));
+          (intent.intent == 'chat' && !intent.degraded && hasMonetaryAmount(text));
       if (shouldRecord) {
         final result = await ref
             .read(addFlowProvider)
@@ -295,15 +295,20 @@ class _BubbleState extends ConsumerState<_Bubble> {
           : null;
 
   Future<void> _confirmAddSubscription(NewSubscriptionSummary s) async {
-    await ref.read(appDatabaseProvider).subscriptionsDao.add(
-          SubscriptionsCompanion.insert(
-            name: s.name,
-            amount: s.amount,
-            cycle: 'monthly',
-            nextChargeDate: s.nextChargeDate,
-            createdAt: DateTime.now(),
-          ),
-        );
+    final db = ref.read(appDatabaseProvider);
+    final existing = await db.subscriptionsDao.search(nameKeyword: s.name);
+    final alreadyAdded = existing.any((row) => row.name == s.name && row.amount == s.amount);
+    if (!alreadyAdded) {
+      await db.subscriptionsDao.add(
+            SubscriptionsCompanion.insert(
+              name: s.name,
+              amount: s.amount,
+              cycle: 'monthly',
+              nextChargeDate: s.nextChargeDate,
+              createdAt: DateTime.now(),
+            ),
+          );
+    }
     if (mounted) setState(() => _actionTaken = true);
   }
 

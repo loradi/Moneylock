@@ -59,6 +59,7 @@ class ChatIntent {
   final int? dayOfMonth;
   final String? newMerchant;
   final int? count;
+  final bool degraded;
   ChatIntent({
     required this.intent,
     this.category,
@@ -69,6 +70,7 @@ class ChatIntent {
     this.dayOfMonth,
     this.newMerchant,
     this.count,
+    this.degraded = false,
   });
 }
 
@@ -93,26 +95,26 @@ ChatIntent _parseIntent(String raw) {
     var category = json['category'] as String?;
     if (intent == 'update_budget_limit') {
       if (category == null || json['newLimit'] == null) {
-        return ChatIntent(intent: 'chat');
+        return ChatIntent(intent: 'chat', degraded: true);
       }
       final resolvedCategory = categoryCatalog.firstWhere(
         (c) => c.toLowerCase() == category!.toLowerCase(),
         orElse: () => '',
       );
       if (resolvedCategory.isEmpty) {
-        return ChatIntent(intent: 'chat');
+        return ChatIntent(intent: 'chat', degraded: true);
       }
       category = resolvedCategory;
     }
     if (intent == 'add_subscription' &&
         (json['merchant'] == null || json['amount'] == null || json['dayOfMonth'] == null)) {
-      return ChatIntent(intent: 'chat');
+      return ChatIntent(intent: 'chat', degraded: true);
     }
     if (intent == 'edit_transaction' && json['amount'] == null && json['newMerchant'] == null) {
-      return ChatIntent(intent: 'chat');
+      return ChatIntent(intent: 'chat', degraded: true);
     }
     if (intent == 'edit_subscription' && json['amount'] == null) {
-      return ChatIntent(intent: 'chat');
+      return ChatIntent(intent: 'chat', degraded: true);
     }
     return ChatIntent(
       intent: intent,
@@ -442,6 +444,7 @@ class MentorAgent {
       );
     }
     final target = summaries.first;
+    final label = target.merchant.isEmpty ? target.category : target.merchant;
     final parts = <String>[];
     if (parsed.amount != null) {
       parts.add('amount from \$${target.amount.toStringAsFixed(2)} to \$${parsed.amount!.toStringAsFixed(2)}');
@@ -455,7 +458,7 @@ class MentorAgent {
       newMerchant: parsed.newMerchant,
     );
     return MentorChatResult(
-      content: 'Change this transaction\'s ${parts.join(' and ')}?',
+      content: 'Change $label (${target.timestamp.month}/${target.timestamp.day})\'s ${parts.join(' and ')}?',
       kind: 'edit_transaction_confirm',
       dataJson: encodeTransactionEditSummary(edit),
     );

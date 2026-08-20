@@ -768,6 +768,30 @@ void main() {
     await db.close();
   });
 
+  test('classify() marks a recognized intent that fails its presence guard as degraded', () async {
+    final db = _db();
+    final llm = _ScriptedLlm(['{"intent": "add_subscription", "merchant": "Netflix"}']);
+    final agent = MentorAgent(llm, db);
+
+    final intent = await agent.classify('add Netflix for \$30 recurring on the 20th');
+
+    expect(intent.intent, 'chat');
+    expect(intent.degraded, isTrue);
+    await db.close();
+  });
+
+  test('classify() leaves degraded false for a genuine chat classification', () async {
+    final db = _db();
+    final llm = _ScriptedLlm(['{"intent": "chat"}']);
+    final agent = MentorAgent(llm, db);
+
+    final intent = await agent.classify('how am I doing this month?');
+
+    expect(intent.intent, 'chat');
+    expect(intent.degraded, isFalse);
+    await db.close();
+  });
+
   test('query_transactions with a count set returns exactly that many, total scoped to them', () async {
     final db = _db();
     for (var i = 0; i < 10; i++) {
