@@ -91,7 +91,11 @@ class AppShell extends StatelessWidget {
           bottom: 96,
           child: AppFabMentor(onTap: () => context.push('/chat')),
         ),
-        OnboardingGate(onOpenBudget: () => navigationShell.goBranch(1)),
+        OnboardingGate(
+          onOpenBudget: () => navigationShell.goBranch(1),
+          onOpenSubscriptions: () => context.push('/subscriptions'),
+          onOpenChat: () => context.push('/chat'),
+        ),
       ],
     );
   }
