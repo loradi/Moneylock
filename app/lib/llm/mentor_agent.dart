@@ -211,6 +211,11 @@ class MentorAgent {
         return _updateBudgetLimit(parsed);
       case 'add_subscription':
         return _addSubscription(parsed);
+      // 'record_transaction' has no case here: chat_screen.dart's _send()
+      // intercepts that intent before ever calling chat(), routing it to
+      // the add-transaction flow instead. If it ever does reach here
+      // (e.g. a future caller that doesn't intercept it), falling through
+      // to general chat is a safe, non-broken degradation.
       default:
         return _generalChat(userMessage);
     }
