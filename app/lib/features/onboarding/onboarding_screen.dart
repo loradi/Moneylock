@@ -10,7 +10,14 @@ final onboardingCompletedProvider = FutureProvider<bool>(
 
 class OnboardingGate extends ConsumerStatefulWidget {
   final VoidCallback onOpenBudget;
-  const OnboardingGate({super.key, required this.onOpenBudget});
+  final VoidCallback onOpenSubscriptions;
+  final VoidCallback onOpenChat;
+  const OnboardingGate({
+    super.key,
+    required this.onOpenBudget,
+    required this.onOpenSubscriptions,
+    required this.onOpenChat,
+  });
 
   @override
   ConsumerState<OnboardingGate> createState() => _OnboardingGateState();
@@ -34,6 +41,14 @@ class _OnboardingGateState extends ConsumerState<OnboardingGate> {
             setState(() => _completed = true);
             widget.onOpenBudget();
           },
+          onOpenSubscriptions: () {
+            setState(() => _completed = true);
+            widget.onOpenSubscriptions();
+          },
+          onOpenChat: () {
+            setState(() => _completed = true);
+            widget.onOpenChat();
+          },
         ),
       ),
     );
@@ -43,10 +58,14 @@ class _OnboardingGateState extends ConsumerState<OnboardingGate> {
 class OnboardingScreen extends ConsumerStatefulWidget {
   final VoidCallback onComplete;
   final VoidCallback onOpenBudget;
+  final VoidCallback onOpenSubscriptions;
+  final VoidCallback onOpenChat;
   const OnboardingScreen({
     super.key,
     required this.onComplete,
     required this.onOpenBudget,
+    required this.onOpenSubscriptions,
+    required this.onOpenChat,
   });
 
   @override
@@ -55,29 +74,14 @@ class OnboardingScreen extends ConsumerStatefulWidget {
 
 class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
   int _step = 0;
-  String? _usedPlanner;
-  String? _shoppingHabits;
-  final _setup = <bool>[false, false, false];
-
-  bool get _canContinue => switch (_step) {
-    1 => _usedPlanner != null,
-    2 => _shoppingHabits != null,
-    _ => true,
-  };
+  final _setup = <bool>[false, false, false, false];
 
   Future<void> _next() async {
-    if (!_canContinue) return;
-    if (_step < 3) {
+    if (_step < 2) {
       setState(() => _step++);
       return;
     }
-    await ref
-        .read(appDatabaseProvider)
-        .settingsDao
-        .completeOnboarding(
-          usedPlanner: _usedPlanner ?? 'not_answered',
-          shoppingHabits: _shoppingHabits ?? 'not_answered',
-        );
+    await ref.read(appDatabaseProvider).settingsDao.completeOnboarding();
     if (mounted) widget.onComplete();
   }
 
@@ -114,7 +118,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
             ],
           ),
           const SizedBox(height: 36),
-          LinearProgressIndicator(value: (_step + 1) / 4),
+          LinearProgressIndicator(value: (_step + 1) / 3),
           const SizedBox(height: 32),
           Expanded(child: _content()),
           Row(
@@ -126,9 +130,9 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                 ),
               const Spacer(),
               FilledButton.icon(
-                onPressed: _canContinue ? _next : null,
-                icon: Icon(_step == 3 ? Icons.check : Icons.arrow_forward),
-                label: Text(_step == 3 ? 'Start using Moneylock' : 'Continue'),
+                onPressed: _next,
+                icon: Icon(_step == 2 ? Icons.check : Icons.arrow_forward),
+                label: Text(_step == 2 ? 'Start using Moneylock' : 'Continue'),
               ),
             ],
           ),
@@ -139,25 +143,12 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
 
   Widget _content() => switch (_step) {
     0 => const _WelcomeStep(),
-    1 => _ChoiceStep(
-      title: 'Have you used a planner before?',
-      options: const ['Yes, regularly', 'A little', 'Not yet'],
-      value: _usedPlanner,
-      onChanged: (v) => setState(() => _usedPlanner = v),
-    ),
-    2 => _ChoiceStep(
-      title: 'What best describes your shopping habits?',
-      options: const [
-        'I plan most purchases',
-        'I mix planned and spontaneous',
-        'I often buy spontaneously',
-      ],
-      value: _shoppingHabits,
-      onChanged: (v) => setState(() => _shoppingHabits = v),
-    ),
+    1 => const _MeetVectorStep(),
     _ => _SetupStep(
       values: _setup,
       onOpenBudget: widget.onOpenBudget,
+      onOpenSubscriptions: widget.onOpenSubscriptions,
+      onOpenChat: widget.onOpenChat,
       onChanged: (i, value) => setState(() => _setup[i] = value),
     ),
   };
@@ -175,79 +166,134 @@ class _WelcomeStep extends StatelessWidget {
       ),
       const SizedBox(height: 16),
       Text(
-        'We will personalize Moneylock in a few quick steps, then show you how to set up your first budget and capture expenses offline.',
+        'A few quick steps to show you what Moneylock can do, then you will set up your first budget and start capturing expenses offline.',
         style: AppTextStyles.bodyLg.copyWith(color: AppColors.onSurfaceVariant),
       ),
     ],
   );
 }
 
-class _ChoiceStep extends StatelessWidget {
-  final String title;
-  final List<String> options;
-  final String? value;
-  final ValueChanged<String> onChanged;
-  const _ChoiceStep({
-    required this.title,
-    required this.options,
-    required this.value,
-    required this.onChanged,
-  });
+class _MeetVectorStep extends StatelessWidget {
+  const _MeetVectorStep();
+
+  static const _capabilities = [
+    'Find and answer questions about your transactions and subscriptions.',
+    'Add, edit, or delete a transaction or subscription — always with a real Confirm button, never from a typed "yes".',
+    'Change a budget limit on request.',
+    'Give advice grounded in your actual spending data.',
+  ];
+
+  static const _examples = [
+    '"add Netflix for \$15, recurring the 20th"',
+    '"what am I spending the most on?"',
+    '"raise my groceries budget to \$400"',
+  ];
+
   @override
-  Widget build(BuildContext context) => Column(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-      Text(title, style: AppTextStyles.headlineLgMobile),
-      const SizedBox(height: 20),
-      for (final option in options)
-        Padding(
-          padding: const EdgeInsets.only(bottom: 10),
-          child: RadioListTile<String>(
-            value: option,
-            groupValue: value,
-            onChanged: (v) {
-              if (v != null) onChanged(v);
-            },
-            title: Text(option),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(AppRadii.xl),
-            ),
-            tileColor: AppColors.surface,
-          ),
+  Widget build(BuildContext context) => SingleChildScrollView(
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            const Icon(Icons.smart_toy_outlined, color: AppColors.primary, size: 28),
+            const SizedBox(width: 10),
+            Text('Meet Vector', style: AppTextStyles.headlineLgMobile),
+          ],
         ),
-    ],
+        const SizedBox(height: 16),
+        Text(
+          'Your on-device finance mentor. Here is what it can actually do:',
+          style: AppTextStyles.bodyLg.copyWith(color: AppColors.onSurfaceVariant),
+        ),
+        const SizedBox(height: 16),
+        for (final line in _capabilities)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 10),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Icon(
+                  Icons.check_circle_outline,
+                  size: 18,
+                  color: AppColors.primary,
+                ),
+                const SizedBox(width: 8),
+                Expanded(child: Text(line, style: AppTextStyles.bodyMd)),
+              ],
+            ),
+          ),
+        const SizedBox(height: 8),
+        Text(
+          'Try asking things like:',
+          style: AppTextStyles.bodyMd.copyWith(color: AppColors.onSurfaceVariant),
+        ),
+        const SizedBox(height: 10),
+        for (final example in _examples)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              decoration: BoxDecoration(
+                color: AppColors.surface,
+                borderRadius: BorderRadius.circular(AppRadii.xl),
+              ),
+              child: Text(example, style: AppTextStyles.bodyMd),
+            ),
+          ),
+      ],
+    ),
   );
 }
 
 class _SetupStep extends StatelessWidget {
   final List<bool> values;
   final VoidCallback onOpenBudget;
+  final VoidCallback onOpenSubscriptions;
+  final VoidCallback onOpenChat;
   final void Function(int, bool) onChanged;
   const _SetupStep({
     required this.values,
     required this.onOpenBudget,
+    required this.onOpenSubscriptions,
+    required this.onOpenChat,
     required this.onChanged,
   });
   @override
-  Widget build(BuildContext context) => Column(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-      Text('Your setup checklist', style: AppTextStyles.headlineLgMobile),
-      const SizedBox(height: 10),
-      Text(
-        'You can do these now or revisit them anytime.',
-        style: AppTextStyles.bodyMd.copyWith(color: AppColors.onSurfaceVariant),
-      ),
-      const SizedBox(height: 18),
-      _check(
-        0,
-        Icons.account_balance_wallet_outlined,
-        'Set your currency and budget',
-        onOpenBudget,
-      ),
-      _check(1, Icons.add_circle_outline, 'Add your first expense', null),
-      _check(2, Icons.smart_toy_outlined, 'Ask your Moneylock mentor', null),
-    ],
+  Widget build(BuildContext context) => SingleChildScrollView(
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('Your setup checklist', style: AppTextStyles.headlineLgMobile),
+        const SizedBox(height: 10),
+        Text(
+          'You can do these now or revisit them anytime.',
+          style: AppTextStyles.bodyMd.copyWith(
+            color: AppColors.onSurfaceVariant,
+          ),
+        ),
+        const SizedBox(height: 18),
+        _check(
+          0,
+          Icons.account_balance_wallet_outlined,
+          'Set your currency and budget',
+          onOpenBudget,
+        ),
+        _check(
+          1,
+          Icons.repeat,
+          'Add your first subscription',
+          onOpenSubscriptions,
+        ),
+        _check(2, Icons.add_circle_outline, 'Add your first expense', null),
+        _check(
+          3,
+          Icons.smart_toy_outlined,
+          'Ask your Moneylock mentor',
+          onOpenChat,
+        ),
+      ],
+    ),
   );
 
   Widget _check(int index, IconData icon, String title, VoidCallback? action) =>

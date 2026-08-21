@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:moneylock/core/notifications.dart';
 import 'package:moneylock/features/onboarding/onboarding_screen.dart';
 import 'package:moneylock/features/insights/insights_agent.dart';
 import 'package:moneylock/main.dart';
@@ -24,7 +25,7 @@ void main() {
           ),
           mentorToneProvider.overrideWith((ref) async => 'strict_ramsey'),
         ],
-        child: const MoneylockApp(),
+        child: MoneylockApp(notifications: LocalNotifications()),
       ),
     );
     await tester.pumpAndSettle();

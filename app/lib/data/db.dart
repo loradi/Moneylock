@@ -4,6 +4,7 @@ import 'budgets_dao.dart';
 import 'categories_dao.dart';
 import 'memories_dao.dart';
 import 'messages_dao.dart';
+import 'subscriptions_dao.dart';
 import 'tables.dart';
 import 'transactions_dao.dart';
 
@@ -33,34 +34,61 @@ class SettingsDao {
     return row?.value == 'true';
   }
 
-  Future<void> completeOnboarding({
-    required String usedPlanner,
-    required String shoppingHabits,
-  }) async {
-    await db.batch((batch) {
-      batch.insert(
-        db.settings,
-        SettingsCompanion.insert(
-          key: 'onboarding_used_planner',
-          value: usedPlanner,
-        ),
-        mode: InsertMode.insertOrReplace,
-      );
-      batch.insert(
-        db.settings,
-        SettingsCompanion.insert(
-          key: 'onboarding_shopping_habits',
-          value: shoppingHabits,
-        ),
-        mode: InsertMode.insertOrReplace,
-      );
-      batch.insert(
-        db.settings,
-        SettingsCompanion.insert(key: 'onboarding_completed', value: 'true'),
-        mode: InsertMode.insertOrReplace,
-      );
-    });
+  Future<bool> notificationsEnabled() async {
+    final row = await (db.select(
+      db.settings,
+    )..where((s) => s.key.equals('notifications_enabled'))).getSingleOrNull();
+    return row?.value != 'false';
   }
+
+  Future<void> setNotificationsEnabled(bool enabled) => db
+      .into(db.settings)
+      .insertOnConflictUpdate(
+        SettingsCompanion.insert(
+          key: 'notifications_enabled',
+          value: enabled ? 'true' : 'false',
+        ),
+      );
+
+  Future<String> defaultCurrency() async {
+    final row = await (db.select(
+      db.settings,
+    )..where((s) => s.key.equals('default_currency'))).getSingleOrNull();
+    return row?.value ?? 'USD';
+  }
+
+  Future<void> setDefaultCurrency(String currency) => db
+      .into(db.settings)
+      .insertOnConflictUpdate(
+        SettingsCompanion.insert(key: 'default_currency', value: currency),
+      );
+
+  Future<Set<String>> dismissedSubscriptionSuggestions() async {
+    final row = await (db.select(
+      db.settings,
+    )..where((s) => s.key.equals('dismissed_subscription_suggestions'))).getSingleOrNull();
+    if (row == null || row.value.isEmpty) return {};
+    return row.value.split(',').toSet();
+  }
+
+  Future<void> dismissSubscriptionSuggestion(String merchant) async {
+    final current = await dismissedSubscriptionSuggestions();
+    final updated = {...current, merchant.trim().toLowerCase()};
+    await db
+        .into(db.settings)
+        .insertOnConflictUpdate(
+          SettingsCompanion.insert(
+            key: 'dismissed_subscription_suggestions',
+            value: updated.join(','),
+          ),
+        );
+  }
+
+  Future<void> completeOnboarding() => db
+      .into(db.settings)
+      .insertOnConflictUpdate(
+        SettingsCompanion.insert(key: 'onboarding_completed', value: 'true'),
+      );
 }
 
 @DriftDatabase(
@@ -71,6 +99,7 @@ class SettingsDao {
     MentorMessages,
     AgentMemories,
     Settings,
+    Subscriptions,
   ],
 )
 class AppDatabase extends _$AppDatabase {
@@ -78,7 +107,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.e);
 
   @override
-  int get schemaVersion => 4;
+  int get schemaVersion => 6;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -102,14 +131,14 @@ class AppDatabase extends _$AppDatabase {
         await m.addColumn(budgets, budgets.enabled);
       }
       if (from < 4) {
-        for (final name in defaultCategoryNames) {
-          await into(categories).insertOnConflictUpdate(
-            CategoriesCompanion.insert(
-              name: name,
-              isDefault: const Value(true),
-            ),
-          );
-        }
+        await categoriesDao.ensureDefaults();
+      }
+      if (from < 5) {
+        await m.createTable(subscriptions);
+      }
+      if (from < 6) {
+        await m.addColumn(mentorMessages, mentorMessages.kind);
+        await m.addColumn(mentorMessages, mentorMessages.dataJson);
       }
     },
   );
@@ -120,4 +149,5 @@ class AppDatabase extends _$AppDatabase {
   late final CategoriesDao categoriesDao = CategoriesDao(this);
   late final MessagesDao messagesDao = MessagesDao(this);
   late final MemoriesDao memoriesDao = MemoriesDao(this);
+  late final SubscriptionsDao subscriptionsDao = SubscriptionsDao(this);
 }

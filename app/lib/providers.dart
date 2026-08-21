@@ -5,6 +5,7 @@ import 'package:drift_flutter/drift_flutter.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'core/deep_links.dart';
+import 'core/notification_scheduler.dart';
 import 'core/notifications.dart';
 import 'data/db.dart';
 import 'features/add/add_transaction_flow.dart';
@@ -38,12 +39,17 @@ final mentorProvider = Provider<MentorAgent>(
   ),
 );
 
+final notificationSchedulerProvider = Provider<NotificationScheduler>(
+  (ref) => NotificationScheduler(ref.watch(appDatabaseProvider), LocalNotifications()),
+);
+
 final addFlowProvider = Provider<AddTransactionFlow>(
   (ref) => AddTransactionFlow(
     categorizer: ref.watch(categorizerProvider),
     mentor: ref.watch(mentorProvider),
     db: ref.watch(appDatabaseProvider),
     notifications: LocalNotifications(),
+    scheduler: ref.watch(notificationSchedulerProvider),
   ),
 );
 
@@ -66,8 +72,20 @@ final messagesStreamProvider = StreamProvider<List<MentorMessage>>(
   (ref) => ref.watch(appDatabaseProvider).messagesDao.watchAll(),
 );
 
+final subscriptionsProvider = StreamProvider<List<Subscription>>(
+  (ref) => ref.watch(appDatabaseProvider).subscriptionsDao.watchAll(),
+);
+
 final mentorToneProvider = FutureProvider<String>(
   (ref) => ref.watch(appDatabaseProvider).settingsDao.mentorTone(),
+);
+
+final notificationsEnabledProvider = FutureProvider<bool>(
+  (ref) => ref.watch(appDatabaseProvider).settingsDao.notificationsEnabled(),
+);
+
+final defaultCurrencyProvider = FutureProvider<String>(
+  (ref) => ref.watch(appDatabaseProvider).settingsDao.defaultCurrency(),
 );
 
 /// Combina el stream de transacciones y el de presupuestos: se re-emite

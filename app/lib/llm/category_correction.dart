@@ -14,6 +14,8 @@ String? parseCategoryCorrection(String request) {
     r'\b(change|camb|correct|reclassif|move|put)\w*\b',
   ).hasMatch(normalized);
   if (!hasCorrectionCue) return null;
+  final isBudgetRequest = RegExp(r'\b(limit|budget|cap)\w*\b').hasMatch(normalized);
+  if (isBudgetRequest) return null;
   for (final category in categoryCatalog) {
     if (normalized.contains(_normalize(category))) return category;
   }

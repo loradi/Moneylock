@@ -3,16 +3,22 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/format.dart';
-import '../../data/db.dart';
+import '../../data/transaction_summary.dart';
 import '../../providers.dart';
 import '../../theme/app_theme.dart';
-import '../../theme/category_style.dart';
 import '../../widgets/kit.dart';
+import '../../widgets/transaction_row.dart';
 import '../insights/insights_agent.dart';
 import '../add/manual_form.dart';
 import '../add/voice_button.dart';
 import '../../receipt/receipt_ocr_service.dart';
+import '../../data/db.dart';
 import 'budget_bar.dart';
+
+List<Transaction> recentWithinLastWeek(List<Transaction> txs, {DateTime? now}) {
+  final cutoff = (now ?? DateTime.now()).subtract(const Duration(days: 7));
+  return txs.where((t) => !t.timestamp.isBefore(cutoff)).toList();
+}
 
 class DashboardScreen extends ConsumerWidget {
   const DashboardScreen({super.key});
@@ -20,6 +26,7 @@ class DashboardScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final summary = ref.watch(budgetSummaryProvider);
     final txs = ref.watch(transactionsStreamProvider).value ?? const [];
+    final recentTxs = recentWithinLastWeek(txs);
     return Scaffold(
       backgroundColor: AppColors.background,
       body: SafeArea(
@@ -77,8 +84,26 @@ class DashboardScreen extends ConsumerWidget {
             ),
             SliverList(
               delegate: SliverChildBuilderDelegate(
-                (context, i) => _TransactionRow(t: txs[i]),
-                childCount: txs.length > 20 ? 20 : txs.length,
+                (context, i) => Dismissible(
+                  key: ValueKey(recentTxs[i].id),
+                  direction: DismissDirection.endToStart,
+                  confirmDismiss: (_) => _confirmRemoveTransaction(context, ref, recentTxs[i]),
+                  background: Container(
+                    margin: const EdgeInsets.symmetric(
+                      horizontal: AppSpacing.margin,
+                      vertical: 2,
+                    ),
+                    alignment: Alignment.centerRight,
+                    padding: const EdgeInsets.only(right: 20),
+                    decoration: BoxDecoration(
+                      color: AppColors.error,
+                      borderRadius: BorderRadius.circular(AppRadii.xl),
+                    ),
+                    child: const Icon(Icons.delete_outline, color: Colors.white),
+                  ),
+                  child: TransactionRow(t: TransactionSummary.fromTransaction(recentTxs[i])),
+                ),
+                childCount: recentTxs.length > 20 ? 20 : recentTxs.length,
               ),
             ),
             if (txs.isEmpty)
@@ -87,6 +112,14 @@ class DashboardScreen extends ConsumerWidget {
                   icon: Icons.receipt_long_outlined,
                   title: 'No transactions yet',
                   body: 'Add your first expense to start seeing your money clearly.',
+                ),
+              )
+            else if (recentTxs.isEmpty)
+              const SliverToBoxAdapter(
+                child: AppEmptyState(
+                  icon: Icons.receipt_long_outlined,
+                  title: 'Nothing this week',
+                  body: 'Your recent activity will show up here.',
                 ),
               ),
             const SliverToBoxAdapter(child: SizedBox(height: 90)),
@@ -102,6 +135,29 @@ class DashboardScreen extends ConsumerWidget {
     backgroundColor: AppColors.surface,
     builder: (_) => const _AddSheet(),
   );
+
+  Future<bool> _confirmRemoveTransaction(BuildContext context, WidgetRef ref, Transaction t) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Remove ${t.merchant.isEmpty ? t.category : t.merchant}?'),
+        content: const Text('This transaction will be permanently deleted.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Remove'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return false;
+    await ref.read(appDatabaseProvider).transactionsDao.remove(t.id);
+    return true;
+  }
 }
 
 class _TotalCard extends StatelessWidget {
@@ -173,58 +229,6 @@ class _BudgetList extends StatelessWidget {
     },
     loading: () => const LinearProgressIndicator(),
     error: (e, _) => Text('Could not load budgets: $e'),
-  );
-}
-
-class _TransactionRow extends StatelessWidget {
-  final Transaction t;
-  const _TransactionRow({required this.t});
-  @override
-  Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.symmetric(
-      horizontal: AppSpacing.margin,
-      vertical: 7,
-    ),
-    child: Row(
-      children: [
-        Container(
-          width: 42,
-          height: 42,
-          decoration: BoxDecoration(
-            color: categoryContainerColor(t.category),
-            borderRadius: BorderRadius.circular(AppRadii.xl),
-          ),
-          child: Icon(
-            categoryIcon(t.category),
-            color: AppColors.onSurface,
-            size: 20,
-          ),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                t.merchant.isEmpty ? t.category : t.merchant,
-                style: AppTextStyles.bodyMd.copyWith(
-                  fontWeight: FontWeight.w600,
-                ),
-                overflow: TextOverflow.ellipsis,
-              ),
-              Text(
-                '${t.category} · ${fmtDate(t.timestamp)}',
-                style: AppTextStyles.bodyMd.copyWith(
-                  fontSize: 12,
-                  color: AppColors.onSurfaceVariant,
-                ),
-              ),
-            ],
-          ),
-        ),
-        Text(fmtCurrency(t.amount), style: AppTextStyles.monoData),
-      ],
-    ),
   );
 }
 

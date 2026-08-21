@@ -1,0 +1,363 @@
+# CoreML LLM Conversion Guide
+
+## Quick Start
+
+```bash
+cd conversion
+python3 -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
+pip install scikit-learn  # for int4 quantization
+
+# Qwen2.5-0.5B
+python convert.py --model qwen2.5-0.5b --context-length 2048 --output ./output/qwen2.5-0.5b
+
+# Gemma 4 E2B (monolithic decoder — not the SWA-chunked shipping layout)
+python convert.py --model gemma4-e2b --context-length 512 --output ./output/gemma4-e2b
+```
+
+### Gemma 4 E2B / E4B — chunked SWA layout (what the iPhone app loads)
+
+The runtime in `Sources/CoreMLLLM/ChunkedEngine.swift` expects the 4-chunk
+SWA layout. Use `build_verify_chunks.py` for both variants — it auto-downloads
+the HF weights and writes `chunk{1..4}.mlpackage` (each containing both
+`decode_q1` and `verify_qK` functions):
+
+```bash
+# E2B — original shipping model (ctx=512 default via registry; override as needed)
+python build_verify_chunks.py --model gemma4-e2b --ctx 2048
+
+# E4B — 42 layers, hidden=2560, 2 KV heads, KV producers L22/L23
+python build_verify_chunks.py --model gemma4-e4b --ctx 2048
+```
+
+### One-shot on-device bundle (for the CoreMLLLMChat Example app)
+
+`build_verify_chunks.py` alone produces only the 4 `.mlpackage` files. The
+iPhone runtime also needs INT8 embeddings, PLE, RoPE tables, a
+`model_config.json`, tokenizer files, and `.mlmodelc`-compiled chunks. Use
+`build_gemma4_bundle.py` to produce the complete on-device directory in one
+step (internally it invokes `build_verify_chunks.py`, compiles `.mlpackage`
+→ `.mlmodelc` via the MLModel text-MIL recipe, INT8-quantizes the embedding
+and PLE tables, and writes the config):
+
+```bash
+python conversion/build_gemma4_bundle.py --model gemma4-e4b --ctx 2048
+# → output/gemma4-e4b/bundle/ ready for USB sideload
+```
+
+Then sideload to the app (see `docs/USB_MODEL_SIDELOAD.md`):
+
+```bash
+DEVICE=$(xcrun devicectl list devices | awk '/connected/{print $3}' | head -1)
+xcrun devicectl device copy to \
+    --device "$DEVICE" \
+    --domain-type appDataContainer \
+    --domain-identifier com.example.CoreMLLLMChat \
+    --source ./output/gemma4-e4b/bundle \
+    --destination Documents/Models/gemma4-e4b \
+    --remove-existing-content true
+```
+
+`ModelInfo.gemma4e4b` is already registered in
+`Sources/CoreMLLLM/ModelDownloader.swift` with `downloadURL=""` and
+`folderName: "gemma4-e4b"`. Once the sideloaded folder is at
+`Documents/Models/gemma4-e4b/`, the downloader's `isDownloaded` check
+(`:152`) returns true and the app's picker will surface it — no download is
+attempted because the folder already exists.
+
+Chunk boundaries are derived from `compute_chunk_boundaries(config)` in
+`conversion/models/gemma4_swa_chunks.py`:
+- E2B: L0–7 / L8–14 / L15–24 / L25–34 (preserves the original hand-tuned split)
+- E4B: L0–11 / L12–23 / L24–32 / L33–41
+
+The Swift runtime's `kv13_*`/`kv14_*` feature names are preserved as opaque
+aliases for the sliding/full producer outputs — no Swift edit is needed when
+swapping E2B for E4B, as long as `model_config.json` carries the right dims
+(`num_hidden_layers`, `hidden_size`, `num_key_value_heads`, `sliding_window`,
+`per_layer_dim`).
+
+## Supported Models
+
+| Model | Architecture | HF Repo | Context | Notes |
+|-------|-------------|---------|---------|-------|
+| Qwen2.5-0.5B | qwen2 | Qwen/Qwen2.5-0.5B-Instruct | 2048 | Simplest, good for validation |
+| Qwen2.5-1.5B | qwen2 | Qwen/Qwen2.5-1.5B-Instruct | 2048 | Better quality |
+| Gemma 4 E2B | gemma4 | google/gemma-4-E2B-it | 512 | 35 layers, hidden=1536, 1 KV head, KV producers L13/L14 |
+| Gemma 4 E4B | gemma4 | google/gemma-4-E4B-it | 2048 | 42 layers, hidden=2560, 2 KV heads, KV producers L22/L23 |
+
+## Adding a New Model
+
+### Step 1: Check Architecture Compatibility
+
+Required properties for CoreML/ANE conversion:
+- Decoder-only transformer
+- RMSNorm (we use ANE-optimized `[x,-x]` trick)
+- RoPE (precomputed cos/sin tables)
+- GQA or MHA (not MoE — MoE requires special handling)
+- Standard SiLU/GELU activation
+
+### Step 2: Create Model File
+
+Create `conversion/models/<arch>.py` inheriting patterns from existing models.
+
+Key components:
+1. **Config class**: Parse HF `config.json`
+2. **Model class**: `nn.Module` with Conv2d layers, ANERMSNorm, KV cache buffer
+3. **Weight loading**: Map HF weight names to local parameter names, reshape `(out, in)` → `(out, in, 1, 1)` for Conv2d
+
+### Step 3: Create Wrapper (if architecture is complex)
+
+For models with non-standard features (e.g., Gemma 4), create a dedicated wrapper in `models/<arch>_wrapper.py`.
+
+### Step 4: Register in config.py
+
+```python
+MODEL_REGISTRY["model-name"] = ConversionConfig(
+    hf_repo="org/model-name",
+    architecture="arch",
+    default_context_length=2048,
+)
+```
+
+### Step 5: Update convert.py
+
+Add architecture detection and model class import.
+
+## Architecture-Specific Notes
+
+### Qwen2/2.5 (Simple)
+
+- Standard GQA (14 heads, 2 KV heads for 0.5B)
+- Attention bias: True
+- SiLU activation
+- Tied word embeddings
+- RoPE theta: 1,000,000
+
+No special handling needed. The base `MonolithicWrapper` in `exporter.py` works directly.
+
+### Gemma 4 E2B (Complex)
+
+This model required extensive debugging. Key lessons:
+
+#### 1. Attention Scale = 1.0 (NOT 1/sqrt(head_dim))
+
+**This was the root cause of incorrect output.** Gemma 4 uses QK normalization (RMSNorm on Q and K before attention), which normalizes the vectors. The traditional `1/sqrt(d)` scaling is therefore unnecessary and must be `1.0`.
+
+```python
+# WRONG:
+scale = 1.0 / (head_dim ** 0.5)  # 0.0625 for head_dim=256
+
+# CORRECT:
+scale = 1.0  # QK norm handles scaling
+```
+
+**How to detect**: Check `model.layers[0].self_attn.scaling` in HuggingFace. If it's `1.0`, the model uses QK norm and doesn't need additional scaling.
+
+#### 2. Dual Attention (Sliding + Full)
+
+Every 5th layer uses full attention (head_dim=512), others use sliding attention (head_dim=256).
+
+- **Different RoPE**: sliding uses theta=10,000; full uses theta=1,000,000
+- **Full attention RoPE**: Uses `global_head_dim=512` for inv_freq computation (NOT `partial_rotary_factor * global_head_dim`)
+- **KV cache**: Padded to max(head_dim)=512 for unified storage; trimmed to actual head_dim for attention
+
+#### 3. KV Cache Sharing
+
+Layers 15-34 share KV from layers 13 (sliding) and 14 (full):
+- Sliding KV-shared layers → layer 13's KV
+- Full attention KV-shared layers → layer 14's KV
+
+This means KV-shared layers **do not compute their own K/V projections** during inference with KV cache.
+
+```python
+# Check sharing config:
+layer.self_attn.is_kv_shared_layer  # True for layers 15-34
+layer.self_attn.kv_shared_layer_index  # 13 or 14
+layer.self_attn.store_full_length_kv  # True for layers 13, 14
+```
+
+#### 4. Value Normalization (v_norm)
+
+Gemma 4 applies RMSNorm (without learnable scale) to value states before attention:
+```python
+value_states = v_norm(value_states)  # RMSNorm without weight
+```
+
+#### 5. Per-Layer Embeddings
+
+Each layer gets additional token information from a separate embedding table:
+1. `embed_tokens_per_layer(input_ids)` → scaled by `sqrt(256)`
+2. `per_layer_model_projection(inputs_embeds)` → scaled by `hidden_size^-0.5`
+3. Projection is norm'd per-layer-slice, then combined with raw per-layer embedding
+4. In each layer: gate → GELU → multiply with per-layer input → project → norm → residual
+
+#### 6. Sandwich Norm (4 norms per layer)
+
+- `input_layernorm` (before attention)
+- `post_attention_layernorm` (after attention, before residual)
+- `pre_feedforward_layernorm` (before MLP)
+- `post_feedforward_layernorm` (after MLP, before residual)
+
+#### 7. Layer Scalar
+
+Each layer has a learnable `layer_scalar` parameter (typically 0.01-0.8) that scales the entire layer output including residual.
+
+#### 8. Logit Softcapping
+
+Output logits are capped: `tanh(logits / 30) * 30`
+
+#### 9. GELU Activation (not SiLU)
+
+Both MLP and per-layer gate use `gelu_pytorch_tanh`.
+
+## CoreML/ANE Optimization Techniques
+
+### ANERMSNorm (`[x, -x]` trick)
+
+Standard RMSNorm uses `rsqrt(mean(x^2))` which ANE can't accelerate. The trick:
+1. `cat([x, -x])` → mean becomes 0
+2. `LayerNorm([x, -x])` → uses ANE's optimized LayerNorm kernel (equivalent to RMSNorm when mean=0)
+3. Take first half → correct RMS-normalized values
+
+**Critical**: Must compute in float32 internally (cast input to float32, compute, cast back). Matches HF's `Gemma4RMSNorm` which also computes in float32.
+
+### Conv2d Linear
+
+Replace `nn.Linear(in, out)` with `nn.Conv2d(in, out, kernel_size=1)`. ANE processes Conv2d natively.
+
+Weight reshape: `(out, in)` → `(out, in, 1, 1)`
+Input layout: `(batch, seq, features)` → `(batch, features, 1, seq)` for Conv2d
+
+**Proven**: Conv2d and nn.Linear produce identical results (diff=0.0) for the same weights in float16.
+
+### In-Model Argmax
+
+Compute argmax inside the CoreML graph. Outputs only token ID + logit value instead of full vocabulary logits (150K+ values). Dramatically reduces ANE → CPU data transfer.
+
+### Stateful KV Cache (MLState)
+
+Uses Apple's `MLState` API (iOS 18+) for persistent KV cache across predictions. 13x faster than passing KV cache as input/output tensors.
+
+### Mask-Based Cache Update
+
+For `torch.jit.trace` compatibility, KV cache updates use:
+```python
+cache_new = cache * (1 - update_mask) + new_value * update_mask
+```
+Instead of direct index assignment which creates untraceable `int` ops.
+
+## Debugging Precision Issues
+
+### Methodology
+
+1. **Single token test**: Verify 1-token prediction matches HF
+2. **2-token test**: If single token matches but 2 tokens diverge, the issue is in KV cache interaction
+3. **Layer-by-layer comparison**: Hook into HF layers, compare outputs at each layer
+4. **Component isolation**: Test each component (embedding, norm, QKV, attention, MLP) independently
+
+### Common Pitfalls
+
+| Issue | Symptom | Fix |
+|-------|---------|-----|
+| Wrong attention scale | Output is English but wrong content | Check `self_attn.scaling` in HF |
+| Python float vs tensor multiplication | 0.004 diff in embeddings | Use `torch.tensor(scale, dtype=float16)` |
+| Missing v_norm | Divergence at layer boundaries | Check if model has `v_norm` |
+| Missing KV sharing | Divergence at layer 15+ | Check `is_kv_shared_layer` |
+| `aten::Int` in trace | CoreML conversion fails | Use `torch.chunk` instead of shape indexing, `torch.index_select` instead of tensor indexing |
+| `rotate_half` with `x.shape[-1]//2` | `aten::Int` op | Use `torch.chunk(x, 2, dim=-1)` |
+| Rank-0 tensor input | CoreML rejects scalar | Use shape `(1,)` instead of `()` |
+| Dynamic shape in `repeat_kv` | `aten::Int` from shape unpacking | Use `repeat_interleave(n, dim=1)` |
+
+### Float16 Precision Checklist
+
+- [ ] RMSNorm computes internally in float32 (cast input, compute, cast back)
+- [ ] Attention matmul in float32 (Q, K cast to float32 before matmul)
+- [ ] Scale constants as tensors, not Python floats
+- [ ] Softmax in float32 before casting back
+
+## Quantization
+
+### Why INT4 palettization (shipping default)
+
+`exporter.py :: _quantize_model` applies **INT4 palettization, `per_grouped_channel`, `group_size=32`** via `ct.optimize.coreml.palettize_weights`. This is the default in `convert.py`.
+
+| Mode | Model size (Gemma 4 E2B) | Decode speed on ANE | Quality vs FP16 |
+|---|---:|---|---|
+| FP16 (no quant) | ~5.2 GB | baseline | exact |
+| INT8 weight-only | ~2.7 GB | **same as FP16** (ANE is fp16 internally) | near-exact |
+| INT4 palettized, g=32 | **~1.4 GB** | same as FP16 | qualitatively matches on chat prompts |
+| W8A8 (weight+activation) | ~2.7 GB | 1.3–1.6× (Apple ResNet-50 figures) | needs calibration, see EXPERIMENTS.md |
+
+Key facts that drove the choice:
+
+1. **ANE is fp16 internally**. Weight-only quantization (INT8 or INT4) gains **size only, not speed**. Activations are still dequantized to fp16 before compute.
+2. **INT4 is the smallest that stays qualitatively correct** on Gemma 4 E2B without calibration. `group_size=32` means one scale per 32 output channels, which is fine for attention/MLP projections; smaller groups help quality but bloat the palette metadata.
+3. **The speed lever is W8A8, not INT4**. We ship INT4 for the memory win (fits on an 8 GB iPhone alongside the OS) and keep W8A8 as the next prototype (see `docs/EXPERIMENTS.md`).
+4. **Palettized weights show up in `phys_footprint`, not Xcode's memory gauge**. This is why README v0.5 corrected the memory number from ~250 MB (gauge) to ~1 GB (jetsam metric). See `docs/BENCHMARKING.md`.
+
+The embedding table is a separate story — `gemma4_lite_wrapper.py` moves `embed_tokens` / `embed_tokens_per_layer` out of the CoreML graph entirely and quantizes them to INT8 on disk (`embed_tokens_q8.bin`). That is what makes the 2.7 GB "Gemma 4 E2B" number on HuggingFace possible despite the 262 K × 1536 embedding.
+
+### Choosing a different mode
+
+Pass `quantize` on the `CoreMLExporter.export()` call:
+
+```python
+exporter.export(output_dir, quantize="int4")   # default
+exporter.export(output_dir, quantize="int8")   # weight-only INT8, size-only win
+exporter.export(output_dir, quantize=None)     # FP16, for quality-reference builds
+```
+
+For W8A8 calibration, bypass `exporter.py` and use `build_w8a8_proper.py` directly — it needs activation traces.
+
+## From `.mlpackage` to iPhone — Deployment Recipe
+
+`convert.py` outputs `.mlpackage` directories. **These do not run on iPhone directly**. The runtime needs compiled `.mlmodelc`. There are two correct paths and several tempting-but-wrong ones.
+
+### Correct path (matches what HF-hosted pre-converted models ship)
+
+```python
+import coremltools as ct
+import shutil, os
+
+for stem in ["chunk1", "chunk2", "chunk3", "chunk4",
+             "prefill_chunk1", "prefill_chunk2", "prefill_chunk3", "prefill_chunk4"]:
+    pkg = f"./output/gemma4-e2b/{stem}.mlpackage"
+    model = ct.models.MLModel(pkg)                      # triggers compile on macOS
+    compiled = model.get_compiled_model_path()          # temp path, GC'd with `model`
+    dst = f"./output/gemma4-e2b/{stem}.mlmodelc"
+    if os.path.exists(dst): shutil.rmtree(dst)
+    shutil.copytree(compiled, dst)                      # copy before `model` goes out of scope
+    del model
+```
+
+Keep `model` alive until the copy finishes — the compiled directory lives under a temp path that is deleted when `MLModel` is GC'd.
+
+### What does *not* work (and why)
+
+- `xcrun coremlcompiler compile` — produces a Mac-specific binary `model.mil`. iPhone's CoreML runtime expects **text** MIL starting with `program(1.3)\n`. See `docs/DEPLOYMENT.md` for the byte-level check.
+- `str(mil_program)` — prints a debug display format (`main[CoreML8]`), not the serialization format.
+- Opening the `.mlpackage` in Xcode and letting it "bundle" for you — works for toy models, silently falls back to GPU compute for large Gemma-4 chunks in our experience.
+
+### Expected output layout
+
+After the steps above, your model directory should contain:
+
+```
+gemma4-e2b/
+  model_config.json                ← written by CoreMLExporter._write_config
+  chunk1.mlmodelc/  chunk2.mlmodelc/  chunk3.mlmodelc/  chunk4.mlmodelc/
+  prefill_chunk1.mlmodelc/  ...
+  embed_tokens_q8.bin              ← external INT8 embeddings (if lite wrapper)
+  embed_tokens_per_layer_q8.bin
+  cos_sliding.npy  sin_sliding.npy  cos_full.npy  sin_full.npy   ← from generate_rope.py
+  vision.mlmodelc  (multimodal models only)
+  audio.mlmodelc   audio_config.json  output_proj_*.npy  embed_proj_weight.npy  (audio models only)
+```
+
+The `ChunkedEngine.swift` loader auto-detects chunked SWA vs monolithic layouts by scanning for `chunk*.mlmodelc` files, and auto-detects context length from the `K_full_in` input shape (commits `4311991`, `7dcbda1`). So if the chunks' masks/caches got sized inconsistently (e.g. chunk4 at 2 K while others at 8 K), loading will fail loudly rather than corrupt outputs silently.
+
+### Iterating on a converted model
+
+1. Replace a `.mlmodelc` on disk.
+2. Re-launch the app. First launch triggers ANE recompile for that chunk; subsequent launches are cached.
+3. If the device rejects the file, the error usually mentions either an I/O shape mismatch (fix: check `ModelConfig.swift`'s auto-detection vs what the chunk expects) or an ANE compile failure (fix: try the lite 2-chunk variant, or shrink the chunk).

@@ -8,6 +8,7 @@ import '../features/history/history_screen.dart';
 import '../features/insights/insights_screen.dart';
 import '../features/settings/settings_screen.dart';
 import '../features/onboarding/onboarding_screen.dart';
+import '../features/subscriptions/subscriptions_screen.dart';
 import '../theme/app_theme.dart';
 import '../widgets/kit.dart';
 
@@ -56,6 +57,12 @@ final appRouter = GoRouter(
       parentNavigatorKey: _rootNavigatorKey,
       pageBuilder: (_, _) => const NoTransitionPage(child: SettingsScreen()),
     ),
+    GoRoute(
+      path: '/subscriptions',
+      parentNavigatorKey: _rootNavigatorKey,
+      pageBuilder: (_, _) =>
+          const NoTransitionPage(child: SubscriptionsScreen()),
+    ),
   ],
 );
 
@@ -84,7 +91,11 @@ class AppShell extends StatelessWidget {
           bottom: 96,
           child: AppFabMentor(onTap: () => context.push('/chat')),
         ),
-        OnboardingGate(onOpenBudget: () => navigationShell.goBranch(1)),
+        OnboardingGate(
+          onOpenBudget: () => navigationShell.goBranch(1),
+          onOpenSubscriptions: () => context.push('/subscriptions'),
+          onOpenChat: () => context.push('/chat'),
+        ),
       ],
     );
   }

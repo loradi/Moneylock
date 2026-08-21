@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../providers.dart';
 import '../../theme/app_theme.dart';
@@ -39,6 +40,12 @@ class SettingsScreen extends ConsumerWidget {
             const SizedBox(height: 28),
             const _Section('VOICE'),
             const _VoiceCard(),
+            const SizedBox(height: 28),
+            const _Section('NOTIFICATIONS'),
+            const _NotificationsCard(),
+            const SizedBox(height: 28),
+            const _Section('SUBSCRIPTIONS'),
+            _SubscriptionsEntry(onTap: () => context.push('/subscriptions')),
           ],
         ),
       ),
@@ -79,6 +86,54 @@ class _ToneSelector extends ConsumerWidget {
       },
     );
   }
+}
+
+class _NotificationsCard extends ConsumerWidget {
+  const _NotificationsCard();
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final enabledAsync = ref.watch(notificationsEnabledProvider);
+    final enabled = enabledAsync.valueOrNull ?? true;
+    return _Card(
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              'Daily reminders and spending check-ins',
+              style: AppTextStyles.bodyMd,
+            ),
+          ),
+          Switch(
+            value: enabled,
+            onChanged: (v) async {
+              await ref.read(appDatabaseProvider).settingsDao.setNotificationsEnabled(v);
+              ref.invalidate(notificationsEnabledProvider);
+              await ref.read(notificationSchedulerProvider).refresh();
+            },
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SubscriptionsEntry extends StatelessWidget {
+  final VoidCallback onTap;
+  const _SubscriptionsEntry({required this.onTap});
+  @override
+  Widget build(BuildContext context) => _Card(
+    child: InkWell(
+      onTap: onTap,
+      child: Row(
+        children: [
+          const Expanded(
+            child: Text('Manage subscriptions', style: AppTextStyles.bodyMd),
+          ),
+          Icon(Icons.chevron_right, color: AppColors.onSurfaceVariant),
+        ],
+      ),
+    ),
+  );
 }
 
 class _ModelCard extends ConsumerStatefulWidget {

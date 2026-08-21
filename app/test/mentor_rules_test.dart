@@ -19,7 +19,7 @@ void main() {
   });
   group('mentorPromptFor', () {
     test('tono por defecto es strict', () {
-      expect(mentorPromptFor('unknown_tone'), contains('estricto'));
+      expect(mentorPromptFor('unknown_tone'), contains('strict'));
     });
     test('neutral no contiene estricto', () {
       expect(mentorPromptFor('neutral_analyst'), isNot(contains('estricto')));

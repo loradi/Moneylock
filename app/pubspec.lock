@@ -395,6 +395,14 @@ packages:
     description: flutter
     source: sdk
     version: "0.0.0"
+  flutter_timezone:
+    dependency: "direct main"
+    description:
+      name: flutter_timezone
+      sha256: "13b2109ad75651faced4831bf262e32559e44aa549426eab8a597610d385d934"
+      url: "https://pub.dev"
+    source: hosted
+    version: "4.1.1"
   flutter_web_plugins:
     dependency: transitive
     description: flutter
@@ -840,6 +848,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "3.0.0"
+  simple_icons:
+    dependency: "direct main"
+    description:
+      name: simple_icons
+      sha256: "21246ffcaaf9f560695596093c2ecf9fa763fd112a15916fbe7d282932430bae"
+      url: "https://pub.dev"
+    source: hosted
+    version: "16.23.0"
   sky_engine:
     dependency: transitive
     description: flutter
@@ -974,7 +990,7 @@ packages:
     source: hosted
     version: "0.7.12"
   timezone:
-    dependency: transitive
+    dependency: "direct main"
     description:
       name: timezone
       sha256: "981d1020d6ef8fe1e7b3de5054e5b25579ae7c403d7734adc508ffc47668e9cb"

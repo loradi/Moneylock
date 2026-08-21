@@ -1,0 +1,54 @@
+name: LearnPath
+options:
+  bundleIdPrefix: com.learnpath
+  deploymentTarget:
+    iOS: "18.0"
+  createIntermediateGroups: true
+settings:
+  base:
+    SWIFT_VERSION: "5.10"
+    MARKETING_VERSION: "1.0"
+    CURRENT_PROJECT_VERSION: "1"
+    TARGETED_DEVICE_FAMILY: "1"
+    CODE_SIGN_STYLE: Automatic
+    DEVELOPMENT_TEAM: "79FR46R3Y5"
+    GENERATE_INFOPLIST_FILE: YES
+    INFOPLIST_KEY_UIApplicationSceneManifest_Generation: YES
+    INFOPLIST_KEY_UILaunchScreen_Generation: YES
+    INFOPLIST_KEY_CFBundleDisplayName: LearnPath
+    SWIFT_EMIT_LOC_STRINGS: YES
+targets:
+  LearnPath:
+    type: application
+    platform: iOS
+    sources:
+      - path: LearnPath
+    dependencies:
+      - package: CoreML-LLM
+        product: CoreMLLLM
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.BERNU.LearnPath
+        TARGETED_DEVICE_FAMILY: "1,2"
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS: YES
+        INFOPLIST_KEY_UISupportedInterfaceOrientations: UIInterfaceOrientationPortrait
+        INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad: "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight"
+        INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.education
+        INFOPLIST_KEY_UIStatusBarStyle: ""
+        CODE_SIGN_IDENTITY: "iPhone Developer"
+  LearnPathTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - path: LearnPathTests
+    dependencies:
+      - target: LearnPath
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.learnpath.app.tests
+        TEST_HOST: $(BUILT_PRODUCTS_DIR)/LearnPath.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/LearnPath
+        BUNDLE_LOADER: $(TEST_HOST)
+packages:
+  CoreML-LLM:
+    path: Vendor/CoreML-LLM

@@ -40,6 +40,8 @@ class MentorMessages extends Table {
   TextColumn get content => text()();
   DateTimeColumn get createdAt => dateTime()();
   TextColumn get severity => text().withDefault(const Constant('info'))();
+  TextColumn get kind => text().withDefault(const Constant('text'))(); // 'text' | 'transaction_list' | 'delete_confirm'
+  TextColumn get dataJson => text().nullable()();
 }
 
 class AgentMemories extends Table {
@@ -55,4 +57,16 @@ class Settings extends Table {
   TextColumn get value => text()();
   @override
   Set<Column> get primaryKey => {key};
+}
+
+class Subscriptions extends Table {
+  IntColumn get id => integer().autoIncrement()();
+  TextColumn get name => text()();
+  TextColumn get brandKey => text().nullable()();
+  RealColumn get amount => real()();
+  TextColumn get currency => text().withDefault(const Constant('USD'))();
+  TextColumn get cycle => text()(); // 'monthly' | 'yearly'
+  DateTimeColumn get nextChargeDate => dateTime()();
+  TextColumn get source => text().withDefault(const Constant('manual'))(); // 'manual' | 'suggested'
+  DateTimeColumn get createdAt => dateTime()();
 }

@@ -1,7 +1,14 @@
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:timezone/timezone.dart' as tz;
+
 import '../llm/mentor_agent.dart';
 
-class LocalNotifications {
+abstract class NotificationScheduling {
+  Future<void> scheduleAt(int id, DateTime when, String title, String body);
+  Future<void> cancel(int id);
+}
+
+class LocalNotifications implements NotificationScheduling {
   final _plugin = FlutterLocalNotificationsPlugin();
 
   Future<void> init() async {
@@ -19,4 +26,25 @@ class LocalNotifications {
           notificationDetails: const NotificationDetails(
               iOS: DarwinNotificationDetails(badgeNumber: 1)),
           payload: severity.name);
+
+  @override
+  Future<void> scheduleAt(
+    int id,
+    DateTime when,
+    String title,
+    String body,
+  ) =>
+      _plugin.zonedSchedule(
+        id: id,
+        title: title,
+        body: body,
+        scheduledDate: tz.TZDateTime.from(when, tz.local),
+        notificationDetails: const NotificationDetails(
+          iOS: DarwinNotificationDetails(),
+        ),
+        androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+      );
+
+  @override
+  Future<void> cancel(int id) => _plugin.cancel(id: id);
 }

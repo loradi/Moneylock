@@ -3,6 +3,7 @@ import '../../data/transactions_dao.dart';
 import '../../llm/categorizer_agent.dart';
 import '../../llm/mentor_agent.dart';
 import '../../core/notifications.dart';
+import '../../core/notification_scheduler.dart';
 
 class AddResult {
   final bool inserted;
@@ -25,8 +26,9 @@ class AddTransactionFlow {
   final MentorAgent mentor;
   final AppDatabase db;
   final LocalNotifications notifications;
+  final NotificationScheduler scheduler;
   AddTransactionFlow({required this.categorizer, required this.mentor,
-      required this.db, required this.notifications});
+      required this.db, required this.notifications, required this.scheduler});
 
   Future<AddResult> run({required String rawText, required String source, DateTime? timestamp}) async {
     final ts = timestamp ?? DateTime.now();
@@ -44,18 +46,33 @@ class AddTransactionFlow {
       if (!outcome.inserted) {
         return AddResult(inserted: false);
       }
-      final verdict = await mentor.evaluate(
-          category: outcome.transaction!.category,
-          amount: outcome.transaction!.amount,
-          timestamp: ts);
-      await db.messagesDao
-          .add('mentor', verdict.message, severity: verdict.severity.name);
-      final title = switch (verdict.severity) {
-        Severity.alert => 'Over budget',
-        Severity.warning => 'Budget warning',
-        Severity.info => 'Transaction recorded',
-      };
-      await notifications.show(title, verdict.message, verdict.severity);
+      try {
+        await scheduler.refresh();
+      } catch (_) {
+        // A notification-scheduling failure shouldn't mask a transaction
+        // that was already committed; refresh() is idempotent and will be
+        // retried on the next app launch/resume/transaction anyway.
+      }
+      MentorVerdict? verdict;
+      try {
+        verdict = await mentor.evaluate(
+            category: outcome.transaction!.category,
+            amount: outcome.transaction!.amount,
+            timestamp: ts);
+        await db.messagesDao
+            .add('mentor', verdict.message, severity: verdict.severity.name);
+        final title = switch (verdict.severity) {
+          Severity.alert => 'Over budget',
+          Severity.warning => 'Budget warning',
+          Severity.info => 'Transaction recorded',
+        };
+        await notifications.show(title, verdict.message, verdict.severity);
+      } catch (_) {
+        // Same rationale as the scheduler guard above: the transaction is
+        // already committed, so a failure in the mentor evaluation, the
+        // message log, or the local notification must not report it as
+        // failed to the caller.
+      }
       return AddResult(inserted: true, verdict: verdict);
     } catch (e) {
       return AddResult(inserted: false, error: e.toString());

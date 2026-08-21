@@ -1,7 +1,8 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../core/format.dart';
 import '../../data/db.dart';
 import '../../providers.dart';
 import '../../theme/app_theme.dart';
@@ -23,6 +24,7 @@ class _BudgetScreenState extends ConsumerState<BudgetScreen> {
   String _cycle = 'monthly';
   int _cycleDays = 30;
   String _currency = 'USD';
+  bool _currencyInitialized = false;
   final _controllers = <String, TextEditingController>{};
 
   @override
@@ -33,6 +35,11 @@ class _BudgetScreenState extends ConsumerState<BudgetScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final defaultCurrency = ref.watch(defaultCurrencyProvider).valueOrNull;
+    if (!_currencyInitialized && defaultCurrency != null) {
+      _currency = defaultCurrency;
+      _currencyInitialized = true;
+    }
     final categories = ref.watch(categoriesProvider).valueOrNull ?? const [];
     final names = categories.map((c) => c.name).toList();
     final records = {for (final c in categories) c.name: c};
@@ -41,103 +48,125 @@ class _BudgetScreenState extends ConsumerState<BudgetScreen> {
     }
     return Scaffold(
       backgroundColor: AppColors.background,
-      body: SafeArea(
-        bottom: false,
-        child: CustomScrollView(
-          slivers: [
-            const SliverToBoxAdapter(
-              child: AppGlassHeader(eyebrow: 'MONEYLOCK', title: 'Budget'),
-            ),
-            SliverPadding(
-              padding: const EdgeInsets.all(AppSpacing.margin),
-              sliver: SliverToBoxAdapter(
-                child: _PeriodCard(
-                  cycle: _cycle,
-                  cycleDays: _cycleDays,
-                  currency: _currency,
-                  onCycleChanged: (value) => setState(() {
-                    _cycle = value;
-                    _cycleDays = switch (value) {
-                      'weekly' => 7,
-                      'biweekly' => 14,
-                      'monthly' => 30,
-                      _ => _cycleDays,
-                    };
-                  }),
-                  onDaysChanged: (value) =>
-                      _cycleDays = int.tryParse(value) ?? 30,
-                  onCurrencyChanged: (value) =>
-                      setState(() => _currency = value),
-                ),
+      body: GestureDetector(
+        behavior: HitTestBehavior.translucent,
+        onTap: () => FocusScope.of(context).unfocus(),
+        child: SafeArea(
+          bottom: false,
+          child: CustomScrollView(
+            slivers: [
+              const SliverToBoxAdapter(
+                child: AppGlassHeader(eyebrow: 'MONEYLOCK', title: 'Budget'),
               ),
-            ),
-            SliverPadding(
-              padding: const EdgeInsets.fromLTRB(
-                AppSpacing.margin,
-                8,
-                AppSpacing.margin,
-                8,
-              ),
-              sliver: SliverToBoxAdapter(
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    const AppSectionLabel('CATEGORY CAPS'),
-                    OutlinedButton.icon(
-                      onPressed: _addCategory,
-                      icon: const Icon(Icons.add),
-                      label: const Text('Add category'),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            SliverPadding(
-              padding: const EdgeInsets.symmetric(
-                horizontal: AppSpacing.margin,
-              ),
-              sliver: SliverList(
-                delegate: SliverChildBuilderDelegate(
-                  (_, i) => _BudgetRow(
-                    category: names[i],
-                    controller: _controllers[names[i]]!,
+              SliverPadding(
+                padding: const EdgeInsets.all(AppSpacing.margin),
+                sliver: SliverToBoxAdapter(
+                  child: _PeriodCard(
+                    cycle: _cycle,
+                    cycleDays: _cycleDays,
                     currency: _currency,
-                    onSave: _save,
-                    onRemove: () => _removeCategory(names[i]),
-                    isDefault: records[names[i]]?.isDefault ?? false,
+                    onCycleChanged: (value) => setState(() {
+                      _cycle = value;
+                      _cycleDays = switch (value) {
+                        'weekly' => 7,
+                        'biweekly' => 14,
+                        'monthly' => 30,
+                        _ => _cycleDays,
+                      };
+                    }),
+                    onDaysChanged: (value) =>
+                        _cycleDays = int.tryParse(value) ?? 30,
+                    onCurrencyChanged: (value) {
+                      setState(() => _currency = value);
+                      ref
+                          .read(appDatabaseProvider)
+                          .settingsDao
+                          .setDefaultCurrency(value);
+                    },
                   ),
-                  childCount: names.length,
                 ),
               ),
-            ),
-            const SliverToBoxAdapter(child: SizedBox(height: 90)),
-          ],
+              SliverPadding(
+                padding: const EdgeInsets.fromLTRB(
+                  AppSpacing.margin,
+                  8,
+                  AppSpacing.margin,
+                  8,
+                ),
+                sliver: SliverToBoxAdapter(
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const AppSectionLabel('CATEGORY CAPS'),
+                      OutlinedButton.icon(
+                        onPressed: _addCategory,
+                        icon: const Icon(Icons.add),
+                        label: const Text('Add category'),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              SliverPadding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: AppSpacing.margin,
+                ),
+                sliver: SliverList(
+                  delegate: SliverChildBuilderDelegate(
+                    (_, i) => _BudgetRow(
+                      category: names[i],
+                      controller: _controllers[names[i]]!,
+                      currency: _currency,
+                      onSave: _save,
+                      onConfirmRemove: () => _removeCategory(names[i]),
+                      isDefault: records[names[i]]?.isDefault ?? false,
+                    ),
+                    childCount: names.length,
+                  ),
+                ),
+              ),
+              const SliverToBoxAdapter(child: SizedBox(height: 90)),
+            ],
+          ),
         ),
       ),
     );
   }
 
   Future<void> _save(String category, String raw) async {
-    final amount = double.tryParse(raw);
-    if (amount == null || amount <= 0) return;
-    await ref
-        .read(appDatabaseProvider)
-        .budgetsDao
-        .upsert(
-          category,
-          amount,
-          _periodKey(),
-          cycle: _cycle,
-          cycleDays: _cycleDays,
-          currency: _currency,
+    final trimmed = raw.trim();
+    if (trimmed.isEmpty) return;
+    final amount = double.tryParse(trimmed);
+    if (amount == null || amount <= 0) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Enter a valid amount')));
+      }
+      return;
+    }
+    try {
+      await ref
+          .read(appDatabaseProvider)
+          .budgetsDao
+          .upsert(
+            category,
+            amount,
+            _periodKey(),
+            cycle: _cycle,
+            cycleDays: _cycleDays,
+            currency: _currency,
+          );
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not save $category cap: $error')),
         );
-    if (mounted)
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('${fmtCurrency(amount)} $category cap saved')),
-      );
+      }
+    }
   }
 
-  Future<void> _removeCategory(String category) async {
+  Future<bool> _removeCategory(String category) async {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -157,36 +186,17 @@ class _BudgetScreenState extends ConsumerState<BudgetScreen> {
         ],
       ),
     );
-    if (confirmed != true) return;
+    if (confirmed != true) return false;
     await ref.read(appDatabaseProvider).categoriesDao.remove(category);
-    setState(() {});
+    if (mounted) setState(() {});
+    return true;
   }
 
   Future<void> _addCategory() async {
-    final controller = TextEditingController();
     final created = await showDialog<String>(
       context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('New category'),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-          decoration: const InputDecoration(hintText: 'e.g. Pets'),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () =>
-                Navigator.pop(dialogContext, controller.text.trim()),
-            child: const Text('Add'),
-          ),
-        ],
-      ),
+      builder: (dialogContext) => const _AddCategoryDialog(),
     );
-    controller.dispose();
     if (created == null || created.isEmpty || !mounted) return;
     try {
       await ref.read(appDatabaseProvider).categoriesDao.add(created);
@@ -206,64 +216,164 @@ class _BudgetScreenState extends ConsumerState<BudgetScreen> {
   }
 }
 
-class _BudgetRow extends StatelessWidget {
+class _AddCategoryDialog extends StatefulWidget {
+  const _AddCategoryDialog();
+  @override
+  State<_AddCategoryDialog> createState() => _AddCategoryDialogState();
+}
+
+class _AddCategoryDialogState extends State<_AddCategoryDialog> {
+  final _controller = TextEditingController();
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+    title: const Text('New category'),
+    content: TextField(
+      controller: _controller,
+      autofocus: true,
+      decoration: const InputDecoration(hintText: 'e.g. Pets'),
+    ),
+    actions: [
+      TextButton(
+        onPressed: () => Navigator.pop(context),
+        child: const Text('Cancel'),
+      ),
+      FilledButton(
+        onPressed: () => Navigator.pop(context, _controller.text.trim()),
+        child: const Text('Add'),
+      ),
+    ],
+  );
+}
+
+class _BudgetRow extends StatefulWidget {
   final String category;
   final TextEditingController controller;
   final String currency;
   final Future<void> Function(String, String) onSave;
-  final VoidCallback onRemove;
+  final Future<bool> Function() onConfirmRemove;
   final bool isDefault;
   const _BudgetRow({
     required this.category,
     required this.controller,
     required this.currency,
     required this.onSave,
-    required this.onRemove,
+    required this.onConfirmRemove,
     required this.isDefault,
   });
+
   @override
-  Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.only(bottom: 10),
-    child: AppCard(
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(14, 4, 6, 4),
-        child: Row(
-          children: [
-            Expanded(
-              child: Text(
-                category,
-                overflow: TextOverflow.ellipsis,
-                style: AppTextStyles.bodyMd.copyWith(
-                  fontWeight: FontWeight.w600,
+  State<_BudgetRow> createState() => _BudgetRowState();
+}
+
+class _BudgetRowState extends State<_BudgetRow> {
+  Timer? _debounce;
+  final _focusNode = FocusNode();
+  bool _showSaved = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _focusNode.addListener(_onFocusChange);
+  }
+
+  @override
+  void dispose() {
+    _debounce?.cancel();
+    _focusNode.removeListener(_onFocusChange);
+    _focusNode.dispose();
+    super.dispose();
+  }
+
+  void _onFocusChange() {
+    if (!_focusNode.hasFocus) {
+      _debounce?.cancel();
+      _triggerSave();
+    }
+  }
+
+  void _onChanged(String _) {
+    _debounce?.cancel();
+    _debounce = Timer(const Duration(milliseconds: 600), _triggerSave);
+  }
+
+  void _triggerSave() {
+    final text = widget.controller.text;
+    final parsed = double.tryParse(text.trim());
+    widget.onSave(widget.category, text);
+    if (parsed != null && parsed > 0 && mounted) {
+      setState(() => _showSaved = true);
+      Future.delayed(const Duration(milliseconds: 200), () {
+        if (mounted) setState(() => _showSaved = false);
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => Dismissible(
+    key: ValueKey(widget.category),
+    direction: DismissDirection.endToStart,
+    confirmDismiss: (_) => widget.onConfirmRemove(),
+    background: Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      alignment: Alignment.centerRight,
+      padding: const EdgeInsets.only(right: 20),
+      decoration: BoxDecoration(
+        color: AppColors.error,
+        borderRadius: BorderRadius.circular(AppRadii.full),
+      ),
+      child: const Icon(Icons.delete_outline, color: Colors.white),
+    ),
+    child: Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: AppCard(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(14, 4, 6, 4),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  widget.category,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTextStyles.bodyMd.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
               ),
-            ),
-            SizedBox(
-              width: 112,
-              child: TextField(
-                controller: controller,
-                keyboardType: const TextInputType.numberWithOptions(
-                  decimal: true,
-                ),
-                decoration: InputDecoration(
-                  hintText: 'No cap',
-                  suffixText: currency,
+              SizedBox(
+                width: 112,
+                child: TextField(
+                  controller: widget.controller,
+                  focusNode: _focusNode,
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
+                  ),
+                  textInputAction: TextInputAction.done,
+                  onChanged: _onChanged,
+                  decoration: InputDecoration(
+                    hintText: 'No cap',
+                    suffixText: widget.currency,
+                  ),
                 ),
               ),
-            ),
-            IconButton(
-              onPressed: () => onSave(category, controller.text),
-              icon: const Icon(Icons.check, color: AppColors.primary),
-            ),
-            IconButton(
-              tooltip: isDefault ? 'Remove system category' : 'Remove category',
-              onPressed: onRemove,
-              icon: const Icon(
-                Icons.remove_circle_outline,
-                color: AppColors.primary,
+              const SizedBox(width: 8),
+              AnimatedOpacity(
+                opacity: _showSaved ? 1 : 0,
+                duration: const Duration(milliseconds: 200),
+                child: const Icon(
+                  Icons.check,
+                  color: AppColors.primary,
+                  size: 20,
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     ),
@@ -312,6 +422,7 @@ class _PeriodCard extends StatelessWidget {
               child: TextFormField(
                 initialValue: '$cycleDays',
                 keyboardType: TextInputType.number,
+                textInputAction: TextInputAction.done,
                 decoration: const InputDecoration(labelText: 'Days per cycle'),
                 onChanged: onDaysChanged,
               ),
