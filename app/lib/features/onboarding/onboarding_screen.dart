@@ -166,7 +166,7 @@ class _WelcomeStep extends StatelessWidget {
       ),
       const SizedBox(height: 16),
       Text(
-        'We will personalize Moneylock in a few quick steps, then show you how to set up your first budget and capture expenses offline.',
+        'A few quick steps to show you what Moneylock can do, then you will set up your first budget and start capturing expenses offline.',
         style: AppTextStyles.bodyLg.copyWith(color: AppColors.onSurfaceVariant),
       ),
     ],
@@ -260,36 +260,40 @@ class _SetupStep extends StatelessWidget {
     required this.onChanged,
   });
   @override
-  Widget build(BuildContext context) => Column(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-      Text('Your setup checklist', style: AppTextStyles.headlineLgMobile),
-      const SizedBox(height: 10),
-      Text(
-        'You can do these now or revisit them anytime.',
-        style: AppTextStyles.bodyMd.copyWith(color: AppColors.onSurfaceVariant),
-      ),
-      const SizedBox(height: 18),
-      _check(
-        0,
-        Icons.account_balance_wallet_outlined,
-        'Set your currency and budget',
-        onOpenBudget,
-      ),
-      _check(
-        1,
-        Icons.repeat,
-        'Add your first subscription',
-        onOpenSubscriptions,
-      ),
-      _check(2, Icons.add_circle_outline, 'Add your first expense', null),
-      _check(
-        3,
-        Icons.smart_toy_outlined,
-        'Ask your Moneylock mentor',
-        onOpenChat,
-      ),
-    ],
+  Widget build(BuildContext context) => SingleChildScrollView(
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('Your setup checklist', style: AppTextStyles.headlineLgMobile),
+        const SizedBox(height: 10),
+        Text(
+          'You can do these now or revisit them anytime.',
+          style: AppTextStyles.bodyMd.copyWith(
+            color: AppColors.onSurfaceVariant,
+          ),
+        ),
+        const SizedBox(height: 18),
+        _check(
+          0,
+          Icons.account_balance_wallet_outlined,
+          'Set your currency and budget',
+          onOpenBudget,
+        ),
+        _check(
+          1,
+          Icons.repeat,
+          'Add your first subscription',
+          onOpenSubscriptions,
+        ),
+        _check(2, Icons.add_circle_outline, 'Add your first expense', null),
+        _check(
+          3,
+          Icons.smart_toy_outlined,
+          'Ask your Moneylock mentor',
+          onOpenChat,
+        ),
+      ],
+    ),
   );
 
   Widget _check(int index, IconData icon, String title, VoidCallback? action) =>
