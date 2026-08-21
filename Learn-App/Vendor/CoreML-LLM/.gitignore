@@ -1,0 +1,50 @@
+# CoreML models
+*.mlpackage
+*.mlpackage.zip
+*.mlmodelc
+*.mlmodel
+
+# PyTorch
+*.pt
+*.pth
+*.bin
+*.safetensors
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+.venv/
+venv/
+*.egg
+
+# Xcode
+*.xcuserstate
+*.xcworkspace
+xcuserdata/
+DerivedData/
+build/
+.build/
+
+# macOS
+.DS_Store
+*.swp
+
+# IDE
+.idea/
+.vscode/
+
+# Output
+output/
+
+# Media assets (upload to GitHub release / user-attachments instead)
+*.mp4
+*.mov
+*.gif
+Examples/CoreMLLLMChat/gemma4-e2b/
+.claude/
+*.mlpkg
+
+# W4A8 calibration data — regeneratable from gen_calib_data_real.py
+conversion/calibration_data/
