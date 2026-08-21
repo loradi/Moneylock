@@ -1,7 +1,7 @@
 import Foundation
 
-/// Genera los ejercicios de una lección on-demand, con la respuesta
-/// correcta embebida en el JSON (ver spec §4.1).
+/// Generates a lesson's exercises on-demand, with the correct answer
+/// embedded in the JSON (see spec §4.1).
 actor LessonGenerator {
     private let model: any ModelProvider
     private let maxAttempts = 3
@@ -22,43 +22,43 @@ actor LessonGenerator {
 
         let contextBlock = previousContext.map {
             """
-            Los ejercicios deben continuar lo ya aprendido, sin repetir:
+            The exercises should build on what's already been learned, without repeating it:
             \($0)
             """
         } ?? ""
 
         let prompt = """
-        Eres un tutor experto que crea ejercicios didácticos.
-        Tema: "\(topic)" — Nivel: "\(levelTitle)" (dificultad \(difficulty) de 4) — Lección: "\(lessonTitle)".
+        You are an expert tutor who creates instructional exercises.
+        Topic: "\(topic)" — Level: "\(levelTitle)" (difficulty \(difficulty) of 4) — Lesson: "\(lessonTitle)".
         \(contextBlock)
 
-        Crea 5 ejercicios de repaso para esta lección, uno de cada tipo: \(typeList).
+        Create 5 review exercises for this lesson, one of each type: \(typeList).
 
-        Responde ÚNICAMENTE con un array JSON, sin texto adicional. Cada ejercicio con esta estructura:
+        Respond ONLY with a JSON array, no additional text. Each exercise with this structure:
 
         {
           "type": "quiz" | "fillBlank" | "reorder" | "matching",
-          "prompt": "Enunciado del ejercicio",
+          "prompt": "Exercise prompt",
           "options": ["A", "B", "C", "D"],
           "correctIndex": 0,
-          "correct": ["respuesta correcta"],
-          "steps": ["paso 1", "paso 2", "paso 3"],
+          "correct": ["correct answer"],
+          "steps": ["step 1", "step 2", "step 3"],
           "correctOrder": [0, 1, 2],
-          "left": ["izquierda A", "izquierda B", "izquierda C"],
-          "right": ["derecha A", "derecha B", "derecha C"],
+          "left": ["left A", "left B", "left C"],
+          "right": ["right A", "right B", "right C"],
           "correctPairs": [0, 1, 2],
-          "explanation": "Explicación breve de por qué es correcto"
+          "explanation": "Brief explanation of why it's correct"
         }
 
-        Reglas:
-        - Usa solo los campos relevantes para cada tipo; los demás pueden omitirse o ser null.
-        - quiz: 4 opciones, correctIndex apunta a la opción correcta.
-        - fillBlank: el prompt contiene "______" donde falta la palabra; correct tiene 1-3 variantes aceptables.
-        - reorder: 3-5 pasos; correctOrder es el orden correcto de los índices.
-        - matching: 3 pares; correctPairs[i] = índice en right que empareja con left[i].
-        - Las respuestas correctas deben estar inequívocamente determinadas por el contenido del nivel.
-        - explanation: 1-2 frases en español que enseñan por qué.
-        - Todo el contenido en español.
+        Rules:
+        - Only use the fields relevant to each type; the rest can be omitted or null.
+        - quiz: 4 options, correctIndex points to the correct option.
+        - fillBlank: the prompt contains "______" where the missing word goes; correct has 1-3 acceptable variants.
+        - reorder: 3-5 steps; correctOrder is the correct order of the indices.
+        - matching: 3 pairs; correctPairs[i] = the index in right that pairs with left[i].
+        - Correct answers must be unambiguously determined by the level's content.
+        - explanation: 1-2 sentences in English teaching why.
+        - All content in English.
         """
 
         var lastError: Error?
@@ -75,12 +75,12 @@ actor LessonGenerator {
                         exercises: Array(valid.prefix(5)))
                 }
                 lastError = GenerationError.invalidJSON(
-                    "solo \(valid.count)/\(exercises.count) ejercicios válidos")
+                    "only \(valid.count)/\(exercises.count) exercises valid")
             } catch {
                 lastError = error
             }
         }
-        throw lastError ?? GenerationError.invalidJSON("desconocido")
+        throw lastError ?? GenerationError.invalidJSON("unknown")
     }
 
     private func isValid(_ exercise: Exercise) -> Bool {

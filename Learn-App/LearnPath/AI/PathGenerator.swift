@@ -19,17 +19,17 @@ enum GenerationError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .modelNotLoaded:
-            return "El modelo de IA no está cargado."
+            return "The AI model isn't loaded."
         case .invalidJSON(let detail):
-            return "La IA generó contenido inválido: \(detail)"
+            return "The AI generated invalid content: \(detail)"
         case .emptyResult:
-            return "La IA no generó contenido."
+            return "The AI didn't generate any content."
         }
     }
 }
 
-/// Genera el skeleton del path (niveles y lecciones) a partir del tema.
-/// Fase 1: solo el árbol de niveles. Los ejercicios se generan on-demand.
+/// Generates the path skeleton (levels and lessons) from the topic.
+/// Phase 1: level tree only. Exercises are generated on-demand.
 actor PathGenerator {
     private let model: any ModelProvider
     private let maxAttempts = 2
@@ -40,18 +40,18 @@ actor PathGenerator {
 
     func generatePath(topic: String) async throws -> LearningPath {
         let prompt = """
-        Eres un tutor experto en pedagogía. Crea un plan de aprendizaje para el tema: "\(topic)".
+        You are an expert tutor in pedagogy. Create a learning plan for the topic: "\(topic)".
 
-        Genera 4 niveles de dificultad creciente (dificultad 1 a 4), cada uno con un título y una descripción breve de lo que se aprende en ese nivel.
+        Generate 4 levels of increasing difficulty (difficulty 1 to 4), each with a title and a brief description of what's learned at that level.
 
-        Responde ÚNICAMENTE con JSON válido, sin texto adicional, con esta estructura exacta:
+        Respond ONLY with valid JSON, no additional text, using this exact structure:
         {"topic": "\(topic)", "levels": [{"title": "...", "description": "...", "difficulty": 1}, ...]}
 
-        Reglas:
-        - Exactamente 4 niveles.
-        - difficulty va de 1 (básico) a 4 (avanzado).
-        - Los títulos deben ser cortos (2-5 palabras).
-        - Las descripciones deben ser de 1-2 frases en español.
+        Rules:
+        - Exactly 4 levels.
+        - difficulty ranges from 1 (basic) to 4 (advanced).
+        - Titles should be short (2-5 words).
+        - Descriptions should be 1-2 sentences in English.
         """
 
         var lastError: Error?
@@ -71,7 +71,7 @@ actor PathGenerator {
                 lastError = error
             }
         }
-        throw lastError ?? GenerationError.invalidJSON("desconocido")
+        throw lastError ?? GenerationError.invalidJSON("unknown")
     }
 
     private func buildPath(from skeleton: PathSkeleton) -> LearningPath {
@@ -83,7 +83,7 @@ actor PathGenerator {
                 difficulty: level.difficulty,
                 lessons: [])
         }
-        return LearningPath(topic: skeleton.topic.isEmpty ? "Aprendizaje" : skeleton.topic,
+        return LearningPath(topic: skeleton.topic.isEmpty ? "Learning" : skeleton.topic,
                             levels: levels)
     }
 }

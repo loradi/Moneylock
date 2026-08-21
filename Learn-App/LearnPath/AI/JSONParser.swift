@@ -7,23 +7,23 @@ enum JSONParsingError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .noJSONFound:
-            return "No se encontró JSON en la respuesta del modelo."
+            return "No JSON was found in the model's response."
         case .decodeFailed(let detail):
-            return "No se pudo decodificar el JSON: \(detail)"
+            return "Couldn't decode the JSON: \(detail)"
         }
     }
 }
 
 enum JSONParser {
 
-    /// Extrae el primer JSON válido de la respuesta del modelo.
-    /// Busca desde el primer "{" o "[" hasta el cierre balanceado
-    /// correspondiente, tolerando texto suelto alrededor.
+    /// Extracts the first valid JSON from the model's response.
+    /// Scans from the first "{" or "[" to its matching balanced close,
+    /// tolerating loose text around it.
     ///
-    /// Los modelos on-device suelen emitir saltos de línea o tabs sin
-    /// escapar dentro de valores string (p. ej. en descripciones de
-    /// varias frases), lo que rompe JSONSerialization aunque las llaves
-    /// estén balanceadas. Se escapan esos caracteres de control al vuelo.
+    /// On-device models often emit unescaped newlines or tabs inside
+    /// string values (e.g. in multi-sentence descriptions), which breaks
+    /// JSONSerialization even when the braces are balanced. Those control
+    /// characters are escaped on the fly.
     static func extractJSON(from text: String) -> String? {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard let first = trimmed.firstIndex(where: { $0 == "{" || $0 == "[" }) else {

@@ -24,9 +24,9 @@ enum LLMError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .notLoaded:
-            return "El modelo no está cargado."
+            return "The model isn't loaded."
         case .emptyResponse:
-            return "El modelo devolvió una respuesta vacía. Inténtalo de nuevo."
+            return "The model returned an empty response. Please try again."
         }
     }
 }
@@ -42,7 +42,7 @@ final class LLMEngine: ModelProvider, @unchecked Sendable {
 
     func load(onProgress: @escaping @Sendable (String) -> Void) async throws {
         if let existing = lock.withLock({ llm }) {
-            onProgress("Modelo ya cargado")
+            onProgress("Model already loaded")
             _ = existing
             return
         }
