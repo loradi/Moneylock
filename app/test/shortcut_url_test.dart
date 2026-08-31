@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:moneylock/core/deep_links.dart';
 import 'package:moneylock/core/notification_scheduler.dart';
@@ -73,4 +75,31 @@ void main() {
       await db.close();
     },
   );
+
+  test('initial link repetido por el stream se procesa una sola vez', () async {
+    final db = createTestDatabase();
+    final llm = _FakeLlm();
+    final handler = DeepLinkHandler(
+      flow: AddTransactionFlow(
+        categorizer: CategorizerAgent(llm),
+        mentor: MentorAgent(llm, db),
+        db: db,
+        notifications: _FakeNotifications(),
+        scheduler: NotificationScheduler(db, _FakeScheduling()),
+      ),
+    );
+    final uri = Uri.parse('moneylock://add?amount=12.34&merchant=ColdLinkCafe');
+    final links = StreamController<Uri>();
+
+    await handler.startListening(
+      getInitialLink: () async => uri,
+      uriLinkStream: links.stream,
+    );
+    links.add(uri);
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+
+    expect(await db.transactionsDao.recent(10), hasLength(1));
+    await links.close();
+    await db.close();
+  });
 }
