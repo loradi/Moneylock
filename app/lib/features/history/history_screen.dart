@@ -56,7 +56,7 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
                 final filtered = _filter == 'All'
                     ? items
                     : items.where((t) => t.source == _filter).toList();
-                if (filtered.isEmpty)
+                if (filtered.isEmpty) {
                   return [
                     const SliverToBoxAdapter(
                       child: AppEmptyState(
@@ -66,6 +66,7 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
                       ),
                     ),
                   ];
+                }
                 final grouped = <String, List<Transaction>>{};
                 for (final t in filtered) {
                   grouped

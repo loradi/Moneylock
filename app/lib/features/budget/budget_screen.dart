@@ -29,7 +29,9 @@ class _BudgetScreenState extends ConsumerState<BudgetScreen> {
 
   @override
   void dispose() {
-    for (final c in _controllers.values) c.dispose();
+    for (final c in _controllers.values) {
+      c.dispose();
+    }
     super.dispose();
   }
 
@@ -429,7 +431,7 @@ class _PeriodCard extends StatelessWidget {
             ),
           const SizedBox(height: 14),
           DropdownButtonFormField<String>(
-            value: currency,
+            initialValue: currency,
             decoration: const InputDecoration(labelText: 'Currency'),
             items: const [
               DropdownMenuItem(value: 'USD', child: Text('USD — US Dollar')),

@@ -106,7 +106,10 @@ class _NotificationsCard extends ConsumerWidget {
           Switch(
             value: enabled,
             onChanged: (v) async {
-              await ref.read(appDatabaseProvider).settingsDao.setNotificationsEnabled(v);
+              await ref
+                  .read(appDatabaseProvider)
+                  .settingsDao
+                  .setNotificationsEnabled(v);
               ref.invalidate(notificationsEnabledProvider);
               await ref.read(notificationSchedulerProvider).refresh();
             },
@@ -232,8 +235,9 @@ class _VoiceCardState extends ConsumerState<_VoiceCard> {
       final speech = ref.read(speechServiceProvider);
       await speech.init();
       await speech.stop();
-      if (mounted)
+      if (mounted) {
         setState(() => _result = 'Speech recognition works on-device.');
+      }
     } on SpeechPermissionException catch (e) {
       if (mounted) setState(() => _result = e.message);
     } catch (e) {

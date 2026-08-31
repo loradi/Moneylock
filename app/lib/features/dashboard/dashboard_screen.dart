@@ -87,7 +87,8 @@ class DashboardScreen extends ConsumerWidget {
                 (context, i) => Dismissible(
                   key: ValueKey(recentTxs[i].id),
                   direction: DismissDirection.endToStart,
-                  confirmDismiss: (_) => _confirmRemoveTransaction(context, ref, recentTxs[i]),
+                  confirmDismiss: (_) =>
+                      _confirmRemoveTransaction(context, ref, recentTxs[i]),
                   background: Container(
                     margin: const EdgeInsets.symmetric(
                       horizontal: AppSpacing.margin,
@@ -99,9 +100,14 @@ class DashboardScreen extends ConsumerWidget {
                       color: AppColors.error,
                       borderRadius: BorderRadius.circular(AppRadii.xl),
                     ),
-                    child: const Icon(Icons.delete_outline, color: Colors.white),
+                    child: const Icon(
+                      Icons.delete_outline,
+                      color: Colors.white,
+                    ),
                   ),
-                  child: TransactionRow(t: TransactionSummary.fromTransaction(recentTxs[i])),
+                  child: TransactionRow(
+                    t: TransactionSummary.fromTransaction(recentTxs[i]),
+                  ),
                 ),
                 childCount: recentTxs.length > 20 ? 20 : recentTxs.length,
               ),
@@ -136,7 +142,11 @@ class DashboardScreen extends ConsumerWidget {
     builder: (_) => const _AddSheet(),
   );
 
-  Future<bool> _confirmRemoveTransaction(BuildContext context, WidgetRef ref, Transaction t) async {
+  Future<bool> _confirmRemoveTransaction(
+    BuildContext context,
+    WidgetRef ref,
+    Transaction t,
+  ) async {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -210,12 +220,13 @@ class _BudgetList extends StatelessWidget {
               .where((e) => (s.byCategoryLimits[e.key] ?? 0) > 0)
               .toList()
             ..sort((a, b) => b.value.compareTo(a.value));
-      if (entries.isEmpty)
+      if (entries.isEmpty) {
         return const AppEmptyState(
           icon: Icons.tune,
           title: 'No budgets set',
           body: 'Set monthly caps in Settings to track your limits.',
         );
+      }
       return Column(
         children: [
           for (final e in entries)

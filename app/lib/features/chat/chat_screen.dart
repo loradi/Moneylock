@@ -44,12 +44,13 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     if (messages.length != _lastCount) {
       _lastCount = messages.length;
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (_scroll.hasClients)
+        if (_scroll.hasClients) {
           _scroll.animateTo(
             _scroll.position.maxScrollExtent,
             duration: const Duration(milliseconds: 220),
             curve: Curves.easeOut,
           );
+        }
       });
     }
     return Scaffold(
@@ -64,12 +65,13 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                 padding: const EdgeInsets.all(AppSpacing.md),
                 itemCount: messages.length + (_thinking ? 1 : 0),
                 itemBuilder: (_, i) {
-                  if (i == messages.length)
+                  if (i == messages.length) {
                     return const _Bubble(
                       role: 'mentor',
                       content: '',
                       thinking: true,
                     );
+                  }
                   final m = messages[i];
                   return _Bubble(
                     role: m.role,
@@ -117,19 +119,25 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       // regex is kept as a safety net for confident cases where the
       // classifier fell back to "chat" (e.g. an LLM failure) but the text
       // still obviously names a dollar amount.
-      final shouldRecord = intent.intent == 'record_transaction' ||
-          (intent.intent == 'chat' && !intent.degraded && hasMonetaryAmount(text));
+      final shouldRecord =
+          intent.intent == 'record_transaction' ||
+          (intent.intent == 'chat' &&
+              !intent.degraded &&
+              hasMonetaryAmount(text));
       if (shouldRecord) {
         final result = await ref
             .read(addFlowProvider)
             .run(rawText: text, source: 'manual');
-        if (result.error != null)
+        if (result.error != null) {
           await db.messagesDao.add(
             'mentor',
             'Could not record that: ${result.error}',
           );
+        }
       } else {
-        final result = await ref.read(mentorProvider).chat(text, preclassified: intent);
+        final result = await ref
+            .read(mentorProvider)
+            .chat(text, preclassified: intent);
         await db.messagesDao.add(
           'mentor',
           result.content,
@@ -256,9 +264,10 @@ class _BubbleState extends ConsumerState<_Bubble> {
   bool _actionTaken = false;
 
   List<TransactionSummary> get _transactions =>
-      (widget.kind == 'transaction_list' || widget.kind == 'delete_confirm') && widget.dataJson != null
-          ? decodeTransactionSummaries(widget.dataJson!)
-          : const [];
+      (widget.kind == 'transaction_list' || widget.kind == 'delete_confirm') &&
+          widget.dataJson != null
+      ? decodeTransactionSummaries(widget.dataJson!)
+      : const [];
 
   Future<void> _delete(int id) async {
     await ref.read(appDatabaseProvider).transactionsDao.remove(id);
@@ -266,9 +275,10 @@ class _BubbleState extends ConsumerState<_Bubble> {
   }
 
   List<SubscriptionSummary> get _subscriptions =>
-      (widget.kind == 'subscription_list' || widget.kind == 'cancel_confirm') && widget.dataJson != null
-          ? decodeSubscriptionSummaries(widget.dataJson!)
-          : const [];
+      (widget.kind == 'subscription_list' || widget.kind == 'cancel_confirm') &&
+          widget.dataJson != null
+      ? decodeSubscriptionSummaries(widget.dataJson!)
+      : const [];
 
   Future<void> _cancelSubscription(int id) async {
     await ref.read(appDatabaseProvider).subscriptionsDao.remove(id);
@@ -277,48 +287,52 @@ class _BubbleState extends ConsumerState<_Bubble> {
 
   BudgetChangeSummary? get _budgetChange =>
       widget.kind == 'budget_confirm' && widget.dataJson != null
-          ? decodeBudgetChangeSummary(widget.dataJson!)
-          : null;
+      ? decodeBudgetChangeSummary(widget.dataJson!)
+      : null;
 
   Future<void> _confirmBudgetChange(BudgetChangeSummary change) async {
-    await ref.read(appDatabaseProvider).budgetsDao.upsert(
-          change.category,
-          change.proposedLimit,
-          change.period,
-        );
+    await ref
+        .read(appDatabaseProvider)
+        .budgetsDao
+        .upsert(change.category, change.proposedLimit, change.period);
     if (mounted) setState(() => _actionTaken = true);
   }
 
   NewSubscriptionSummary? get _newSubscription =>
       widget.kind == 'add_subscription_confirm' && widget.dataJson != null
-          ? decodeNewSubscriptionSummary(widget.dataJson!)
-          : null;
+      ? decodeNewSubscriptionSummary(widget.dataJson!)
+      : null;
 
   Future<void> _confirmAddSubscription(NewSubscriptionSummary s) async {
     final db = ref.read(appDatabaseProvider);
     final existing = await db.subscriptionsDao.search(nameKeyword: s.name);
-    final alreadyAdded = existing.any((row) => row.name == s.name && row.amount == s.amount);
+    final alreadyAdded = existing.any(
+      (row) => row.name == s.name && row.amount == s.amount,
+    );
     if (!alreadyAdded) {
       await db.subscriptionsDao.add(
-            SubscriptionsCompanion.insert(
-              name: s.name,
-              amount: s.amount,
-              cycle: 'monthly',
-              nextChargeDate: s.nextChargeDate,
-              createdAt: DateTime.now(),
-            ),
-          );
+        SubscriptionsCompanion.insert(
+          name: s.name,
+          amount: s.amount,
+          cycle: 'monthly',
+          nextChargeDate: s.nextChargeDate,
+          createdAt: DateTime.now(),
+        ),
+      );
     }
     if (mounted) setState(() => _actionTaken = true);
   }
 
   TransactionEditSummary? get _transactionEdit =>
       widget.kind == 'edit_transaction_confirm' && widget.dataJson != null
-          ? decodeTransactionEditSummary(widget.dataJson!)
-          : null;
+      ? decodeTransactionEditSummary(widget.dataJson!)
+      : null;
 
   Future<void> _confirmTransactionEdit(TransactionEditSummary edit) async {
-    await ref.read(appDatabaseProvider).transactionsDao.updateFields(
+    await ref
+        .read(appDatabaseProvider)
+        .transactionsDao
+        .updateFields(
           edit.transaction.id,
           amount: edit.newAmount,
           merchant: edit.newMerchant,
@@ -328,11 +342,14 @@ class _BubbleState extends ConsumerState<_Bubble> {
 
   SubscriptionEditSummary? get _subscriptionEdit =>
       widget.kind == 'edit_subscription_confirm' && widget.dataJson != null
-          ? decodeSubscriptionEditSummary(widget.dataJson!)
-          : null;
+      ? decodeSubscriptionEditSummary(widget.dataJson!)
+      : null;
 
   Future<void> _confirmSubscriptionEdit(SubscriptionEditSummary edit) async {
-    await ref.read(appDatabaseProvider).subscriptionsDao.update(
+    await ref
+        .read(appDatabaseProvider)
+        .subscriptionsDao
+        .update(
           edit.subscription.id,
           SubscriptionsCompanion(amount: Value(edit.newAmount)),
         );
@@ -393,8 +410,11 @@ class _BubbleState extends ConsumerState<_Bubble> {
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             TextButton(
-                              onPressed: () => setState(() => _actionTaken = true),
-                              style: TextButton.styleFrom(foregroundColor: AppColors.darkPrimary),
+                              onPressed: () =>
+                                  setState(() => _actionTaken = true),
+                              style: TextButton.styleFrom(
+                                foregroundColor: AppColors.darkPrimary,
+                              ),
                               child: const Text('Cancel'),
                             ),
                             const SizedBox(width: 4),
@@ -435,13 +455,17 @@ class _BubbleState extends ConsumerState<_Bubble> {
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             TextButton(
-                              onPressed: () => setState(() => _actionTaken = true),
-                              style: TextButton.styleFrom(foregroundColor: AppColors.darkPrimary),
+                              onPressed: () =>
+                                  setState(() => _actionTaken = true),
+                              style: TextButton.styleFrom(
+                                foregroundColor: AppColors.darkPrimary,
+                              ),
                               child: const Text('Keep It'),
                             ),
                             const SizedBox(width: 4),
                             FilledButton(
-                              onPressed: () => _cancelSubscription(_subscriptions.first.id),
+                              onPressed: () =>
+                                  _cancelSubscription(_subscriptions.first.id),
                               child: const Text('Cancel Subscription'),
                             ),
                           ],
@@ -468,13 +492,17 @@ class _BubbleState extends ConsumerState<_Bubble> {
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             TextButton(
-                              onPressed: () => setState(() => _actionTaken = true),
-                              style: TextButton.styleFrom(foregroundColor: AppColors.darkPrimary),
+                              onPressed: () =>
+                                  setState(() => _actionTaken = true),
+                              style: TextButton.styleFrom(
+                                foregroundColor: AppColors.darkPrimary,
+                              ),
                               child: const Text('Cancel'),
                             ),
                             const SizedBox(width: 4),
                             FilledButton(
-                              onPressed: () => _confirmBudgetChange(_budgetChange!),
+                              onPressed: () =>
+                                  _confirmBudgetChange(_budgetChange!),
                               child: const Text('Confirm'),
                             ),
                           ],
@@ -501,13 +529,17 @@ class _BubbleState extends ConsumerState<_Bubble> {
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             TextButton(
-                              onPressed: () => setState(() => _actionTaken = true),
-                              style: TextButton.styleFrom(foregroundColor: AppColors.darkPrimary),
+                              onPressed: () =>
+                                  setState(() => _actionTaken = true),
+                              style: TextButton.styleFrom(
+                                foregroundColor: AppColors.darkPrimary,
+                              ),
                               child: const Text('Cancel'),
                             ),
                             const SizedBox(width: 4),
                             FilledButton(
-                              onPressed: () => _confirmAddSubscription(_newSubscription!),
+                              onPressed: () =>
+                                  _confirmAddSubscription(_newSubscription!),
                               child: const Text('Confirm'),
                             ),
                           ],
@@ -518,7 +550,10 @@ class _BubbleState extends ConsumerState<_Bubble> {
                         padding: const EdgeInsets.only(top: 4),
                         child: Text(
                           'Done.',
-                          style: TextStyle(color: AppColors.darkOnSurfaceVariant, fontSize: 12),
+                          style: TextStyle(
+                            color: AppColors.darkOnSurfaceVariant,
+                            fontSize: 12,
+                          ),
                         ),
                       ),
                   ],
@@ -531,13 +566,17 @@ class _BubbleState extends ConsumerState<_Bubble> {
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             TextButton(
-                              onPressed: () => setState(() => _actionTaken = true),
-                              style: TextButton.styleFrom(foregroundColor: AppColors.darkPrimary),
+                              onPressed: () =>
+                                  setState(() => _actionTaken = true),
+                              style: TextButton.styleFrom(
+                                foregroundColor: AppColors.darkPrimary,
+                              ),
                               child: const Text('Cancel'),
                             ),
                             const SizedBox(width: 4),
                             FilledButton(
-                              onPressed: () => _confirmTransactionEdit(_transactionEdit!),
+                              onPressed: () =>
+                                  _confirmTransactionEdit(_transactionEdit!),
                               child: const Text('Confirm'),
                             ),
                           ],
@@ -548,7 +587,10 @@ class _BubbleState extends ConsumerState<_Bubble> {
                         padding: const EdgeInsets.only(top: 4),
                         child: Text(
                           'Done.',
-                          style: TextStyle(color: AppColors.darkOnSurfaceVariant, fontSize: 12),
+                          style: TextStyle(
+                            color: AppColors.darkOnSurfaceVariant,
+                            fontSize: 12,
+                          ),
                         ),
                       ),
                   ],
@@ -561,13 +603,17 @@ class _BubbleState extends ConsumerState<_Bubble> {
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             TextButton(
-                              onPressed: () => setState(() => _actionTaken = true),
-                              style: TextButton.styleFrom(foregroundColor: AppColors.darkPrimary),
+                              onPressed: () =>
+                                  setState(() => _actionTaken = true),
+                              style: TextButton.styleFrom(
+                                foregroundColor: AppColors.darkPrimary,
+                              ),
                               child: const Text('Cancel'),
                             ),
                             const SizedBox(width: 4),
                             FilledButton(
-                              onPressed: () => _confirmSubscriptionEdit(_subscriptionEdit!),
+                              onPressed: () =>
+                                  _confirmSubscriptionEdit(_subscriptionEdit!),
                               child: const Text('Confirm'),
                             ),
                           ],
@@ -578,7 +624,10 @@ class _BubbleState extends ConsumerState<_Bubble> {
                         padding: const EdgeInsets.only(top: 4),
                         child: Text(
                           'Done.',
-                          style: TextStyle(color: AppColors.darkOnSurfaceVariant, fontSize: 12),
+                          style: TextStyle(
+                            color: AppColors.darkOnSurfaceVariant,
+                            fontSize: 12,
+                          ),
                         ),
                       ),
                   ],

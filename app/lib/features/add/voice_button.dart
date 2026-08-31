@@ -95,7 +95,7 @@ class _VoiceButtonState extends ConsumerState<VoiceButton> {
             child: listening
                 ? const Padding(
                     padding: EdgeInsets.all(14),
-                    child: const CircularProgressIndicator(
+                    child: CircularProgressIndicator(
                       color: Colors.white,
                       strokeWidth: 2,
                     ),
