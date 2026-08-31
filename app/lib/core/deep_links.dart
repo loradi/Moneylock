@@ -47,12 +47,15 @@ class DeepLinkHandler {
   }
 
   /// Link en frío (app abierta desde el atajo) + stream en caliente.
-  Future<void> startListening() async {
-    final initial = await _links.getInitialLink();
+  Future<void> startListening({
+    Future<Uri?> Function()? getInitialLink,
+    Stream<Uri>? uriLinkStream,
+  }) async {
+    final initial = await (getInitialLink?.call() ?? _links.getInitialLink());
     if (initial != null) {
       unawaited(handle(initial).catchError((_) => null));
     }
-    _links.uriLinkStream.listen((uri) {
+    (uriLinkStream ?? _links.uriLinkStream).listen((uri) {
       unawaited(handle(uri).catchError((_) => null));
     });
   }
