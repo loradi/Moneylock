@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:drift_flutter/drift_flutter.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -8,9 +7,7 @@ import 'package:moneylock/data/db.dart';
 import 'package:moneylock/features/budget/budget_screen.dart';
 import 'package:moneylock/providers.dart';
 
-AppDatabase _db() => AppDatabase.forTesting(
-  driftDatabase(name: 'test_${DateTime.now().microsecondsSinceEpoch}'),
-);
+import 'helpers/test_database.dart';
 
 const _testCategories = [
   Category(id: 1, name: 'Bills & Utilities', isActive: true, isDefault: true),
@@ -31,8 +28,8 @@ const _testCategories = [
 /// sidesteps that native round-trip entirely for list rendering, while
 /// `appDatabaseProvider` stays real so `_save`/`_removeCategory` still
 /// perform genuine DB writes that tests can verify.
-Future<void> _pumpBudgetScreen(WidgetTester tester) async {
-  final db = _db();
+Future<AppDatabase> _pumpBudgetScreen(WidgetTester tester) async {
+  final db = createTestDatabase();
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
@@ -43,13 +40,14 @@ Future<void> _pumpBudgetScreen(WidgetTester tester) async {
     ),
   );
   await tester.pumpAndSettle();
+  return db;
 }
 
 void main() {
   testWidgets('tapping outside a focused field dismisses the keyboard', (
     tester,
   ) async {
-    await _pumpBudgetScreen(tester);
+    final db = await _pumpBudgetScreen(tester);
 
     await tester.tap(find.widgetWithText(TextField, 'No cap').first);
     await tester.pump();
@@ -58,12 +56,13 @@ void main() {
     await tester.tap(find.text('CATEGORY CAPS'));
     await tester.pump();
     expect(tester.testTextInput.isVisible, isFalse);
+    await disposeTestDatabase(tester, db);
   });
 
   testWidgets(
     'typing a cap amount auto-saves after the debounce without tapping a button',
     (tester) async {
-      await _pumpBudgetScreen(tester);
+      final db = await _pumpBudgetScreen(tester);
 
       // Categories are listed alphabetically; "Bills & Utilities" is first.
       final capField = find.widgetWithText(TextField, 'No cap').first;
@@ -113,6 +112,7 @@ void main() {
       // satisfied.
       await tester.pump(const Duration(milliseconds: 300));
       expect(tester.widget<AnimatedOpacity>(opacityFinder).opacity, 0.0);
+      await disposeTestDatabase(tester, db);
     },
   );
 
@@ -123,7 +123,7 @@ void main() {
     // so unlike _pumpBudgetScreen's fixed Stream.value, it drives
     // categoriesProvider from a StreamController it controls directly —
     // still no real native DB round-trip involved in list rendering.
-    final db = _db();
+    final db = createTestDatabase();
     final categoriesController = StreamController<List<Category>>.broadcast();
     await tester.pumpWidget(
       ProviderScope(
@@ -170,5 +170,6 @@ void main() {
     expect(find.text('Bills & Utilities'), findsNothing);
 
     await categoriesController.close();
+    await disposeTestDatabase(tester, db);
   });
 }

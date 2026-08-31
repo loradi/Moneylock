@@ -1,4 +1,3 @@
-import 'package:drift_flutter/drift_flutter.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -7,8 +6,7 @@ import 'package:moneylock/features/settings/settings_screen.dart';
 import 'package:moneylock/llm/llama_service.dart';
 import 'package:moneylock/providers.dart';
 
-AppDatabase _db() => AppDatabase.forTesting(
-    driftDatabase(name: 'test_${DateTime.now().microsecondsSinceEpoch}'));
+import 'helpers/test_database.dart';
 
 class _FakeLlamaService extends LlamaService {
   @override
@@ -33,16 +31,21 @@ void main() {
   // (and therefore _NotificationsCard's build/provider wiring) renders
   // with no exception. The actual read/write behavior is proven at the
   // DAO level in notification_data_test.dart.
-  testWidgets('settings screen renders with notifications toggle wired up',
-      (tester) async {
-    final db = _db();
+  testWidgets('settings screen renders with notifications toggle wired up', (
+    tester,
+  ) async {
+    final db = createTestDatabase();
 
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
           appDatabaseProvider.overrideWithValue(db),
-          notificationsEnabledProvider.overrideWith((ref) => Future.value(true)),
-          mentorToneProvider.overrideWith((ref) => Future.value('strict_ramsey')),
+          notificationsEnabledProvider.overrideWith(
+            (ref) => Future.value(true),
+          ),
+          mentorToneProvider.overrideWith(
+            (ref) => Future.value('strict_ramsey'),
+          ),
           llamaServiceProvider.overrideWithValue(_FakeLlamaService()),
         ],
         child: const MaterialApp(home: SettingsScreen()),
@@ -53,6 +56,6 @@ void main() {
     expect(find.text('Settings'), findsOneWidget);
     expect(tester.takeException(), isNull);
 
-    await tester.runAsync(() => db.close());
+    await disposeTestDatabase(tester, db);
   });
 }
