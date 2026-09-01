@@ -179,29 +179,40 @@ class _TotalCard extends StatelessWidget {
     child: Padding(
       padding: const EdgeInsets.all(AppSpacing.md),
       child: summary.when(
-        data: (s) => Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'THIS MONTH',
-              style: AppTextStyles.labelCaps.copyWith(
-                color: AppColors.onSurfaceVariant,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              fmtCurrency(s.totalSpent),
-              style: AppTextStyles.display.copyWith(fontSize: 38),
-            ),
-            if (s.totalLimit > 0)
+        data: (s) {
+          final now = DateTime.now();
+          final daysLeft =
+              DateUtils.getDaysInMonth(now.year, now.month) - now.day + 1;
+          final remaining = s.totalLimit - s.totalSpent;
+          final hasPlan = s.totalLimit > 0;
+          final safeToday = remaining > 0 ? remaining / daysLeft : 0.0;
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
               Text(
-                'of ${fmtCurrency(s.totalLimit)} budget',
+                hasPlan ? 'SAFE TO SPEND TODAY' : 'THIS MONTH',
+                style: AppTextStyles.labelCaps.copyWith(
+                  color: AppColors.onSurfaceVariant,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                fmtCurrency(hasPlan ? safeToday : s.totalSpent),
+                style: AppTextStyles.display.copyWith(fontSize: 38),
+              ),
+              Text(
+                hasPlan
+                    ? remaining >= 0
+                          ? '${fmtCurrency(remaining)} left in your plan'
+                          : '${fmtCurrency(remaining.abs())} over your plan'
+                    : 'Build a monthly plan to unlock your daily amount.',
                 style: AppTextStyles.bodyMd.copyWith(
                   color: AppColors.onSurfaceVariant,
                 ),
               ),
-          ],
-        ),
+            ],
+          );
+        },
         loading: () => const LinearProgressIndicator(),
         error: (e, _) => Text('Could not load summary: $e'),
       ),
@@ -223,8 +234,8 @@ class _BudgetList extends StatelessWidget {
       if (entries.isEmpty) {
         return const AppEmptyState(
           icon: Icons.tune,
-          title: 'No budgets set',
-          body: 'Set monthly caps in Settings to track your limits.',
+          title: 'No plan yet',
+          body: 'Build a monthly plan to see what is safe to spend each day.',
         );
       }
       return Column(

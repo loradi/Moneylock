@@ -35,11 +35,22 @@ Future<AppDatabase> _pumpBudgetScreen(WidgetTester tester) async {
       overrides: [
         appDatabaseProvider.overrideWithValue(db),
         categoriesProvider.overrideWith((ref) => Stream.value(_testCategories)),
+        transactionsStreamProvider.overrideWith(
+          (ref) => Stream.value(const []),
+        ),
+        monthlyPlanProvider.overrideWith(
+          (ref, period) =>
+              Future.value(const MonthlyPlanData(income: null, limits: {})),
+        ),
       ],
       child: const MaterialApp(home: BudgetScreen()),
     ),
   );
-  await tester.pumpAndSettle();
+  // The monthly-plan override completes on the next microtask. Advance a
+  // bounded number of frames instead of waiting for every unrelated timer in
+  // the screen to settle.
+  await tester.pump();
+  await tester.pump();
   return db;
 }
 
@@ -53,7 +64,7 @@ void main() {
     await tester.pump();
     expect(tester.testTextInput.isVisible, isTrue);
 
-    await tester.tap(find.text('CATEGORY CAPS'));
+    await tester.tap(find.byType(GestureDetector).first);
     await tester.pump();
     expect(tester.testTextInput.isVisible, isFalse);
     await disposeTestDatabase(tester, db);
@@ -130,6 +141,13 @@ void main() {
         overrides: [
           appDatabaseProvider.overrideWithValue(db),
           categoriesProvider.overrideWith((ref) => categoriesController.stream),
+          transactionsStreamProvider.overrideWith(
+            (ref) => Stream.value(const []),
+          ),
+          monthlyPlanProvider.overrideWith(
+            (ref, period) =>
+                Future.value(const MonthlyPlanData(income: null, limits: {})),
+          ),
         ],
         child: const MaterialApp(home: BudgetScreen()),
       ),
@@ -139,7 +157,8 @@ void main() {
     // built the widget tree (and categoriesProvider has started listening),
     // not before.
     categoriesController.add(_testCategories);
-    await tester.pumpAndSettle();
+    await tester.pump();
+    await tester.pump();
 
     expect(find.text('Bills & Utilities'), findsOneWidget);
     await tester.drag(find.text('Bills & Utilities'), const Offset(-500, 0));

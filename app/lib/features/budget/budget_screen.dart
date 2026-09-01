@@ -2,7 +2,9 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:intl/intl.dart';
 
+import '../../core/format.dart';
 import '../../data/db.dart';
 import '../../providers.dart';
 import '../../theme/app_theme.dart';
@@ -14,6 +16,23 @@ final categoriesProvider = StreamProvider<List<Category>>((ref) async* {
   yield* dao.watchAll();
 });
 
+class MonthlyPlanData {
+  final double? income;
+  final Map<String, double> limits;
+
+  const MonthlyPlanData({required this.income, required this.limits});
+}
+
+final monthlyPlanProvider = FutureProvider.family<MonthlyPlanData, String>((
+  ref,
+  period,
+) async {
+  final db = ref.watch(appDatabaseProvider);
+  final income = await db.settingsDao.monthlyIncome(period);
+  final limits = await db.budgetsDao.limitsForPeriod(period);
+  return MonthlyPlanData(income: income, limits: limits);
+});
+
 class BudgetScreen extends ConsumerStatefulWidget {
   const BudgetScreen({super.key});
   @override
@@ -21,10 +40,10 @@ class BudgetScreen extends ConsumerStatefulWidget {
 }
 
 class _BudgetScreenState extends ConsumerState<BudgetScreen> {
-  String _cycle = 'monthly';
-  int _cycleDays = 30;
+  DateTime _month = DateTime(DateTime.now().year, DateTime.now().month);
   String _currency = 'USD';
   bool _currencyInitialized = false;
+  String _hydratedPeriod = '';
   final _controllers = <String, TextEditingController>{};
 
   @override
@@ -48,6 +67,22 @@ class _BudgetScreenState extends ConsumerState<BudgetScreen> {
     for (final name in names) {
       _controllers.putIfAbsent(name, TextEditingController.new);
     }
+    final period = _periodKey();
+    final plan = ref.watch(monthlyPlanProvider(period));
+    final planData = plan.valueOrNull;
+    if (planData != null && _hydratedPeriod != period) {
+      _hydrateControllers(period, planData.limits);
+    }
+    final monthTransactions =
+        ref
+            .watch(transactionsStreamProvider)
+            .valueOrNull
+            ?.where((t) => _isInSelectedMonth(t.timestamp))
+            .toList() ??
+        const [];
+    final spent = monthTransactions.fold<double>(0, (sum, t) => sum + t.amount);
+    final planned =
+        planData?.limits.values.fold<double>(0, (sum, v) => sum + v) ?? 0;
     return Scaffold(
       backgroundColor: AppColors.background,
       body: GestureDetector(
@@ -58,26 +93,22 @@ class _BudgetScreenState extends ConsumerState<BudgetScreen> {
           child: CustomScrollView(
             slivers: [
               const SliverToBoxAdapter(
-                child: AppGlassHeader(eyebrow: 'MONEYLOCK', title: 'Budget'),
+                child: AppGlassHeader(eyebrow: 'MONEYLOCK', title: 'Plan'),
               ),
               SliverPadding(
                 padding: const EdgeInsets.all(AppSpacing.margin),
                 sliver: SliverToBoxAdapter(
-                  child: _PeriodCard(
-                    cycle: _cycle,
-                    cycleDays: _cycleDays,
+                  child: _PlanOverview(
+                    monthLabel: DateFormat('MMMM yyyy').format(_month),
+                    income: planData?.income,
+                    planned: planned,
+                    spent: spent,
+                    categoryCount: planData?.limits.length ?? 0,
+                    isLoading: plan.isLoading,
+                    onPreviousMonth: () => _changeMonth(-1),
+                    onNextMonth: () => _changeMonth(1),
+                    onEditIncome: () => _editIncome(planData?.income),
                     currency: _currency,
-                    onCycleChanged: (value) => setState(() {
-                      _cycle = value;
-                      _cycleDays = switch (value) {
-                        'weekly' => 7,
-                        'biweekly' => 14,
-                        'monthly' => 30,
-                        _ => _cycleDays,
-                      };
-                    }),
-                    onDaysChanged: (value) =>
-                        _cycleDays = int.tryParse(value) ?? 30,
                     onCurrencyChanged: (value) {
                       setState(() => _currency = value);
                       ref
@@ -99,7 +130,7 @@ class _BudgetScreenState extends ConsumerState<BudgetScreen> {
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      const AppSectionLabel('CATEGORY CAPS'),
+                      const AppSectionLabel('MONTHLY ALLOCATION'),
                       OutlinedButton.icon(
                         onPressed: _addCategory,
                         icon: const Icon(Icons.add),
@@ -155,10 +186,11 @@ class _BudgetScreenState extends ConsumerState<BudgetScreen> {
             category,
             amount,
             _periodKey(),
-            cycle: _cycle,
-            cycleDays: _cycleDays,
+            cycle: 'monthly',
+            cycleDays: DateUtils.getDaysInMonth(_month.year, _month.month),
             currency: _currency,
           );
+      ref.invalidate(monthlyPlanProvider(_periodKey()));
     } catch (error) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -210,12 +242,69 @@ class _BudgetScreenState extends ConsumerState<BudgetScreen> {
     }
   }
 
-  String _periodKey() {
-    final now = DateTime.now();
-    return _cycle == 'monthly'
-        ? '${now.year.toString().padLeft(4, '0')}-${now.month.toString().padLeft(2, '0')}'
-        : _cycle;
+  void _hydrateControllers(String period, Map<String, double> limits) {
+    for (final entry in _controllers.entries) {
+      final controller = entry.value;
+      controller.value = controller.value.copyWith(
+        text: limits[entry.key]?.toStringAsFixed(0) ?? '',
+        selection: const TextSelection.collapsed(offset: -1),
+        composing: TextRange.empty,
+      );
+    }
+    _hydratedPeriod = period;
   }
+
+  bool _isInSelectedMonth(DateTime value) =>
+      value.year == _month.year && value.month == _month.month;
+
+  void _changeMonth(int offset) => setState(() {
+    _month = DateTime(_month.year, _month.month + offset);
+    _hydratedPeriod = '';
+  });
+
+  Future<void> _editIncome(double? current) async {
+    final controller = TextEditingController(
+      text: current == null ? '' : current.toStringAsFixed(0),
+    );
+    final amount = await showDialog<double>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Income for ${DateFormat('MMMM').format(_month)}'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          decoration: InputDecoration(
+            labelText: 'Take-home income',
+            prefixText: '$_currency ',
+          ),
+          onSubmitted: (value) =>
+              Navigator.pop(context, double.tryParse(value.trim())),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () =>
+                Navigator.pop(context, double.tryParse(controller.text.trim())),
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+    controller.dispose();
+    if (amount == null || amount <= 0) return;
+    await ref
+        .read(appDatabaseProvider)
+        .settingsDao
+        .setMonthlyIncome(_periodKey(), amount);
+    ref.invalidate(monthlyPlanProvider(_periodKey()));
+  }
+
+  String _periodKey() =>
+      '${_month.year.toString().padLeft(4, '0')}-${_month.month.toString().padLeft(2, '0')}';
 }
 
 class _AddCategoryDialog extends StatefulWidget {
@@ -360,7 +449,6 @@ class _BudgetRowState extends State<_BudgetRow> {
                   onChanged: _onChanged,
                   decoration: InputDecoration(
                     hintText: 'No cap',
-                    suffixText: widget.currency,
                   ),
                 ),
               ),
@@ -382,57 +470,106 @@ class _BudgetRowState extends State<_BudgetRow> {
   );
 }
 
-class _PeriodCard extends StatelessWidget {
-  final String cycle;
-  final int cycleDays;
+class _PlanOverview extends StatelessWidget {
+  final String monthLabel;
+  final double? income;
+  final double planned;
+  final double spent;
+  final int categoryCount;
+  final bool isLoading;
+  final VoidCallback onPreviousMonth;
+  final VoidCallback onNextMonth;
+  final VoidCallback onEditIncome;
   final String currency;
-  final ValueChanged<String> onCycleChanged;
-  final ValueChanged<String> onDaysChanged;
   final ValueChanged<String> onCurrencyChanged;
 
-  const _PeriodCard({
-    required this.cycle,
-    required this.cycleDays,
+  const _PlanOverview({
+    required this.monthLabel,
+    required this.income,
+    required this.planned,
+    required this.spent,
+    required this.categoryCount,
+    required this.isLoading,
+    required this.onPreviousMonth,
+    required this.onNextMonth,
+    required this.onEditIncome,
     required this.currency,
-    required this.onCycleChanged,
-    required this.onDaysChanged,
     required this.onCurrencyChanged,
   });
 
   @override
   Widget build(BuildContext context) => AppCard(
+    glowOrb: true,
     child: Padding(
       padding: const EdgeInsets.all(AppSpacing.md),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const AppSectionLabel('BUDGET PERIOD'),
-          const SizedBox(height: 12),
-          SegmentedButton<String>(
-            segments: const [
-              ButtonSegment(value: 'weekly', label: Text('Weekly')),
-              ButtonSegment(value: 'biweekly', label: Text('Biweekly')),
-              ButtonSegment(value: 'monthly', label: Text('Monthly')),
-              ButtonSegment(value: 'custom', label: Text('Custom')),
-            ],
-            selected: {cycle},
-            onSelectionChanged: (v) => onCycleChanged(v.first),
-          ),
-          if (cycle == 'custom')
-            Padding(
-              padding: const EdgeInsets.only(top: 12),
-              child: TextFormField(
-                initialValue: '$cycleDays',
-                keyboardType: TextInputType.number,
-                textInputAction: TextInputAction.done,
-                decoration: const InputDecoration(labelText: 'Days per cycle'),
-                onChanged: onDaysChanged,
+          Row(
+            children: [
+              const Icon(
+                Icons.calendar_month_outlined,
+                color: AppColors.primary,
               ),
+              const SizedBox(width: 8),
+              const Expanded(child: AppSectionLabel('MONTHLY PLAN')),
+              Text(currency, style: AppTextStyles.labelCaps),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              IconButton(
+                tooltip: 'Previous month',
+                onPressed: onPreviousMonth,
+                icon: const Icon(Icons.chevron_left),
+              ),
+              Expanded(
+                child: Text(
+                  monthLabel,
+                  textAlign: TextAlign.center,
+                  style: AppTextStyles.headlineMd,
+                ),
+              ),
+              IconButton(
+                tooltip: 'Next month',
+                onPressed: onNextMonth,
+                icon: const Icon(Icons.chevron_right),
+              ),
+            ],
+          ),
+          if (isLoading) ...[
+            const SizedBox(height: 12),
+            const LinearProgressIndicator(),
+          ] else ...[
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                Expanded(
+                  child: _PlanMetric(
+                    label: 'INCOME',
+                    value: income == null ? 'Set income' : fmtCurrency(income!),
+                    onTap: onEditIncome,
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: _PlanMetric(
+                    label: 'PLANNED',
+                    value: fmtCurrency(planned),
+                    detail:
+                        '$categoryCount ${categoryCount == 1 ? 'category' : 'categories'}',
+                  ),
+                ),
+              ],
             ),
+            const SizedBox(height: 16),
+            _PlanStatus(income: income, planned: planned, spent: spent),
+          ],
           const SizedBox(height: 14),
           DropdownButtonFormField<String>(
             initialValue: currency,
-            decoration: const InputDecoration(labelText: 'Currency'),
+            decoration: const InputDecoration(labelText: 'Plan currency'),
             items: const [
               DropdownMenuItem(value: 'USD', child: Text('USD — US Dollar')),
               DropdownMenuItem(
@@ -449,4 +586,114 @@ class _PeriodCard extends StatelessWidget {
       ),
     ),
   );
+}
+
+class _PlanMetric extends StatelessWidget {
+  final String label;
+  final String value;
+  final String? detail;
+  final VoidCallback? onTap;
+
+  const _PlanMetric({
+    required this.label,
+    required this.value,
+    this.detail,
+    this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) => Material(
+    color: AppColors.surfaceContainerLow,
+    borderRadius: BorderRadius.circular(AppRadii.xl),
+    child: InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(AppRadii.xl),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              label,
+              style: AppTextStyles.labelCaps.copyWith(
+                color: AppColors.onSurfaceVariant,
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(value, style: AppTextStyles.headlineMd),
+            if (detail != null) ...[
+              const SizedBox(height: 2),
+              Text(
+                detail!,
+                style: AppTextStyles.bodyMd.copyWith(
+                  fontSize: 12,
+                  color: AppColors.onSurfaceVariant,
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    ),
+  );
+}
+
+class _PlanStatus extends StatelessWidget {
+  final double? income;
+  final double planned;
+  final double spent;
+
+  const _PlanStatus({
+    required this.income,
+    required this.planned,
+    required this.spent,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final remaining = planned - spent;
+    final unassigned = income == null ? null : income! - planned;
+    final isOverPlan = remaining < 0;
+    final message = income == null
+        ? 'Set your take-home income to see what is left to assign.'
+        : unassigned! >= 0
+        ? '${fmtCurrency(unassigned)} left to assign to your month.'
+        : '${fmtCurrency(unassigned.abs())} over your planned income.';
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: isOverPlan || (unassigned != null && unassigned < 0)
+            ? AppColors.errorContainer
+            : AppColors.accentContainer,
+        borderRadius: BorderRadius.circular(AppRadii.xl),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            isOverPlan || (unassigned != null && unassigned < 0)
+                ? Icons.priority_high_rounded
+                : Icons.check_circle_outline,
+            color: isOverPlan || (unassigned != null && unassigned < 0)
+                ? AppColors.error
+                : AppColors.accent,
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              message,
+              style: AppTextStyles.bodyMd.copyWith(fontSize: 14),
+            ),
+          ),
+          if (planned > 0)
+            Text(
+              '${fmtCurrency(spent)} spent',
+              style: AppTextStyles.monoData.copyWith(
+                color: AppColors.onSurfaceVariant,
+              ),
+            ),
+        ],
+      ),
+    );
+  }
 }

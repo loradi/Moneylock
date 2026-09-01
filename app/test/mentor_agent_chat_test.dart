@@ -26,7 +26,6 @@ class _ScriptedLlm implements LlmProvider {
     return r;
   }
 }
-
 class _ThrowingLlm implements LlmProvider {
   @override
   Future<String> complete(String system, String user, {double temperature = 0.2}) async {
@@ -405,7 +404,9 @@ void main() {
 
   test('update_budget_limit with a resolvable category and limit returns budget_confirm', () async {
     final db = _db();
-    await db.budgetsDao.upsert('Groceries', 300.0, '2026-08');
+    final now = DateTime.now();
+    final currentPeriod = '${now.year.toString().padLeft(4, '0')}-${now.month.toString().padLeft(2, '0')}';
+    await db.budgetsDao.upsert('Groceries', 300.0, currentPeriod);
     final llm = _ScriptedLlm(
         ['{"intent": "update_budget_limit", "category": "Groceries", "newLimit": 400}']);
     final agent = MentorAgent(llm, db);

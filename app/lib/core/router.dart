@@ -116,9 +116,9 @@ class _BottomNav extends StatelessWidget {
         label: 'Dashboard',
       ),
       (
-        icon: Icons.account_balance_wallet_outlined,
-        active: Icons.account_balance_wallet,
-        label: 'Budget',
+        icon: Icons.calendar_month_outlined,
+        active: Icons.calendar_month,
+        label: 'Plan',
       ),
       (
         icon: Icons.bar_chart_outlined,

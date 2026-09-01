@@ -1,44 +1,47 @@
 import 'package:flutter/material.dart';
 
-/// Design tokens for Moneylock's Red & White visual system.
+/// Design tokens for Moneylock's calm, private-planning visual system.
 abstract final class AppColors {
-  static const primary = Color(0xFFBA1A1A);
-  static const primaryBright = Color(0xFFFF3B30);
+  static const primary = Color(0xFF075B63);
+  static const primaryBright = Color(0xFF0B737B);
   static const onPrimary = Color(0xFFFFFFFF);
-  static const primaryContainer = Color(0xFFFFDAD6);
-  static const onPrimaryContainer = Color(0xFF410002);
-  static const primaryFixedDim = Color(0xFFFFB4AB);
+  static const primaryContainer = Color(0xFFC6F3EE);
+  static const onPrimaryContainer = Color(0xFF002021);
+  static const primaryFixedDim = Color(0xFF8DE0C2);
+  static const accent = Color(0xFF237B5D);
+  static const accentContainer = Color(0xFFD6F5E3);
+  static const coral = Color(0xFFCC5A45);
 
-  static const background = Color(0xFFF9F9FA);
+  static const background = Color(0xFFF6F8F7);
   static const surface = Color(0xFFFFFFFF);
-  static const surfaceContainer = Color(0xFFF4F4F5);
-  static const surfaceContainerLow = Color(0xFFF3F3F4);
-  static const surfaceContainerHigh = Color(0xFFE8E8E9);
-  static const surfaceContainerHighest = Color(0xFFE2E2E3);
-  static const surfaceVariant = Color(0xFFE2E2E3);
-  static const onSurface = Color(0xFF131313);
-  static const onSurfaceVariant = Color(0xFF444933);
-  static const outline = Color(0xFF747A60);
-  static const outlineVariant = Color(0xFFC4C9AC);
-  static const borderSubtle = Color(0xFFE4E4E7);
-  static const error = Color(0xFFBA1A1A);
-  static const errorContainer = Color(0xFFFFDAD6);
-  static const onErrorContainer = Color(0xFF93000A);
+  static const surfaceContainer = Color(0xFFEFF4F2);
+  static const surfaceContainerLow = Color(0xFFF2F6F4);
+  static const surfaceContainerHigh = Color(0xFFE3ECE8);
+  static const surfaceContainerHighest = Color(0xFFD7E4DF);
+  static const surfaceVariant = Color(0xFFD7E4DF);
+  static const onSurface = Color(0xFF17201F);
+  static const onSurfaceVariant = Color(0xFF52615F);
+  static const outline = Color(0xFF6B7A77);
+  static const outlineVariant = Color(0xFFB9C8C3);
+  static const borderSubtle = Color(0xFFDDE7E3);
+  static const error = Color(0xFFB3261E);
+  static const errorContainer = Color(0xFFF9DEDC);
+  static const onErrorContainer = Color(0xFF410E0B);
   static const shadowBase = Color(0x0A000000);
 
   // Dark tokens are reserved for the chat modal.
-  static const darkBackground = Color(0xFF131313);
-  static const darkSurface = Color(0xFF131313);
-  static const darkSurfaceContainer = Color(0xFF201F1F);
-  static const darkSurfaceContainerLow = Color(0xFF1C1B1B);
-  static const darkSurfaceContainerHigh = Color(0xFF2A2A2A);
-  static const darkSurfaceContainerHighest = Color(0xFF353534);
-  static const darkSurfaceBright = Color(0xFF3A3939);
-  static const darkOnSurface = Color(0xFFE5E2E1);
-  static const darkOnSurfaceVariant = Color(0xFFC4C9AC);
-  static const darkPrimary = Color(0xFFFFB4AB);
-  static const darkOutline = Color(0xFF8E9379);
-  static const darkOutlineVariant = Color(0xFF444933);
+  static const darkBackground = Color(0xFF082D31);
+  static const darkSurface = Color(0xFF082D31);
+  static const darkSurfaceContainer = Color(0xFF123A3D);
+  static const darkSurfaceContainerLow = Color(0xFF0D3539);
+  static const darkSurfaceContainerHigh = Color(0xFF19474B);
+  static const darkSurfaceContainerHighest = Color(0xFF24565A);
+  static const darkSurfaceBright = Color(0xFF2F6265);
+  static const darkOnSurface = Color(0xFFE7F1EE);
+  static const darkOnSurfaceVariant = Color(0xFFB8CBC5);
+  static const darkPrimary = Color(0xFF8DE0C2);
+  static const darkOutline = Color(0xFF8DA39D);
+  static const darkOutlineVariant = Color(0xFF3E5450);
 }
 
 abstract final class AppSpacing {
@@ -58,18 +61,11 @@ abstract final class AppRadii {
 
 abstract final class AppShadows {
   static const card = <BoxShadow>[
-    BoxShadow(
-      color: AppColors.shadowBase,
-      blurRadius: 8,
-      offset: Offset(0, 1),
-    ),
+    BoxShadow(color: AppColors.shadowBase, blurRadius: 8, offset: Offset(0, 1)),
   ];
 
   static const glow = <BoxShadow>[
-    BoxShadow(
-      color: Color(0x33BA1A1A),
-      blurRadius: 10,
-    ),
+    BoxShadow(color: Color(0x338DE0C2), blurRadius: 10),
   ];
 }
 
@@ -141,11 +137,11 @@ ThemeData buildAppTheme() {
     onPrimary: AppColors.onPrimary,
     primaryContainer: AppColors.primaryContainer,
     onPrimaryContainer: AppColors.onPrimaryContainer,
-    secondary: AppColors.onSurfaceVariant,
+    secondary: AppColors.accent,
     onSecondary: AppColors.onPrimary,
-    secondaryContainer: Color(0xFFE5E2E1),
+    secondaryContainer: AppColors.accentContainer,
     onSecondaryContainer: AppColors.onSurface,
-    tertiary: Color(0xFF4F616E),
+    tertiary: AppColors.coral,
     onTertiary: AppColors.onPrimary,
     tertiaryContainer: Color(0xFFDCEFFF),
     onTertiaryContainer: Color(0xFF071E26),

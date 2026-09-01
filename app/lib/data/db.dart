@@ -63,10 +63,30 @@ class SettingsDao {
         SettingsCompanion.insert(key: 'default_currency', value: currency),
       );
 
-  Future<Set<String>> dismissedSubscriptionSuggestions() async {
+  /// Income is deliberately stored per planning month: it is a private,
+  /// user-declared planning input, not a claimed bank-account balance.
+  Future<double?> monthlyIncome(String period) async {
     final row = await (db.select(
       db.settings,
-    )..where((s) => s.key.equals('dismissed_subscription_suggestions'))).getSingleOrNull();
+    )..where((s) => s.key.equals('monthly_income_$period'))).getSingleOrNull();
+    return row == null ? null : double.tryParse(row.value);
+  }
+
+  Future<void> setMonthlyIncome(String period, double income) => db
+      .into(db.settings)
+      .insertOnConflictUpdate(
+        SettingsCompanion.insert(
+          key: 'monthly_income_$period',
+          value: income.toStringAsFixed(2),
+        ),
+      );
+
+  Future<Set<String>> dismissedSubscriptionSuggestions() async {
+    final row =
+        await (db.select(
+              db.settings,
+            )..where((s) => s.key.equals('dismissed_subscription_suggestions')))
+            .getSingleOrNull();
     if (row == null || row.value.isEmpty) return {};
     return row.value.split(',').toSet();
   }

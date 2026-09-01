@@ -166,7 +166,7 @@ class _WelcomeStep extends StatelessWidget {
       ),
       const SizedBox(height: 16),
       Text(
-        'A few quick steps to show you what Moneylock can do, then you will set up your first budget and start capturing expenses offline.',
+        'A few quick steps to show you what Moneylock can do, then you will build your first monthly plan and start capturing expenses offline.',
         style: AppTextStyles.bodyLg.copyWith(color: AppColors.onSurfaceVariant),
       ),
     ],
@@ -179,7 +179,7 @@ class _MeetVectorStep extends StatelessWidget {
   static const _capabilities = [
     'Find and answer questions about your transactions and subscriptions.',
     'Add, edit, or delete a transaction or subscription — always with a real Confirm button, never from a typed "yes".',
-    'Change a budget limit on request.',
+    'Change a monthly plan limit on request.',
     'Give advice grounded in your actual spending data.',
   ];
 
@@ -196,7 +196,11 @@ class _MeetVectorStep extends StatelessWidget {
       children: [
         Row(
           children: [
-            const Icon(Icons.smart_toy_outlined, color: AppColors.primary, size: 28),
+            const Icon(
+              Icons.smart_toy_outlined,
+              color: AppColors.primary,
+              size: 28,
+            ),
             const SizedBox(width: 10),
             Text('Meet Vector', style: AppTextStyles.headlineLgMobile),
           ],
@@ -204,7 +208,9 @@ class _MeetVectorStep extends StatelessWidget {
         const SizedBox(height: 16),
         Text(
           'Your on-device finance mentor. Here is what it can actually do:',
-          style: AppTextStyles.bodyLg.copyWith(color: AppColors.onSurfaceVariant),
+          style: AppTextStyles.bodyLg.copyWith(
+            color: AppColors.onSurfaceVariant,
+          ),
         ),
         const SizedBox(height: 16),
         for (final line in _capabilities)
@@ -226,7 +232,9 @@ class _MeetVectorStep extends StatelessWidget {
         const SizedBox(height: 8),
         Text(
           'Try asking things like:',
-          style: AppTextStyles.bodyMd.copyWith(color: AppColors.onSurfaceVariant),
+          style: AppTextStyles.bodyMd.copyWith(
+            color: AppColors.onSurfaceVariant,
+          ),
         ),
         const SizedBox(height: 10),
         for (final example in _examples)
@@ -276,7 +284,7 @@ class _SetupStep extends StatelessWidget {
         _check(
           0,
           Icons.account_balance_wallet_outlined,
-          'Set your currency and budget',
+          'Set your currency and monthly plan',
           onOpenBudget,
         ),
         _check(

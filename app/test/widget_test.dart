@@ -31,7 +31,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Dashboard'), findsWidgets);
-    expect(find.text('Budget'), findsOneWidget);
+    expect(find.text('Plan'), findsOneWidget);
     expect(find.text('Insights'), findsOneWidget);
     expect(find.text('History'), findsOneWidget);
     expect(find.byIcon(Icons.smart_toy), findsOneWidget);

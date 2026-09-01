@@ -4,10 +4,10 @@ import 'package:moneylock/theme/app_theme.dart';
 
 void main() {
   test('tokens de color light matchean la spec', () {
-    expect(AppColors.primary, const Color(0xFFBA1A1A));
-    expect(AppColors.primaryBright, const Color(0xFFFF3B30));
-    expect(AppColors.onSurface, const Color(0xFF131313));
-    expect(AppColors.background, const Color(0xFFF9F9FA));
+    expect(AppColors.primary, const Color(0xFF075B63));
+    expect(AppColors.primaryBright, const Color(0xFF0B737B));
+    expect(AppColors.onSurface, const Color(0xFF17201F));
+    expect(AppColors.background, const Color(0xFFF6F8F7));
   });
 
   test('texto mono-data usa Geist y label-caps usan +0.1em uppercase', () {
@@ -17,7 +17,7 @@ void main() {
     expect(label.letterSpacing, 0.1);
   });
 
-  test('buildAppTheme produce Material3 light con primary rojo', () {
+  test('buildAppTheme produce Material3 light con primary teal', () {
     final theme = buildAppTheme();
     expect(theme.brightness, Brightness.light);
     expect(theme.colorScheme.primary, AppColors.primary);
