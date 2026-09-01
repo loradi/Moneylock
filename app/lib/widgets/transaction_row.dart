@@ -51,7 +51,10 @@ class TransactionRow extends StatelessWidget {
             ],
           ),
         ),
-        Text(fmtCurrency(t.amount), style: AppTextStyles.monoData),
+        Text(
+          fmtCurrency(t.amount, currency: t.currency),
+          style: AppTextStyles.monoData,
+        ),
       ],
     ),
   );

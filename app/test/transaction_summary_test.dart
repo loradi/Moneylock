@@ -7,6 +7,7 @@ void main() {
       id: 7,
       merchant: 'Nike',
       amount: 89.99,
+      currency: 'CAD',
       category: 'Shopping & E-commerce',
       timestamp: DateTime(2026, 6, 12, 10, 30),
     );
@@ -16,6 +17,7 @@ void main() {
     expect(decoded.id, 7);
     expect(decoded.merchant, 'Nike');
     expect(decoded.amount, 89.99);
+    expect(decoded.currency, 'CAD');
     expect(decoded.category, 'Shopping & E-commerce');
     expect(decoded.timestamp, DateTime(2026, 6, 12, 10, 30));
   });

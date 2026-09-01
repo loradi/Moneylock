@@ -13,11 +13,13 @@ class BudgetBar extends StatelessWidget {
   final String category;
   final double spent;
   final double limit;
+  final String currency;
   const BudgetBar({
     super.key,
     required this.category,
     required this.spent,
     required this.limit,
+    this.currency = 'USD',
   });
   @override
   Widget build(BuildContext context) {
@@ -37,7 +39,8 @@ class BudgetBar extends StatelessWidget {
                 ),
               ),
               Text(
-                '${fmtCurrency(spent)} / ${fmtCurrency(limit)}',
+                '${fmtCurrency(spent, currency: currency)} / '
+                '${fmtCurrency(limit, currency: currency)}',
                 style: AppTextStyles.monoData.copyWith(
                   fontSize: 12,
                   color: AppColors.onSurfaceVariant,

@@ -19,15 +19,26 @@ class SubscriptionRow extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(s.name, style: AppTextStyles.bodyMd.copyWith(fontWeight: FontWeight.w600)),
+              Text(
+                s.name,
+                style: AppTextStyles.bodyMd.copyWith(
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
               Text(
                 'Renews ${fmtDate(s.nextChargeDate)}',
-                style: AppTextStyles.bodyMd.copyWith(fontSize: 13, color: AppColors.onSurfaceVariant),
+                style: AppTextStyles.bodyMd.copyWith(
+                  fontSize: 13,
+                  color: AppColors.onSurfaceVariant,
+                ),
               ),
             ],
           ),
         ),
-        Text(fmtCurrency(s.amount), style: AppTextStyles.bodyMd.copyWith(fontWeight: FontWeight.w600)),
+        Text(
+          fmtCurrency(s.amount, currency: s.currency),
+          style: AppTextStyles.bodyMd.copyWith(fontWeight: FontWeight.w600),
+        ),
       ],
     ),
   );

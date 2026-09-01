@@ -6,6 +6,7 @@ class TransactionSummary {
   final int id;
   final String merchant;
   final double amount;
+  final String currency;
   final String category;
   final DateTime timestamp;
 
@@ -13,33 +14,39 @@ class TransactionSummary {
     required this.id,
     required this.merchant,
     required this.amount,
+    this.currency = 'USD',
     required this.category,
     required this.timestamp,
   });
 
-  factory TransactionSummary.fromTransaction(Transaction t) => TransactionSummary(
+  factory TransactionSummary.fromTransaction(Transaction t) =>
+      TransactionSummary(
         id: t.id,
         merchant: t.merchant,
         amount: t.amount,
+        currency: t.currency,
         category: t.category,
         timestamp: t.timestamp,
       );
 
-  factory TransactionSummary.fromJson(Map<String, dynamic> json) => TransactionSummary(
+  factory TransactionSummary.fromJson(Map<String, dynamic> json) =>
+      TransactionSummary(
         id: json['id'] as int,
         merchant: json['merchant'] as String,
         amount: (json['amount'] as num).toDouble(),
+        currency: json['currency'] as String? ?? 'USD',
         category: json['category'] as String,
         timestamp: DateTime.parse(json['timestamp'] as String),
       );
 
   Map<String, dynamic> toJson() => {
-        'id': id,
-        'merchant': merchant,
-        'amount': amount,
-        'category': category,
-        'timestamp': timestamp.toIso8601String(),
-      };
+    'id': id,
+    'merchant': merchant,
+    'amount': amount,
+    'currency': currency,
+    'category': category,
+    'timestamp': timestamp.toIso8601String(),
+  };
 }
 
 String encodeTransactionSummaries(List<TransactionSummary> summaries) =>

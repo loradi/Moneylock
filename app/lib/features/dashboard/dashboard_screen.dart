@@ -85,7 +85,10 @@ class DashboardScreen extends ConsumerWidget {
                   0,
                 ),
                 sliver: SliverToBoxAdapter(
-                  child: _SpendingPaceCard(alert: paceAlert),
+                  child: _SpendingPaceCard(
+                    alert: paceAlert,
+                    currency: budgetSummary!.currency,
+                  ),
                 ),
               ),
             const SliverPadding(
@@ -205,9 +208,10 @@ class DashboardScreen extends ConsumerWidget {
 }
 
 class _SpendingPaceCard extends StatelessWidget {
-  const _SpendingPaceCard({required this.alert});
+  const _SpendingPaceCard({required this.alert, required this.currency});
 
   final SpendingPaceAlert alert;
+  final String currency;
 
   @override
   Widget build(BuildContext context) => AppCard(
@@ -241,15 +245,15 @@ class _SpendingPaceCard extends StatelessWidget {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  'At this pace, it could reach ${fmtCurrency(alert.projectedTotal)} '
-                  'by month end — ${fmtCurrency(alert.projectedOverage)} over its cap.',
+                  'At this pace, it could reach ${fmtCurrency(alert.projectedTotal, currency: currency)} '
+                  'by month end — ${fmtCurrency(alert.projectedOverage, currency: currency)} over its cap.',
                   style: AppTextStyles.bodyMd.copyWith(
                     color: AppColors.onSurfaceVariant,
                   ),
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  '${fmtCurrency(alert.remaining)} left • '
+                  '${fmtCurrency(alert.remaining, currency: currency)} left • '
                   '${alert.daysRemaining} days remaining',
                   style: AppTextStyles.monoData.copyWith(
                     color: AppColors.onSurfaceVariant,
@@ -365,6 +369,7 @@ class _BudgetList extends StatelessWidget {
               category: e.key,
               spent: e.value,
               limit: s.byCategoryLimits[e.key]!,
+              currency: s.currency,
             ),
         ],
       );

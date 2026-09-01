@@ -664,7 +664,9 @@ class _PlanOverview extends StatelessWidget {
                 Expanded(
                   child: _PlanMetric(
                     label: 'INCOME',
-                    value: income == null ? 'Set income' : fmtCurrency(income!),
+                    value: income == null
+                        ? 'Set income'
+                        : fmtCurrency(income!, currency: currency),
                     onTap: onEditIncome,
                   ),
                 ),
@@ -672,7 +674,7 @@ class _PlanOverview extends StatelessWidget {
                 Expanded(
                   child: _PlanMetric(
                     label: 'PLANNED',
-                    value: fmtCurrency(planned),
+                    value: fmtCurrency(planned, currency: currency),
                     detail:
                         '$categoryCount ${categoryCount == 1 ? 'category' : 'categories'}',
                   ),
@@ -680,7 +682,12 @@ class _PlanOverview extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 16),
-            _PlanStatus(income: income, planned: planned, spent: spent),
+            _PlanStatus(
+              income: income,
+              planned: planned,
+              spent: spent,
+              currency: currency,
+            ),
           ],
           Align(
             alignment: Alignment.centerRight,
@@ -814,7 +821,7 @@ class _RecurringProjectionCard extends StatelessWidget {
               )
             else ...[
               Text(
-                '${fmtCurrency(projection.total)} scheduled this month',
+                '${fmtCurrency(projection.total, currency: currency)} scheduled this month',
                 style: AppTextStyles.headlineMd,
               ),
               const SizedBox(height: 8),
@@ -838,7 +845,10 @@ class _RecurringProjectionCard extends StatelessWidget {
                       ),
                       const SizedBox(width: 10),
                       Text(
-                        fmtCurrency(charge.subscription.amount),
+                        fmtCurrency(
+                          charge.subscription.amount,
+                          currency: currency,
+                        ),
                         style: AppTextStyles.monoData,
                       ),
                     ],
@@ -872,11 +882,13 @@ class _PlanStatus extends StatelessWidget {
   final double? income;
   final double planned;
   final double spent;
+  final String currency;
 
   const _PlanStatus({
     required this.income,
     required this.planned,
     required this.spent,
+    required this.currency,
   });
 
   @override
@@ -887,8 +899,8 @@ class _PlanStatus extends StatelessWidget {
     final message = income == null
         ? 'Set your take-home income to see what is left to assign.'
         : unassigned! >= 0
-        ? '${fmtCurrency(unassigned)} left to assign to your month.'
-        : '${fmtCurrency(unassigned.abs())} over your planned income.';
+        ? '${fmtCurrency(unassigned, currency: currency)} left to assign to your month.'
+        : '${fmtCurrency(unassigned.abs(), currency: currency)} over your planned income.';
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(12),
@@ -917,7 +929,7 @@ class _PlanStatus extends StatelessWidget {
           ),
           if (planned > 0)
             Text(
-              '${fmtCurrency(spent)} spent',
+              '${fmtCurrency(spent, currency: currency)} spent',
               style: AppTextStyles.monoData.copyWith(
                 color: AppColors.onSurfaceVariant,
               ),

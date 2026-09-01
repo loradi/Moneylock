@@ -163,7 +163,10 @@ class _HistoryRow extends StatelessWidget {
             ],
           ),
         ),
-        Text(fmtCurrency(transaction.amount), style: AppTextStyles.monoData),
+        Text(
+          fmtCurrency(transaction.amount, currency: transaction.currency),
+          style: AppTextStyles.monoData,
+        ),
       ],
     ),
   );
