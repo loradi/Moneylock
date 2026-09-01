@@ -10,6 +10,7 @@ import 'core/notifications.dart';
 import 'data/db.dart';
 import 'features/add/add_transaction_flow.dart';
 import 'features/insights/insights_agent.dart';
+import 'features/insights/spending_trend.dart';
 import 'llm/categorizer_agent.dart';
 import 'llm/llama_service.dart';
 import 'llm/llm_provider.dart';
@@ -40,7 +41,10 @@ final mentorProvider = Provider<MentorAgent>(
 );
 
 final notificationSchedulerProvider = Provider<NotificationScheduler>(
-  (ref) => NotificationScheduler(ref.watch(appDatabaseProvider), LocalNotifications()),
+  (ref) => NotificationScheduler(
+    ref.watch(appDatabaseProvider),
+    LocalNotifications(),
+  ),
 );
 
 final addFlowProvider = Provider<AddTransactionFlow>(
@@ -153,6 +157,13 @@ final budgetSummaryProvider = StreamProvider<BudgetSummary>((ref) async* {
 final insightsProvider = Provider<AsyncValue<List<InsightCapsule>>>(
   (ref) => ref.watch(budgetSummaryProvider).whenData(generateInsights),
 );
+
+/// A six-month, chronological spending series for the Insights chart.
+final spendingTrendProvider = Provider<List<MonthlySpendPoint>>((ref) {
+  final transactions =
+      ref.watch(transactionsStreamProvider).valueOrNull ?? const [];
+  return buildMonthlySpendingTrend(transactions: transactions);
+});
 
 String _currentPeriod() {
   final now = DateTime.now();

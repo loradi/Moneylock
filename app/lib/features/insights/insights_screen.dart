@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:intl/intl.dart';
 
 import '../../providers.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/kit.dart';
 import '../../widgets/sparkline.dart';
 import 'insights_agent.dart';
+import 'spending_trend.dart';
 
 class InsightsScreen extends ConsumerWidget {
   const InsightsScreen({super.key});
@@ -13,6 +15,7 @@ class InsightsScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final insights = ref.watch(insightsProvider);
     final summary = ref.watch(budgetSummaryProvider).valueOrNull;
+    final trend = ref.watch(spendingTrendProvider);
     return Scaffold(
       backgroundColor: AppColors.background,
       body: SafeArea(
@@ -39,7 +42,9 @@ class InsightsScreen extends ConsumerWidget {
             if (summary != null)
               SliverPadding(
                 padding: const EdgeInsets.all(AppSpacing.margin),
-                sliver: SliverToBoxAdapter(child: _OverviewCard(summary)),
+                sliver: SliverToBoxAdapter(
+                  child: _OverviewCard(summary, trend),
+                ),
               ),
             insights.when(
               data: (capsules) => SliverList(
@@ -68,7 +73,8 @@ class InsightsScreen extends ConsumerWidget {
 
 class _OverviewCard extends StatelessWidget {
   final BudgetSummary summary;
-  const _OverviewCard(this.summary);
+  final List<MonthlySpendPoint> trend;
+  const _OverviewCard(this.summary, this.trend);
   @override
   Widget build(BuildContext context) => AppCard(
     child: Padding(
@@ -76,7 +82,7 @@ class _OverviewCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const AppSectionLabel('SPENDING PULSE'),
+          const AppSectionLabel('SIX-MONTH SPENDING TREND'),
           const SizedBox(height: 12),
           Row(
             children: [
@@ -96,11 +102,27 @@ class _OverviewCard extends StatelessWidget {
           ),
           const SizedBox(height: 18),
           Sparkline(
-            series: summary.byCategory.values.isEmpty
-                ? const [0]
-                : summary.byCategory.values.toList(),
+            series: trend.map((point) => point.total).toList(),
             color: AppColors.primary,
             height: 54,
+          ),
+          const SizedBox(height: 6),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                DateFormat('MMM').format(trend.first.month).toUpperCase(),
+                style: AppTextStyles.labelCaps.copyWith(
+                  color: AppColors.onSurfaceVariant,
+                ),
+              ),
+              Text(
+                DateFormat('MMM').format(trend.last.month).toUpperCase(),
+                style: AppTextStyles.labelCaps.copyWith(
+                  color: AppColors.onSurfaceVariant,
+                ),
+              ),
+            ],
           ),
         ],
       ),
