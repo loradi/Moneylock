@@ -14,6 +14,7 @@ import '../add/voice_button.dart';
 import '../../receipt/receipt_ocr_service.dart';
 import '../../data/db.dart';
 import 'budget_bar.dart';
+import 'spending_pace.dart';
 
 List<Transaction> recentWithinLastWeek(List<Transaction> txs, {DateTime? now}) {
   final cutoff = (now ?? DateTime.now()).subtract(const Duration(days: 7));
@@ -21,12 +22,23 @@ List<Transaction> recentWithinLastWeek(List<Transaction> txs, {DateTime? now}) {
 }
 
 class DashboardScreen extends ConsumerWidget {
-  const DashboardScreen({super.key});
+  const DashboardScreen({super.key, this.now});
+
+  final DateTime? now;
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final summary = ref.watch(budgetSummaryProvider);
     final txs = ref.watch(transactionsStreamProvider).value ?? const [];
     final recentTxs = recentWithinLastWeek(txs);
+    final budgetSummary = summary.valueOrNull;
+    final paceAlert = budgetSummary == null
+        ? null
+        : findSpendingPaceAlert(
+            spentByCategory: budgetSummary.byCategory,
+            limitsByCategory: budgetSummary.byCategoryLimits,
+            now: now,
+          );
     return Scaffold(
       backgroundColor: AppColors.background,
       body: SafeArea(
@@ -52,8 +64,22 @@ class DashboardScreen extends ConsumerWidget {
                 AppSpacing.margin,
                 0,
               ),
-              sliver: SliverToBoxAdapter(child: _TotalCard(summary: summary)),
+              sliver: SliverToBoxAdapter(
+                child: _TotalCard(summary: summary, now: now),
+              ),
             ),
+            if (paceAlert != null)
+              SliverPadding(
+                padding: const EdgeInsets.fromLTRB(
+                  AppSpacing.margin,
+                  12,
+                  AppSpacing.margin,
+                  0,
+                ),
+                sliver: SliverToBoxAdapter(
+                  child: _SpendingPaceCard(alert: paceAlert),
+                ),
+              ),
             const SliverPadding(
               padding: EdgeInsets.fromLTRB(
                 AppSpacing.margin,
@@ -170,9 +196,71 @@ class DashboardScreen extends ConsumerWidget {
   }
 }
 
+class _SpendingPaceCard extends StatelessWidget {
+  const _SpendingPaceCard({required this.alert});
+
+  final SpendingPaceAlert alert;
+
+  @override
+  Widget build(BuildContext context) => AppCard(
+    fill: AppColors.accentContainer,
+    child: Padding(
+      padding: const EdgeInsets.all(AppSpacing.md),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Padding(
+            padding: EdgeInsets.only(top: 2),
+            child: Icon(Icons.trending_up, color: AppColors.accent),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'SPENDING PACE',
+                  style: AppTextStyles.labelCaps.copyWith(
+                    color: AppColors.accent,
+                  ),
+                ),
+                const SizedBox(height: 5),
+                Text(
+                  '${alert.category} is moving faster than its plan',
+                  style: AppTextStyles.bodyMd.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'At this pace, it could reach ${fmtCurrency(alert.projectedTotal)} '
+                  'by month end — ${fmtCurrency(alert.projectedOverage)} over its cap.',
+                  style: AppTextStyles.bodyMd.copyWith(
+                    color: AppColors.onSurfaceVariant,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  '${fmtCurrency(alert.remaining)} left • '
+                  '${alert.daysRemaining} days remaining',
+                  style: AppTextStyles.monoData.copyWith(
+                    color: AppColors.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
 class _TotalCard extends StatelessWidget {
   final AsyncValue<BudgetSummary> summary;
-  const _TotalCard({required this.summary});
+  final DateTime? now;
+
+  const _TotalCard({required this.summary, this.now});
   @override
   Widget build(BuildContext context) => AppCard(
     glowOrb: true,
@@ -180,9 +268,9 @@ class _TotalCard extends StatelessWidget {
       padding: const EdgeInsets.all(AppSpacing.md),
       child: summary.when(
         data: (s) {
-          final now = DateTime.now();
+          final date = now ?? DateTime.now();
           final daysLeft =
-              DateUtils.getDaysInMonth(now.year, now.month) - now.day + 1;
+              DateUtils.getDaysInMonth(date.year, date.month) - date.day + 1;
           final remaining = s.totalLimit - s.totalSpent;
           final hasPlan = s.totalLimit > 0;
           final safeToday = remaining > 0 ? remaining / daysLeft : 0.0;

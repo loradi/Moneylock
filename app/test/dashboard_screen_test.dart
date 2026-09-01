@@ -92,4 +92,39 @@ void main() {
       await disposeTestDatabase(tester, db);
     },
   );
+
+  testWidgets('shows a clear warning when a category is over its pace', (
+    tester,
+  ) async {
+    final db = createTestDatabase();
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          appDatabaseProvider.overrideWithValue(db),
+          transactionsStreamProvider.overrideWith(
+            (ref) => Stream.value(const []),
+          ),
+          budgetSummaryProvider.overrideWith(
+            (ref) => Stream.value(
+              BudgetSummary(
+                totalSpent: 60,
+                totalLimit: 100,
+                byCategory: {'Dining': 60},
+                byCategoryLimits: {'Dining': 100},
+              ),
+            ),
+          ),
+        ],
+        child: MaterialApp(home: DashboardScreen(now: DateTime(2026, 4, 15))),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('SPENDING PACE'), findsOneWidget);
+    expect(find.text('Dining is moving faster than its plan'), findsOneWidget);
+    expect(find.textContaining('could reach \$120.00'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+
+    await disposeTestDatabase(tester, db);
+  });
 }
