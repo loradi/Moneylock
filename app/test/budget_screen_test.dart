@@ -14,6 +14,13 @@ const _testCategories = [
   Category(id: 2, name: 'Coffee & Dining', isActive: true, isDefault: true),
 ];
 
+void _useTallViewport(WidgetTester tester) {
+  tester.view.physicalSize = const Size(800, 1000);
+  tester.view.devicePixelRatio = 1;
+  addTearDown(tester.view.resetPhysicalSize);
+  addTearDown(tester.view.resetDevicePixelRatio);
+}
+
 /// Pumps [BudgetScreen] with a real (test) database for writes, but a
 /// mocked `categoriesProvider` for the category list.
 ///
@@ -29,6 +36,7 @@ const _testCategories = [
 /// `appDatabaseProvider` stays real so `_save`/`_removeCategory` still
 /// perform genuine DB writes that tests can verify.
 Future<AppDatabase> _pumpBudgetScreen(WidgetTester tester) async {
+  _useTallViewport(tester);
   final db = createTestDatabase();
   await tester.pumpWidget(
     ProviderScope(
@@ -73,6 +81,7 @@ void main() {
   testWidgets(
     'keeps an entry typed before the initial monthly plan finishes loading',
     (tester) async {
+      _useTallViewport(tester);
       final db = createTestDatabase();
       final planCompleter = Completer<MonthlyPlanData>();
       await tester.pumpWidget(
@@ -168,6 +177,7 @@ void main() {
   testWidgets('swiping a row left and confirming removes the category', (
     tester,
   ) async {
+    _useTallViewport(tester);
     // This test needs the category list to actually change after removal,
     // so unlike _pumpBudgetScreen's fixed Stream.value, it drives
     // categoriesProvider from a StreamController it controls directly —

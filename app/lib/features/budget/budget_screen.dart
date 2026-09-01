@@ -46,6 +46,7 @@ class _BudgetScreenState extends ConsumerState<BudgetScreen> {
   String _hydratedPeriod = '';
   final _controllers = <String, TextEditingController>{};
   final _editedCategories = <String>{};
+  bool _isCopyingPreviousPlan = false;
 
   @override
   void dispose() {
@@ -109,6 +110,10 @@ class _BudgetScreenState extends ConsumerState<BudgetScreen> {
                     onPreviousMonth: () => _changeMonth(-1),
                     onNextMonth: () => _changeMonth(1),
                     onEditIncome: () => _editIncome(planData?.income),
+                    previousMonthLabel: DateFormat('MMMM')
+                        .format(DateTime(_month.year, _month.month - 1)),
+                    isCopyingPreviousPlan: _isCopyingPreviousPlan,
+                    onCopyPreviousPlan: _copyPreviousPlan,
                     currency: _currency,
                     onCurrencyChanged: (value) {
                       setState(() => _currency = value);
@@ -268,6 +273,89 @@ class _BudgetScreenState extends ConsumerState<BudgetScreen> {
     _editedCategories.clear();
   });
 
+  Future<void> _copyPreviousPlan() async {
+    if (_isCopyingPreviousPlan) return;
+    setState(() => _isCopyingPreviousPlan = true);
+
+    try {
+      final db = ref.read(appDatabaseProvider);
+      final sourceMonth = DateTime(_month.year, _month.month - 1);
+      final sourcePeriod = _periodKeyFor(sourceMonth);
+      final targetPeriod = _periodKey();
+      final sourceLimits = await db.budgetsDao.limitsForPeriod(sourcePeriod);
+      final sourceIncome = await db.settingsDao.monthlyIncome(sourcePeriod);
+
+      if (sourceLimits.isEmpty && sourceIncome == null) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                'No plan found for ${DateFormat('MMMM').format(sourceMonth)}.',
+              ),
+            ),
+          );
+        }
+        return;
+      }
+
+      final currentLimits = await db.budgetsDao.limitsForPeriod(targetPeriod);
+      final currentIncome = await db.settingsDao.monthlyIncome(targetPeriod);
+      if (!mounted) return;
+      if (currentLimits.isNotEmpty || currentIncome != null) {
+        final confirmed = await showDialog<bool>(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('Replace this plan?'),
+            content: Text(
+              'This copies the income and matching category amounts from ${DateFormat('MMMM').format(sourceMonth)}. Categories you added only in this month stay unchanged.',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('Cancel'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(context, true),
+                child: const Text('Copy plan'),
+              ),
+            ],
+          ),
+        );
+        if (confirmed != true) return;
+      }
+
+      final count = await db.budgetsDao.copyPeriod(
+        sourcePeriod,
+        targetPeriod,
+        targetCycleDays: DateUtils.getDaysInMonth(_month.year, _month.month),
+      );
+      if (sourceIncome != null) {
+        await db.settingsDao.setMonthlyIncome(targetPeriod, sourceIncome);
+      }
+      if (!mounted) return;
+      setState(() {
+        _editedCategories.clear();
+        _hydratedPeriod = '';
+      });
+      ref.invalidate(monthlyPlanProvider(targetPeriod));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Copied ${count == 1 ? '1 category' : '$count categories'} from ${DateFormat('MMMM').format(sourceMonth)}.',
+          ),
+        ),
+      );
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not copy the previous plan: $error')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isCopyingPreviousPlan = false);
+    }
+  }
+
   Future<void> _editIncome(double? current) async {
     final controller = TextEditingController(
       text: current == null ? '' : current.toStringAsFixed(0),
@@ -309,8 +397,10 @@ class _BudgetScreenState extends ConsumerState<BudgetScreen> {
     ref.invalidate(monthlyPlanProvider(_periodKey()));
   }
 
-  String _periodKey() =>
-      '${_month.year.toString().padLeft(4, '0')}-${_month.month.toString().padLeft(2, '0')}';
+  String _periodKey() => _periodKeyFor(_month);
+
+  String _periodKeyFor(DateTime month) =>
+      '${month.year.toString().padLeft(4, '0')}-${month.month.toString().padLeft(2, '0')}';
 }
 
 class _AddCategoryDialog extends StatefulWidget {
@@ -487,6 +577,9 @@ class _PlanOverview extends StatelessWidget {
   final VoidCallback onPreviousMonth;
   final VoidCallback onNextMonth;
   final VoidCallback onEditIncome;
+  final String previousMonthLabel;
+  final bool isCopyingPreviousPlan;
+  final Future<void> Function() onCopyPreviousPlan;
   final String currency;
   final ValueChanged<String> onCurrencyChanged;
 
@@ -500,6 +593,9 @@ class _PlanOverview extends StatelessWidget {
     required this.onPreviousMonth,
     required this.onNextMonth,
     required this.onEditIncome,
+    required this.previousMonthLabel,
+    required this.isCopyingPreviousPlan,
+    required this.onCopyPreviousPlan,
     required this.currency,
     required this.onCurrencyChanged,
   });
@@ -573,6 +669,20 @@ class _PlanOverview extends StatelessWidget {
             const SizedBox(height: 16),
             _PlanStatus(income: income, planned: planned, spent: spent),
           ],
+          Align(
+            alignment: Alignment.centerRight,
+            child: TextButton.icon(
+              onPressed: isCopyingPreviousPlan ? null : onCopyPreviousPlan,
+              icon: isCopyingPreviousPlan
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.content_copy_outlined, size: 18),
+              label: Text('Copy $previousMonthLabel plan'),
+            ),
+          ),
           const SizedBox(height: 14),
           DropdownButtonFormField<String>(
             initialValue: currency,
