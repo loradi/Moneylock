@@ -32,6 +32,7 @@ void main() {
           transactionsStreamProvider.overrideWith(
             (ref) => Stream.value(const []),
           ),
+          subscriptionsProvider.overrideWith((ref) => Stream.value(const [])),
           budgetSummaryProvider.overrideWith(
             (ref) => Stream.value(
               BudgetSummary(
@@ -69,6 +70,7 @@ void main() {
             transactionsStreamProvider.overrideWith(
               (ref) => Stream.value([old]),
             ),
+            subscriptionsProvider.overrideWith((ref) => Stream.value(const [])),
             budgetSummaryProvider.overrideWith(
               (ref) => Stream.value(
                 BudgetSummary(
@@ -104,6 +106,7 @@ void main() {
           transactionsStreamProvider.overrideWith(
             (ref) => Stream.value(const []),
           ),
+          subscriptionsProvider.overrideWith((ref) => Stream.value(const [])),
           budgetSummaryProvider.overrideWith(
             (ref) => Stream.value(
               BudgetSummary(

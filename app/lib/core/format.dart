@@ -1,7 +1,21 @@
 import 'package:intl/intl.dart';
 
-String fmtCurrency(double value) =>
-    NumberFormat.currency(locale: 'en_US', symbol: r'$').format(value);
+String fmtCurrency(double value, {String currency = 'USD'}) {
+  final locale = switch (currency) {
+    'CAD' => 'en_CA',
+    'EUR' => 'de_DE',
+    'GBP' => 'en_GB',
+    _ => 'en_US',
+  };
+  final symbol = switch (currency) {
+    'USD' => r'$',
+    'CAD' => 'CA\$',
+    'EUR' => '€',
+    'GBP' => '£',
+    _ => '$currency ',
+  };
+  return NumberFormat.currency(locale: locale, symbol: symbol).format(value);
+}
 
 String fmtDate(DateTime d) => DateFormat('MMM d').format(d);
 

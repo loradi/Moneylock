@@ -97,6 +97,7 @@ final defaultCurrencyProvider = FutureProvider<String>(
 /// Settings refresca las barras del Dashboard sin esperar una transacción.
 final budgetSummaryProvider = StreamProvider<BudgetSummary>((ref) async* {
   final db = ref.watch(appDatabaseProvider);
+  final defaultCurrency = await db.settingsDao.defaultCurrency();
   final period = _currentPeriod();
   final start = DateTime.parse('$period-01T00:00:00');
   final end = DateTime(start.year, start.month + 1, 1);
@@ -132,6 +133,17 @@ final budgetSummaryProvider = StreamProvider<BudgetSummary>((ref) async* {
         ))
           b.category: b.monthlyLimit,
       };
+      final currency =
+          budgetRows
+              .where(
+                (b) =>
+                    b.enabled &&
+                    ((b.cycle == 'monthly' && b.period == period) ||
+                        (b.cycle != 'monthly' && b.period == b.cycle)),
+              )
+              .map((b) => b.currency)
+              .firstOrNull ??
+          defaultCurrency;
       final byCategory = <String, double>{};
       for (final t in rows.where(
         (t) => !t.timestamp.isBefore(start) && t.timestamp.isBefore(end),
@@ -143,6 +155,7 @@ final budgetSummaryProvider = StreamProvider<BudgetSummary>((ref) async* {
       yield BudgetSummary(
         totalSpent: totalSpent,
         totalLimit: totalLimit,
+        currency: currency,
         byCategory: byCategory,
         byCategoryLimits: limits,
       );
