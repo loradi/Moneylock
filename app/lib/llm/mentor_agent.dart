@@ -42,11 +42,7 @@ class MentorChatResult {
   final String content;
   final String kind; // 'text' | 'transaction_list' | 'delete_confirm'
   final String? dataJson;
-  MentorChatResult({
-    required this.content,
-    this.kind = 'text',
-    this.dataJson,
-  });
+  MentorChatResult({required this.content, this.kind = 'text', this.dataJson});
 }
 
 class ChatIntent {
@@ -58,6 +54,7 @@ class ChatIntent {
   final double? amount;
   final int? dayOfMonth;
   final String? newMerchant;
+  final String? newCategory;
   final int? count;
   final bool degraded;
   ChatIntent({
@@ -69,6 +66,7 @@ class ChatIntent {
     this.amount,
     this.dayOfMonth,
     this.newMerchant,
+    this.newCategory,
     this.count,
     this.degraded = false,
   });
@@ -107,10 +105,19 @@ ChatIntent _parseIntent(String raw) {
       category = resolvedCategory;
     }
     if (intent == 'add_subscription' &&
-        (json['merchant'] == null || json['amount'] == null || json['dayOfMonth'] == null)) {
+        (json['merchant'] == null ||
+            json['amount'] == null ||
+            json['dayOfMonth'] == null)) {
       return ChatIntent(intent: 'chat', degraded: true);
     }
-    if (intent == 'edit_transaction' && json['amount'] == null && json['newMerchant'] == null) {
+    final newCategory = json['newCategory'] as String?;
+    if (newCategory != null && !categoryCatalog.contains(newCategory)) {
+      return ChatIntent(intent: 'chat', degraded: true);
+    }
+    if (intent == 'edit_transaction' &&
+        json['amount'] == null &&
+        json['newMerchant'] == null &&
+        newCategory == null) {
       return ChatIntent(intent: 'chat', degraded: true);
     }
     if (intent == 'edit_subscription' && json['amount'] == null) {
@@ -125,6 +132,7 @@ ChatIntent _parseIntent(String raw) {
       amount: (json['amount'] as num?)?.toDouble(),
       dayOfMonth: (json['dayOfMonth'] as num?)?.toInt(),
       newMerchant: json['newMerchant'] as String?,
+      newCategory: newCategory,
       count: (json['count'] as num?)?.toInt(),
     );
   } catch (_) {
@@ -148,18 +156,29 @@ class MentorAgent {
     required double amount,
     required DateTime timestamp,
   }) async {
-    final period = '${timestamp.year.toString().padLeft(4, '0')}-${timestamp.month.toString().padLeft(2, '0')}';
+    final period =
+        '${timestamp.year.toString().padLeft(4, '0')}-${timestamp.month.toString().padLeft(2, '0')}';
     final limits = await db.budgetsDao.limitsForPeriod(period);
-    final spent = await db.transactionsDao.categorySpentThisPeriod(category, period);
+    final spent = await db.transactionsDao.categorySpentThisPeriod(
+      category,
+      period,
+    );
     final limit = limits[category];
     final severity = assessSpend(spent, limit);
 
     final tone = await db.settingsDao.mentorTone();
     final recent = await db.transactionsDao.recent(5);
-    final recentText = recent.isEmpty ? 'No prior transactions.'
-        : recent.map((t) => '${t.merchant.isEmpty ? t.category : t.merchant}: \$${t.amount.toStringAsFixed(2)} (${t.category})').join('\n');
+    final recentText = recent.isEmpty
+        ? 'No prior transactions.'
+        : recent
+              .map(
+                (t) =>
+                    '${t.merchant.isEmpty ? t.category : t.merchant}: \$${t.amount.toStringAsFixed(2)} (${t.category})',
+              )
+              .join('\n');
 
-    final context = 'Category: $category\n'
+    final context =
+        'Category: $category\n'
         'New amount: \$${amount.toStringAsFixed(2)}\n'
         'Spent this month in $category: \$${spent.toStringAsFixed(2)}\n'
         'Monthly limit for $category: ${limit == null ? 'none' : '\$${limit.toStringAsFixed(2)}'}\n'
@@ -167,7 +186,8 @@ class MentorAgent {
 
     String message;
     if (severity == Severity.info && limit == null) {
-      message = 'Transaction recorded: \$${amount.toStringAsFixed(2)} in $category.';
+      message =
+          'Transaction recorded: \$${amount.toStringAsFixed(2)} in $category.';
     } else {
       try {
         message = await provider.complete(mentorPromptFor(tone), context);
@@ -214,7 +234,10 @@ class MentorAgent {
     }
   }
 
-  Future<MentorChatResult> chat(String userMessage, {ChatIntent? preclassified}) async {
+  Future<MentorChatResult> chat(
+    String userMessage, {
+    ChatIntent? preclassified,
+  }) async {
     final parsed = preclassified ?? await classify(userMessage);
     switch (parsed.intent) {
       case 'query_transactions':
@@ -246,32 +269,42 @@ class MentorAgent {
   Future<MentorChatResult> _generalChat(String userMessage) async {
     final tone = await db.settingsDao.mentorTone();
     final now = DateTime.now();
-    final period = '${now.year.toString().padLeft(4, '0')}-${now.month.toString().padLeft(2, '0')}';
-    final spentByCategory = await db.transactionsDao.spentByCategoryThisPeriod(period);
+    final period =
+        '${now.year.toString().padLeft(4, '0')}-${now.month.toString().padLeft(2, '0')}';
+    final spentByCategory = await db.transactionsDao.spentByCategoryThisPeriod(
+      period,
+    );
     final limits = await db.budgetsDao.limitsForPeriod(period);
     final totalSpent = spentByCategory.values.fold<double>(0, (a, b) => a + b);
     final totalLimit = limits.values.fold<double>(0, (a, b) => a + b);
     final subs = await db.subscriptionsDao.allForScheduling();
 
     final categoryLines = limits.entries
-        .map((e) =>
-            '- ${e.key}: \$${(spentByCategory[e.key] ?? 0).toStringAsFixed(2)} / \$${e.value.toStringAsFixed(2)}')
+        .map(
+          (e) =>
+              '- ${e.key}: \$${(spentByCategory[e.key] ?? 0).toStringAsFixed(2)} / \$${e.value.toStringAsFixed(2)}',
+        )
         .join('\n');
     final subsLines = subs.isEmpty
         ? 'No subscriptions tracked.'
         : subs
-            .map((s) =>
-                '- ${s.name}: \$${s.amount.toStringAsFixed(2)}/${s.cycle}, renews ${s.nextChargeDate.month}/${s.nextChargeDate.day}')
-            .join('\n');
+              .map(
+                (s) =>
+                    '- ${s.name}: \$${s.amount.toStringAsFixed(2)}/${s.cycle}, renews ${s.nextChargeDate.month}/${s.nextChargeDate.day}',
+              )
+              .join('\n');
     final topCategoryLine = spentByCategory.isEmpty
         ? ''
         : (() {
-            final top = spentByCategory.entries.reduce((a, b) => a.value > b.value ? a : b);
+            final top = spentByCategory.entries.reduce(
+              (a, b) => a.value > b.value ? a : b,
+            );
             return 'Highest spending category this month: ${top.key} (\$${top.value.toStringAsFixed(2)}).\n';
           })();
 
     final history = await _historyBlock();
-    final context = '${history}This month ($period) so far:\n'
+    final context =
+        '${history}This month ($period) so far:\n'
         'Total spent: \$${totalSpent.toStringAsFixed(2)} of \$${totalLimit.toStringAsFixed(2)} budgeted\n'
         'By category:\n${categoryLines.isEmpty ? '(no budgets set)' : categoryLines}\n'
         '$topCategoryLine'
@@ -287,7 +320,9 @@ class MentorAgent {
   }
 
   Future<MentorChatResult> _queryTransactions(ChatIntent parsed) async {
-    final effectiveLimit = parsed.count != null ? parsed.count!.clamp(1, 50) : 500;
+    final effectiveLimit = parsed.count != null
+        ? parsed.count!.clamp(1, 50)
+        : 500;
     final rows = await db.transactionsDao.search(
       category: parsed.category,
       merchantKeyword: parsed.merchant,
@@ -296,25 +331,31 @@ class MentorAgent {
     );
     final summaries = rows.map(TransactionSummary.fromTransaction).toList();
     if (summaries.isEmpty) {
-      return MentorChatResult(content: "I couldn't find any matching transactions.");
+      return MentorChatResult(
+        content: "I couldn't find any matching transactions.",
+      );
     }
     final total = summaries.fold<double>(0, (a, t) => a + t.amount);
     if (parsed.count != null) {
       return MentorChatResult(
-        content: 'Here are your last ${summaries.length} transactions, totaling \$${total.toStringAsFixed(2)}.',
+        content:
+            'Here are your last ${summaries.length} transactions, totaling \$${total.toStringAsFixed(2)}.',
         kind: 'transaction_list',
         dataJson: encodeTransactionSummaries(summaries),
       );
     }
     final label = parsed.merchant ?? parsed.category ?? 'transactions';
     return MentorChatResult(
-      content: 'Found ${summaries.length} matching "$label", totaling \$${total.toStringAsFixed(2)}.',
+      content:
+          'Found ${summaries.length} matching "$label", totaling \$${total.toStringAsFixed(2)}.',
       kind: 'transaction_list',
       dataJson: encodeTransactionSummaries(summaries.take(20).toList()),
     );
   }
 
-  Future<MentorChatResult> _deleteTransactionCandidate(ChatIntent parsed) async {
+  Future<MentorChatResult> _deleteTransactionCandidate(
+    ChatIntent parsed,
+  ) async {
     final rows = await db.transactionsDao.search(
       category: parsed.category,
       merchantKeyword: parsed.merchant,
@@ -323,7 +364,9 @@ class MentorAgent {
     );
     final summaries = rows.map(TransactionSummary.fromTransaction).toList();
     if (summaries.isEmpty) {
-      return MentorChatResult(content: "I couldn't find a transaction matching that.");
+      return MentorChatResult(
+        content: "I couldn't find a transaction matching that.",
+      );
     }
     if (summaries.length > 1) {
       return MentorChatResult(
@@ -341,32 +384,46 @@ class MentorAgent {
   }
 
   Future<MentorChatResult> _querySubscriptions(ChatIntent parsed) async {
-    final rows = await db.subscriptionsDao.search(nameKeyword: parsed.merchant, limit: 100);
+    final rows = await db.subscriptionsDao.search(
+      nameKeyword: parsed.merchant,
+      limit: 100,
+    );
     final summaries = rows.map(SubscriptionSummary.fromSubscription).toList();
     if (summaries.isEmpty) {
-      return MentorChatResult(content: "I couldn't find any matching subscriptions.");
+      return MentorChatResult(
+        content: "I couldn't find any matching subscriptions.",
+      );
     }
     final monthlyTotal = summaries.fold<double>(
       0,
       (a, s) => a + (s.cycle == 'yearly' ? s.amount / 12 : s.amount),
     );
     return MentorChatResult(
-      content: 'Found ${summaries.length} subscription${summaries.length == 1 ? '' : 's'}, '
+      content:
+          'Found ${summaries.length} subscription${summaries.length == 1 ? '' : 's'}, '
           '~\$${monthlyTotal.toStringAsFixed(2)}/month.',
       kind: 'subscription_list',
       dataJson: encodeSubscriptionSummaries(summaries),
     );
   }
 
-  Future<MentorChatResult> _cancelSubscriptionCandidate(ChatIntent parsed) async {
-    final rows = await db.subscriptionsDao.search(nameKeyword: parsed.merchant, limit: 5);
+  Future<MentorChatResult> _cancelSubscriptionCandidate(
+    ChatIntent parsed,
+  ) async {
+    final rows = await db.subscriptionsDao.search(
+      nameKeyword: parsed.merchant,
+      limit: 5,
+    );
     final summaries = rows.map(SubscriptionSummary.fromSubscription).toList();
     if (summaries.isEmpty) {
-      return MentorChatResult(content: "I couldn't find a subscription matching that.");
+      return MentorChatResult(
+        content: "I couldn't find a subscription matching that.",
+      );
     }
     if (summaries.length > 1) {
       return MentorChatResult(
-        content: 'Found ${summaries.length} subscriptions matching that -- can you be more specific?',
+        content:
+            'Found ${summaries.length} subscriptions matching that -- can you be more specific?',
         kind: 'subscription_list',
         dataJson: encodeSubscriptionSummaries(summaries),
       );
@@ -382,7 +439,8 @@ class MentorAgent {
     final category = parsed.category!;
     final newLimit = parsed.newLimit!;
     final now = DateTime.now();
-    final period = '${now.year.toString().padLeft(4, '0')}-${now.month.toString().padLeft(2, '0')}';
+    final period =
+        '${now.year.toString().padLeft(4, '0')}-${now.month.toString().padLeft(2, '0')}';
     final limits = await db.budgetsDao.limitsForPeriod(period);
     final currentLimit = limits[category] ?? 0.0;
     final change = BudgetChangeSummary(
@@ -392,7 +450,8 @@ class MentorAgent {
       period: period,
     );
     return MentorChatResult(
-      content: 'Change your $category limit from \$${currentLimit.toStringAsFixed(2)} '
+      content:
+          'Change your $category limit from \$${currentLimit.toStringAsFixed(2)} '
           'to \$${newLimit.toStringAsFixed(2)}?',
       kind: 'budget_confirm',
       dataJson: encodeBudgetChangeSummary(change),
@@ -413,11 +472,22 @@ class MentorAgent {
       nextChargeDate: nextChargeDate,
     );
     final monthName = const [
-      'January', 'February', 'March', 'April', 'May', 'June',
-      'July', 'August', 'September', 'October', 'November', 'December',
+      'January',
+      'February',
+      'March',
+      'April',
+      'May',
+      'June',
+      'July',
+      'August',
+      'September',
+      'October',
+      'November',
+      'December',
     ][nextChargeDate.month - 1];
     return MentorChatResult(
-      content: 'Add $name at \$${amount.toStringAsFixed(2)}/month, '
+      content:
+          'Add $name at \$${amount.toStringAsFixed(2)}/month, '
           'starting $monthName ${nextChargeDate.day}?',
       kind: 'add_subscription_confirm',
       dataJson: encodeNewSubscriptionSummary(summary),
@@ -433,7 +503,9 @@ class MentorAgent {
     );
     final summaries = rows.map(TransactionSummary.fromTransaction).toList();
     if (summaries.isEmpty) {
-      return MentorChatResult(content: "I couldn't find a transaction matching that.");
+      return MentorChatResult(
+        content: "I couldn't find a transaction matching that.",
+      );
     }
     if (summaries.length > 1) {
       return MentorChatResult(
@@ -447,41 +519,60 @@ class MentorAgent {
     final label = target.merchant.isEmpty ? target.category : target.merchant;
     final parts = <String>[];
     if (parsed.amount != null) {
-      parts.add('amount from \$${target.amount.toStringAsFixed(2)} to \$${parsed.amount!.toStringAsFixed(2)}');
+      parts.add(
+        'amount from \$${target.amount.toStringAsFixed(2)} to \$${parsed.amount!.toStringAsFixed(2)}',
+      );
     }
     if (parsed.newMerchant != null) {
-      parts.add("merchant from '${target.merchant}' to '${parsed.newMerchant}'");
+      parts.add(
+        "merchant from '${target.merchant}' to '${parsed.newMerchant}'",
+      );
+    }
+    if (parsed.newCategory != null) {
+      parts.add('category from ${target.category} to ${parsed.newCategory}');
     }
     final edit = TransactionEditSummary(
       transaction: target,
       newAmount: parsed.amount,
       newMerchant: parsed.newMerchant,
+      newCategory: parsed.newCategory,
     );
     return MentorChatResult(
-      content: 'Change $label (${target.timestamp.month}/${target.timestamp.day})\'s ${parts.join(' and ')}?',
+      content:
+          'Change $label (${target.timestamp.month}/${target.timestamp.day})\'s ${parts.join(' and ')}?',
       kind: 'edit_transaction_confirm',
       dataJson: encodeTransactionEditSummary(edit),
     );
   }
 
   Future<MentorChatResult> _editSubscriptionCandidate(ChatIntent parsed) async {
-    final rows = await db.subscriptionsDao.search(nameKeyword: parsed.merchant, limit: 5);
+    final rows = await db.subscriptionsDao.search(
+      nameKeyword: parsed.merchant,
+      limit: 5,
+    );
     final summaries = rows.map(SubscriptionSummary.fromSubscription).toList();
     if (summaries.isEmpty) {
-      return MentorChatResult(content: "I couldn't find a subscription matching that.");
+      return MentorChatResult(
+        content: "I couldn't find a subscription matching that.",
+      );
     }
     if (summaries.length > 1) {
       return MentorChatResult(
-        content: 'Found ${summaries.length} subscriptions matching that -- can you be more specific?',
+        content:
+            'Found ${summaries.length} subscriptions matching that -- can you be more specific?',
         kind: 'subscription_list',
         dataJson: encodeSubscriptionSummaries(summaries),
       );
     }
     final target = summaries.first;
     final newAmount = parsed.amount!;
-    final edit = SubscriptionEditSummary(subscription: target, newAmount: newAmount);
+    final edit = SubscriptionEditSummary(
+      subscription: target,
+      newAmount: newAmount,
+    );
     return MentorChatResult(
-      content: 'Change ${target.name} from \$${target.amount.toStringAsFixed(2)} '
+      content:
+          'Change ${target.name} from \$${target.amount.toStringAsFixed(2)} '
           'to \$${newAmount.toStringAsFixed(2)}?',
       kind: 'edit_subscription_confirm',
       dataJson: encodeSubscriptionEditSummary(edit),

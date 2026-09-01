@@ -35,7 +35,7 @@ object, no markdown, no commentary:
  "category": "<one of: ${categoryCatalog.join(', ')}>"|null,
  "merchant": "<short keyword or null>", "monthsBack": <integer or null>,
  "newLimit": <number or null>, "amount": <number or null>, "dayOfMonth": <integer 1-31 or null>,
- "newMerchant": "<string or null>", "count": <integer or null>}
+ "newMerchant": "<string or null>", "newCategory": "<one of: ${categoryCatalog.join(', ')}>"|null, "count": <integer or null>}
 Rules:
 - "chat" is for general questions, advice requests, or anything not asking
   to find, list, cancel, or delete a specific past transaction or
@@ -71,12 +71,12 @@ Rules:
   of guessing. Only monthly subscriptions can be added this way; if the
   user asks for a yearly one, use "chat".
 - "edit_transaction" is for requests to correct a specific past
-  transaction's amount and/or merchant name (e.g. "change my Nike purchase
-  to \$50", "the Starbucks charge should say Peet's Coffee instead"). Same
+  transaction's amount, merchant name and/or category (e.g. "change my Nike purchase
+  to \$50", "move the Starbucks charge to Coffee & Dining"). Same
   search fields as "delete_transaction" ("category"/"merchant"/
   "monthsBack" identify WHICH transaction), plus "amount" (the corrected
-  amount) and/or "newMerchant" (the corrected merchant name) for WHAT to
-  change -- at least one of "amount"/"newMerchant" is required, else use
+  amount), "newMerchant" (the corrected merchant name) and/or "newCategory"
+  (the corrected category) for WHAT to change -- at least one is required, else use
   "chat".
 - "edit_subscription" is for requests to change an existing subscription's
   monthly amount (e.g. "change Netflix to \$18.99", "Spotify is now \$13").
@@ -90,6 +90,7 @@ Rules:
   on, used only by "add_subscription", else null.
 - "newMerchant" is the corrected merchant name if the intent is
   "edit_transaction", else null.
+- "newCategory" is the corrected category only for "edit_transaction", else null.
 - "count" is how many results the user explicitly asked for (e.g. "my
   last 5 transactions" -> 5, "the last three purchases" -> 3), used only
   by "query_transactions", else null. Do not guess a count if the user
@@ -114,7 +115,8 @@ Examples:
 "add a new expense for 35 on coffee" -> {"intent": "record_transaction", "category": "Coffee & Dining", "merchant": null, "monthsBack": null, "newLimit": null}
 "log 12 dollars for parking" -> {"intent": "record_transaction", "category": "Transport", "merchant": "parking", "monthsBack": null, "newLimit": null}
 "add Netflix for \$30 recurring on the 20th" -> {"intent": "add_subscription", "category": null, "merchant": "Netflix", "monthsBack": null, "newLimit": null, "amount": 30, "dayOfMonth": 20}
-"change my Nike purchase to \$50" -> {"intent": "edit_transaction", "category": null, "merchant": "Nike", "monthsBack": null, "newLimit": null, "amount": 50, "dayOfMonth": null, "newMerchant": null}
+"change my Nike purchase to \$50" -> {"intent": "edit_transaction", "category": null, "merchant": "Nike", "monthsBack": null, "newLimit": null, "amount": 50, "dayOfMonth": null, "newMerchant": null, "newCategory": null}
+"move my Starbucks purchase to Coffee & Dining" -> {"intent": "edit_transaction", "category": null, "merchant": "Starbucks", "monthsBack": null, "newLimit": null, "amount": null, "dayOfMonth": null, "newMerchant": null, "newCategory": "Coffee & Dining"}
 "change Netflix to \$18.99" -> {"intent": "edit_subscription", "category": null, "merchant": "Netflix", "monthsBack": null, "newLimit": null, "amount": 18.99, "dayOfMonth": null, "newMerchant": null}
 "give me my last 5 transactions" -> {"intent": "query_transactions", "category": null, "merchant": null, "monthsBack": null, "count": 5}
 ''';

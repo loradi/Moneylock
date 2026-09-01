@@ -336,6 +336,7 @@ class _BubbleState extends ConsumerState<_Bubble> {
           edit.transaction.id,
           amount: edit.newAmount,
           merchant: edit.newMerchant,
+          category: edit.newCategory,
         );
     if (mounted) setState(() => _actionTaken = true);
   }

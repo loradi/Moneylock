@@ -12,7 +12,8 @@ import 'package:moneylock/llm/llm_provider.dart';
 import 'package:moneylock/llm/mentor_agent.dart';
 
 AppDatabase _db() => AppDatabase.forTesting(
-    driftDatabase(name: 'test_${DateTime.now().microsecondsSinceEpoch}'));
+  driftDatabase(name: 'test_${DateTime.now().microsecondsSinceEpoch}'),
+);
 
 class _ScriptedLlm implements LlmProvider {
   final List<String> responses;
@@ -20,15 +21,24 @@ class _ScriptedLlm implements LlmProvider {
   int get callCount => _calls;
   _ScriptedLlm(this.responses);
   @override
-  Future<String> complete(String system, String user, {double temperature = 0.2}) async {
+  Future<String> complete(
+    String system,
+    String user, {
+    double temperature = 0.2,
+  }) async {
     final r = responses[_calls];
     _calls++;
     return r;
   }
 }
+
 class _ThrowingLlm implements LlmProvider {
   @override
-  Future<String> complete(String system, String user, {double temperature = 0.2}) async {
+  Future<String> complete(
+    String system,
+    String user, {
+    double temperature = 0.2,
+  }) async {
     throw Exception('model unavailable');
   }
 }
@@ -39,7 +49,11 @@ class _CapturingLlm implements LlmProvider {
   String? lastUserPrompt;
   _CapturingLlm(this.responses);
   @override
-  Future<String> complete(String system, String user, {double temperature = 0.2}) async {
+  Future<String> complete(
+    String system,
+    String user, {
+    double temperature = 0.2,
+  }) async {
     lastUserPrompt = user;
     final r = responses[_calls];
     _calls++;
@@ -48,28 +62,36 @@ class _CapturingLlm implements LlmProvider {
 }
 
 void main() {
-  test('chat intent builds a monthly summary context and returns a text result', () async {
-    final db = _db();
-    await db.budgetsDao.upsert('Groceries', 200.0, '2026-08');
-    await db.transactionsDao.insertWithDedup(NewTransaction(
-      amount: 15.0,
-      currency: 'USD',
-      merchant: 'Store',
-      category: 'Groceries',
-      source: 'manual',
-      rawText: 'Store 15.0',
-      timestamp: DateTime.now(),
-    ));
-    final llm = _ScriptedLlm(['{"intent": "chat"}', 'Cut back on takeout this month.']);
-    final agent = MentorAgent(llm, db);
+  test(
+    'chat intent builds a monthly summary context and returns a text result',
+    () async {
+      final db = _db();
+      await db.budgetsDao.upsert('Groceries', 200.0, '2026-08');
+      await db.transactionsDao.insertWithDedup(
+        NewTransaction(
+          amount: 15.0,
+          currency: 'USD',
+          merchant: 'Store',
+          category: 'Groceries',
+          source: 'manual',
+          rawText: 'Store 15.0',
+          timestamp: DateTime.now(),
+        ),
+      );
+      final llm = _ScriptedLlm([
+        '{"intent": "chat"}',
+        'Cut back on takeout this month.',
+      ]);
+      final agent = MentorAgent(llm, db);
 
-    final result = await agent.chat('what can I cut?');
+      final result = await agent.chat('what can I cut?');
 
-    expect(result.kind, 'text');
-    expect(result.content, 'Cut back on takeout this month.');
-    expect(result.dataJson, isNull);
-    await db.close();
-  });
+      expect(result.kind, 'text');
+      expect(result.content, 'Cut back on takeout this month.');
+      expect(result.dataJson, isNull);
+      await db.close();
+    },
+  );
 
   test('malformed intent JSON falls back to chat', () async {
     final db = _db();
@@ -85,7 +107,10 @@ void main() {
 
   test('an unrecognized intent string falls back to chat', () async {
     final db = _db();
-    final llm = _ScriptedLlm(['{"intent": "do_something_else"}', 'Fallback reply.']);
+    final llm = _ScriptedLlm([
+      '{"intent": "do_something_else"}',
+      'Fallback reply.',
+    ]);
     final agent = MentorAgent(llm, db);
 
     final result = await agent.chat('??');
@@ -97,25 +122,31 @@ void main() {
 
   test('query_transactions finds matches and computes total in Dart', () async {
     final db = _db();
-    await db.transactionsDao.insertWithDedup(NewTransaction(
-      amount: 50.0,
-      currency: 'USD',
-      merchant: 'Nike Store',
-      category: 'Shopping & E-commerce',
-      source: 'manual',
-      rawText: 'Nike Store 50.0',
-      timestamp: DateTime.now(),
-    ));
-    await db.transactionsDao.insertWithDedup(NewTransaction(
-      amount: 40.0,
-      currency: 'USD',
-      merchant: 'Nike Outlet',
-      category: 'Shopping & E-commerce',
-      source: 'manual',
-      rawText: 'Nike Outlet 40.0',
-      timestamp: DateTime.now(),
-    ));
-    final llm = _ScriptedLlm(['{"intent": "query_transactions", "merchant": "Nike"}']);
+    await db.transactionsDao.insertWithDedup(
+      NewTransaction(
+        amount: 50.0,
+        currency: 'USD',
+        merchant: 'Nike Store',
+        category: 'Shopping & E-commerce',
+        source: 'manual',
+        rawText: 'Nike Store 50.0',
+        timestamp: DateTime.now(),
+      ),
+    );
+    await db.transactionsDao.insertWithDedup(
+      NewTransaction(
+        amount: 40.0,
+        currency: 'USD',
+        merchant: 'Nike Outlet',
+        category: 'Shopping & E-commerce',
+        source: 'manual',
+        rawText: 'Nike Outlet 40.0',
+        timestamp: DateTime.now(),
+      ),
+    );
+    final llm = _ScriptedLlm([
+      '{"intent": "query_transactions", "merchant": "Nike"}',
+    ]);
     final agent = MentorAgent(llm, db);
 
     final result = await agent.chat('how much on Nike?');
@@ -126,60 +157,78 @@ void main() {
     await db.close();
   });
 
-  test('query_transactions with no matches returns a text-only result', () async {
-    final db = _db();
-    final llm = _ScriptedLlm(['{"intent": "query_transactions", "merchant": "nothing"}']);
-    final agent = MentorAgent(llm, db);
+  test(
+    'query_transactions with no matches returns a text-only result',
+    () async {
+      final db = _db();
+      final llm = _ScriptedLlm([
+        '{"intent": "query_transactions", "merchant": "nothing"}',
+      ]);
+      final agent = MentorAgent(llm, db);
 
-    final result = await agent.chat('find nothing');
+      final result = await agent.chat('find nothing');
 
-    expect(result.kind, 'text');
-    expect(result.dataJson, isNull);
-    await db.close();
-  });
+      expect(result.kind, 'text');
+      expect(result.dataJson, isNull);
+      await db.close();
+    },
+  );
 
-  test('delete_transaction with exactly one match returns delete_confirm', () async {
-    final db = _db();
-    await db.transactionsDao.insertWithDedup(NewTransaction(
-      amount: 89.99,
-      currency: 'USD',
-      merchant: 'Nike Store',
-      category: 'Shopping & E-commerce',
-      source: 'manual',
-      rawText: 'Nike Store 89.99',
-      timestamp: DateTime.now(),
-    ));
-    final llm = _ScriptedLlm(['{"intent": "delete_transaction", "merchant": "Nike"}']);
-    final agent = MentorAgent(llm, db);
+  test(
+    'delete_transaction with exactly one match returns delete_confirm',
+    () async {
+      final db = _db();
+      await db.transactionsDao.insertWithDedup(
+        NewTransaction(
+          amount: 89.99,
+          currency: 'USD',
+          merchant: 'Nike Store',
+          category: 'Shopping & E-commerce',
+          source: 'manual',
+          rawText: 'Nike Store 89.99',
+          timestamp: DateTime.now(),
+        ),
+      );
+      final llm = _ScriptedLlm([
+        '{"intent": "delete_transaction", "merchant": "Nike"}',
+      ]);
+      final agent = MentorAgent(llm, db);
 
-    final result = await agent.chat('delete that Nike purchase');
+      final result = await agent.chat('delete that Nike purchase');
 
-    expect(result.kind, 'delete_confirm');
-    expect(decodeTransactionSummaries(result.dataJson!), hasLength(1));
-    await db.close();
-  });
+      expect(result.kind, 'delete_confirm');
+      expect(decodeTransactionSummaries(result.dataJson!), hasLength(1));
+      await db.close();
+    },
+  );
 
   test('delete_transaction with multiple matches returns an informational list, not delete_confirm', () async {
     final db = _db();
-    await db.transactionsDao.insertWithDedup(NewTransaction(
-      amount: 50.0,
-      currency: 'USD',
-      merchant: 'Nike Store',
-      category: 'Shopping & E-commerce',
-      source: 'manual',
-      rawText: 'Nike Store 50.0',
-      timestamp: DateTime.now(),
-    ));
-    await db.transactionsDao.insertWithDedup(NewTransaction(
-      amount: 40.0,
-      currency: 'USD',
-      merchant: 'Nike Outlet',
-      category: 'Shopping & E-commerce',
-      source: 'manual',
-      rawText: 'Nike Outlet 40.0',
-      timestamp: DateTime.now(),
-    ));
-    final llm = _ScriptedLlm(['{"intent": "delete_transaction", "merchant": "Nike"}']);
+    await db.transactionsDao.insertWithDedup(
+      NewTransaction(
+        amount: 50.0,
+        currency: 'USD',
+        merchant: 'Nike Store',
+        category: 'Shopping & E-commerce',
+        source: 'manual',
+        rawText: 'Nike Store 50.0',
+        timestamp: DateTime.now(),
+      ),
+    );
+    await db.transactionsDao.insertWithDedup(
+      NewTransaction(
+        amount: 40.0,
+        currency: 'USD',
+        merchant: 'Nike Outlet',
+        category: 'Shopping & E-commerce',
+        source: 'manual',
+        rawText: 'Nike Outlet 40.0',
+        timestamp: DateTime.now(),
+      ),
+    );
+    final llm = _ScriptedLlm([
+      '{"intent": "delete_transaction", "merchant": "Nike"}',
+    ]);
     final agent = MentorAgent(llm, db);
 
     final result = await agent.chat('delete the Nike one');
@@ -191,7 +240,9 @@ void main() {
 
   test('delete_transaction with no matches returns text-only', () async {
     final db = _db();
-    final llm = _ScriptedLlm(['{"intent": "delete_transaction", "merchant": "nothing"}']);
+    final llm = _ScriptedLlm([
+      '{"intent": "delete_transaction", "merchant": "nothing"}',
+    ]);
     final agent = MentorAgent(llm, db);
 
     final result = await agent.chat('delete nothing');
@@ -215,17 +266,21 @@ void main() {
   test('query_transactions with more than 20 matches reports the true count/total but caps rendered cards at 20', () async {
     final db = _db();
     for (var i = 0; i < 25; i++) {
-      await db.transactionsDao.insertWithDedup(NewTransaction(
-        amount: 10.0,
-        currency: 'USD',
-        merchant: 'Nike Store',
-        category: 'Shopping & E-commerce',
-        source: 'manual',
-        rawText: 'Nike Store 10.0 #$i',
-        timestamp: DateTime.now(),
-      ));
+      await db.transactionsDao.insertWithDedup(
+        NewTransaction(
+          amount: 10.0,
+          currency: 'USD',
+          merchant: 'Nike Store',
+          category: 'Shopping & E-commerce',
+          source: 'manual',
+          rawText: 'Nike Store 10.0 #$i',
+          timestamp: DateTime.now(),
+        ),
+      );
     }
-    final llm = _ScriptedLlm(['{"intent": "query_transactions", "merchant": "Nike"}']);
+    final llm = _ScriptedLlm([
+      '{"intent": "query_transactions", "merchant": "Nike"}',
+    ]);
     final agent = MentorAgent(llm, db);
 
     final result = await agent.chat('how much on Nike?');
@@ -237,36 +292,50 @@ void main() {
     await db.close();
   });
 
-  test('classify() returns the parsed ChatIntent for a scripted response', () async {
-    final db = _db();
-    final llm = _ScriptedLlm(['{"intent": "query_transactions", "merchant": "Nike"}']);
-    final agent = MentorAgent(llm, db);
+  test(
+    'classify() returns the parsed ChatIntent for a scripted response',
+    () async {
+      final db = _db();
+      final llm = _ScriptedLlm([
+        '{"intent": "query_transactions", "merchant": "Nike"}',
+      ]);
+      final agent = MentorAgent(llm, db);
 
-    final intent = await agent.classify('how much on Nike?');
+      final intent = await agent.classify('how much on Nike?');
 
-    expect(intent.intent, 'query_transactions');
-    expect(intent.merchant, 'Nike');
-    expect(llm.callCount, 1);
-    await db.close();
-  });
+      expect(intent.intent, 'query_transactions');
+      expect(intent.merchant, 'Nike');
+      expect(llm.callCount, 1);
+      await db.close();
+    },
+  );
 
-  test('chat() with a preclassified intent skips the classification LLM call', () async {
-    final db = _db();
-    final llm = _ScriptedLlm(['General advice.']);
-    final agent = MentorAgent(llm, db);
+  test(
+    'chat() with a preclassified intent skips the classification LLM call',
+    () async {
+      final db = _db();
+      final llm = _ScriptedLlm(['General advice.']);
+      final agent = MentorAgent(llm, db);
 
-    final result = await agent.chat('what can I cut?', preclassified: ChatIntent(intent: 'chat'));
+      final result = await agent.chat(
+        'what can I cut?',
+        preclassified: ChatIntent(intent: 'chat'),
+      );
 
-    expect(result.kind, 'text');
-    expect(result.content, 'General advice.');
-    expect(llm.callCount, 1);
-    await db.close();
-  });
+      expect(result.kind, 'text');
+      expect(result.content, 'General advice.');
+      expect(llm.callCount, 1);
+      await db.close();
+    },
+  );
 
   test('classify() includes recent conversation history in the prompt sent to the model', () async {
     final db = _db();
     await db.messagesDao.add('user', 'search Nike transactions');
-    await db.messagesDao.add('mentor', 'Found 2 matching "Nike", totaling \$90.00.');
+    await db.messagesDao.add(
+      'mentor',
+      'Found 2 matching "Nike", totaling \$90.00.',
+    );
     await db.messagesDao.add('user', 'cancel it');
     final llm = _CapturingLlm(['{"intent": "chat"}']);
     final agent = MentorAgent(llm, db);
@@ -307,20 +376,24 @@ void main() {
 
   test('query_subscriptions reports a monthly-equivalent total across mixed cycles', () async {
     final db = _db();
-    await db.subscriptionsDao.add(SubscriptionsCompanion.insert(
-      name: 'Netflix',
-      amount: 15.0,
-      cycle: 'monthly',
-      nextChargeDate: DateTime(2026, 9, 1),
-      createdAt: DateTime.now(),
-    ));
-    await db.subscriptionsDao.add(SubscriptionsCompanion.insert(
-      name: 'Amazon Prime',
-      amount: 120.0,
-      cycle: 'yearly',
-      nextChargeDate: DateTime(2027, 1, 1),
-      createdAt: DateTime.now(),
-    ));
+    await db.subscriptionsDao.add(
+      SubscriptionsCompanion.insert(
+        name: 'Netflix',
+        amount: 15.0,
+        cycle: 'monthly',
+        nextChargeDate: DateTime(2026, 9, 1),
+        createdAt: DateTime.now(),
+      ),
+    );
+    await db.subscriptionsDao.add(
+      SubscriptionsCompanion.insert(
+        name: 'Amazon Prime',
+        amount: 120.0,
+        cycle: 'yearly',
+        nextChargeDate: DateTime(2027, 1, 1),
+        createdAt: DateTime.now(),
+      ),
+    );
     final llm = _ScriptedLlm(['{"intent": "query_subscriptions"}']);
     final agent = MentorAgent(llm, db);
 
@@ -335,7 +408,9 @@ void main() {
 
   test('query_subscriptions with no matches returns text-only', () async {
     final db = _db();
-    final llm = _ScriptedLlm(['{"intent": "query_subscriptions", "merchant": "nothing"}']);
+    final llm = _ScriptedLlm([
+      '{"intent": "query_subscriptions", "merchant": "nothing"}',
+    ]);
     final agent = MentorAgent(llm, db);
 
     final result = await agent.chat('find nothing');
@@ -345,42 +420,55 @@ void main() {
     await db.close();
   });
 
-  test('cancel_subscription with exactly one match returns cancel_confirm', () async {
-    final db = _db();
-    await db.subscriptionsDao.add(SubscriptionsCompanion.insert(
-      name: 'Netflix',
-      amount: 15.0,
-      cycle: 'monthly',
-      nextChargeDate: DateTime(2026, 9, 1),
-      createdAt: DateTime.now(),
-    ));
-    final llm = _ScriptedLlm(['{"intent": "cancel_subscription", "merchant": "Netflix"}']);
-    final agent = MentorAgent(llm, db);
+  test(
+    'cancel_subscription with exactly one match returns cancel_confirm',
+    () async {
+      final db = _db();
+      await db.subscriptionsDao.add(
+        SubscriptionsCompanion.insert(
+          name: 'Netflix',
+          amount: 15.0,
+          cycle: 'monthly',
+          nextChargeDate: DateTime(2026, 9, 1),
+          createdAt: DateTime.now(),
+        ),
+      );
+      final llm = _ScriptedLlm([
+        '{"intent": "cancel_subscription", "merchant": "Netflix"}',
+      ]);
+      final agent = MentorAgent(llm, db);
 
-    final result = await agent.chat('cancel Netflix');
+      final result = await agent.chat('cancel Netflix');
 
-    expect(result.kind, 'cancel_confirm');
-    expect(decodeSubscriptionSummaries(result.dataJson!), hasLength(1));
-    await db.close();
-  });
+      expect(result.kind, 'cancel_confirm');
+      expect(decodeSubscriptionSummaries(result.dataJson!), hasLength(1));
+      await db.close();
+    },
+  );
 
   test('cancel_subscription with multiple matches returns an informational list, not cancel_confirm', () async {
     final db = _db();
-    await db.subscriptionsDao.add(SubscriptionsCompanion.insert(
-      name: 'Disney Plus',
-      amount: 10.0,
-      cycle: 'monthly',
-      nextChargeDate: DateTime(2026, 9, 1),
-      createdAt: DateTime.now(),
-    ));
-    await db.subscriptionsDao.add(SubscriptionsCompanion.insert(
-      name: 'Disney Bundle',
-      amount: 13.0,
-      cycle: 'monthly',
-      nextChargeDate: DateTime(2026, 9, 5),
-      createdAt: DateTime.now(),
-    ));
-    final llm = _ScriptedLlm(['{"intent": "cancel_subscription", "merchant": "Disney"}']);
+    await db.subscriptionsDao.add(
+      SubscriptionsCompanion.insert(
+        name: 'Disney Plus',
+        amount: 10.0,
+        cycle: 'monthly',
+        nextChargeDate: DateTime(2026, 9, 1),
+        createdAt: DateTime.now(),
+      ),
+    );
+    await db.subscriptionsDao.add(
+      SubscriptionsCompanion.insert(
+        name: 'Disney Bundle',
+        amount: 13.0,
+        cycle: 'monthly',
+        nextChargeDate: DateTime(2026, 9, 5),
+        createdAt: DateTime.now(),
+      ),
+    );
+    final llm = _ScriptedLlm([
+      '{"intent": "cancel_subscription", "merchant": "Disney"}',
+    ]);
     final agent = MentorAgent(llm, db);
 
     final result = await agent.chat('cancel the Disney one');
@@ -392,7 +480,9 @@ void main() {
 
   test('cancel_subscription with no matches returns text-only', () async {
     final db = _db();
-    final llm = _ScriptedLlm(['{"intent": "cancel_subscription", "merchant": "nothing"}']);
+    final llm = _ScriptedLlm([
+      '{"intent": "cancel_subscription", "merchant": "nothing"}',
+    ]);
     final agent = MentorAgent(llm, db);
 
     final result = await agent.chat('cancel nothing');
@@ -405,10 +495,12 @@ void main() {
   test('update_budget_limit with a resolvable category and limit returns budget_confirm', () async {
     final db = _db();
     final now = DateTime.now();
-    final currentPeriod = '${now.year.toString().padLeft(4, '0')}-${now.month.toString().padLeft(2, '0')}';
+    final currentPeriod =
+        '${now.year.toString().padLeft(4, '0')}-${now.month.toString().padLeft(2, '0')}';
     await db.budgetsDao.upsert('Groceries', 300.0, currentPeriod);
-    final llm = _ScriptedLlm(
-        ['{"intent": "update_budget_limit", "category": "Groceries", "newLimit": 400}']);
+    final llm = _ScriptedLlm([
+      '{"intent": "update_budget_limit", "category": "Groceries", "newLimit": 400}',
+    ]);
     final agent = MentorAgent(llm, db);
 
     final result = await agent.chat('raise my groceries limit to \$400');
@@ -423,8 +515,9 @@ void main() {
 
   test('update_budget_limit with no existing limit for the category treats current as 0', () async {
     final db = _db();
-    final llm = _ScriptedLlm(
-        ['{"intent": "update_budget_limit", "category": "Travel", "newLimit": 200}']);
+    final llm = _ScriptedLlm([
+      '{"intent": "update_budget_limit", "category": "Travel", "newLimit": 200}',
+    ]);
     final agent = MentorAgent(llm, db);
 
     final result = await agent.chat('set my travel limit to \$200');
@@ -436,35 +529,48 @@ void main() {
     await db.close();
   });
 
-  test('update_budget_limit with a missing category falls back to chat', () async {
-    final db = _db();
-    final llm = _ScriptedLlm(['{"intent": "update_budget_limit", "newLimit": 400}', 'General advice.']);
-    final agent = MentorAgent(llm, db);
+  test(
+    'update_budget_limit with a missing category falls back to chat',
+    () async {
+      final db = _db();
+      final llm = _ScriptedLlm([
+        '{"intent": "update_budget_limit", "newLimit": 400}',
+        'General advice.',
+      ]);
+      final agent = MentorAgent(llm, db);
 
-    final result = await agent.chat('raise my limit to \$400');
+      final result = await agent.chat('raise my limit to \$400');
 
-    expect(result.kind, 'text');
-    expect(result.content, 'General advice.');
-    await db.close();
-  });
+      expect(result.kind, 'text');
+      expect(result.content, 'General advice.');
+      await db.close();
+    },
+  );
 
-  test('update_budget_limit with a missing newLimit falls back to chat', () async {
-    final db = _db();
-    final llm = _ScriptedLlm(['{"intent": "update_budget_limit", "category": "Groceries"}', 'General advice.']);
-    final agent = MentorAgent(llm, db);
+  test(
+    'update_budget_limit with a missing newLimit falls back to chat',
+    () async {
+      final db = _db();
+      final llm = _ScriptedLlm([
+        '{"intent": "update_budget_limit", "category": "Groceries"}',
+        'General advice.',
+      ]);
+      final agent = MentorAgent(llm, db);
 
-    final result = await agent.chat('change my groceries limit');
+      final result = await agent.chat('change my groceries limit');
 
-    expect(result.kind, 'text');
-    expect(result.content, 'General advice.');
-    await db.close();
-  });
+      expect(result.kind, 'text');
+      expect(result.content, 'General advice.');
+      await db.close();
+    },
+  );
 
   test('update_budget_limit with a mis-cased category resolves to the canonical catalog casing', () async {
     final db = _db();
     await db.budgetsDao.upsert('Groceries', 300.0, '2026-08');
-    final llm = _ScriptedLlm(
-        ['{"intent": "update_budget_limit", "category": "groceries", "newLimit": 400}']);
+    final llm = _ScriptedLlm([
+      '{"intent": "update_budget_limit", "category": "groceries", "newLimit": 400}',
+    ]);
     final agent = MentorAgent(llm, db);
 
     final result = await agent.chat('change my groceries limit to \$400');
@@ -475,31 +581,40 @@ void main() {
     await db.close();
   });
 
-  test('update_budget_limit with an off-catalog category falls back to chat', () async {
-    final db = _db();
-    final llm = _ScriptedLlm(
-        ['{"intent": "update_budget_limit", "category": "Foobar", "newLimit": 400}', 'General advice.']);
-    final agent = MentorAgent(llm, db);
+  test(
+    'update_budget_limit with an off-catalog category falls back to chat',
+    () async {
+      final db = _db();
+      final llm = _ScriptedLlm([
+        '{"intent": "update_budget_limit", "category": "Foobar", "newLimit": 400}',
+        'General advice.',
+      ]);
+      final agent = MentorAgent(llm, db);
 
-    final result = await agent.chat('change my foobar limit to \$400');
+      final result = await agent.chat('change my foobar limit to \$400');
 
-    expect(result.kind, 'text');
-    expect(result.content, 'General advice.');
-    await db.close();
-  });
+      expect(result.kind, 'text');
+      expect(result.content, 'General advice.');
+      await db.close();
+    },
+  );
 
-  test('classify() recognizes record_transaction and extracts its params', () async {
-    final db = _db();
-    final llm = _ScriptedLlm(
-        ['{"intent": "record_transaction", "category": "Coffee & Dining", "merchant": null}']);
-    final agent = MentorAgent(llm, db);
+  test(
+    'classify() recognizes record_transaction and extracts its params',
+    () async {
+      final db = _db();
+      final llm = _ScriptedLlm([
+        '{"intent": "record_transaction", "category": "Coffee & Dining", "merchant": null}',
+      ]);
+      final agent = MentorAgent(llm, db);
 
-    final intent = await agent.classify('add a new expense for 35 on coffee');
+      final intent = await agent.classify('add a new expense for 35 on coffee');
 
-    expect(intent.intent, 'record_transaction');
-    expect(intent.category, 'Coffee & Dining');
-    await db.close();
-  });
+      expect(intent.intent, 'record_transaction');
+      expect(intent.category, 'Coffee & Dining');
+      await db.close();
+    },
+  );
 
   test('chat() with a preclassified record_transaction intent falls through to general chat rather than throwing', () async {
     final db = _db();
@@ -508,7 +623,10 @@ void main() {
 
     final result = await agent.chat(
       'add a new expense for 35 on coffee',
-      preclassified: ChatIntent(intent: 'record_transaction', category: 'Coffee & Dining'),
+      preclassified: ChatIntent(
+        intent: 'record_transaction',
+        category: 'Coffee & Dining',
+      ),
     );
 
     expect(result.kind, 'text');
@@ -519,12 +637,17 @@ void main() {
   test('add_subscription with a day not yet reached this month computes the next charge this month', () async {
     final db = _db();
     final now = DateTime.now();
-    final futureDay = (now.day % 27) + 1 > now.day ? (now.day % 27) + 1 : now.day;
-    final llm = _ScriptedLlm(
-        ['{"intent": "add_subscription", "merchant": "Netflix", "amount": 30, "dayOfMonth": $futureDay}']);
+    final futureDay = (now.day % 27) + 1 > now.day
+        ? (now.day % 27) + 1
+        : now.day;
+    final llm = _ScriptedLlm([
+      '{"intent": "add_subscription", "merchant": "Netflix", "amount": 30, "dayOfMonth": $futureDay}',
+    ]);
     final agent = MentorAgent(llm, db);
 
-    final result = await agent.chat('add Netflix for \$30 recurring on the ${futureDay}th');
+    final result = await agent.chat(
+      'add Netflix for \$30 recurring on the ${futureDay}th',
+    );
 
     expect(result.kind, 'add_subscription_confirm');
     final summary = decodeNewSubscriptionSummary(result.dataJson!);
@@ -546,11 +669,14 @@ void main() {
       await db.close();
       return;
     }
-    final llm = _ScriptedLlm(
-        ['{"intent": "add_subscription", "merchant": "Netflix", "amount": 30, "dayOfMonth": $pastDay}']);
+    final llm = _ScriptedLlm([
+      '{"intent": "add_subscription", "merchant": "Netflix", "amount": 30, "dayOfMonth": $pastDay}',
+    ]);
     final agent = MentorAgent(llm, db);
 
-    final result = await agent.chat('add Netflix for \$30 recurring on the ${pastDay}th');
+    final result = await agent.chat(
+      'add Netflix for \$30 recurring on the ${pastDay}th',
+    );
 
     final summary = decodeNewSubscriptionSummary(result.dataJson!);
     final expectedMonth = now.month == 12 ? 1 : now.month + 1;
@@ -563,8 +689,10 @@ void main() {
 
   test('add_subscription with a missing amount falls back to chat', () async {
     final db = _db();
-    final llm = _ScriptedLlm(
-        ['{"intent": "add_subscription", "merchant": "Netflix", "dayOfMonth": 20}', 'General advice.']);
+    final llm = _ScriptedLlm([
+      '{"intent": "add_subscription", "merchant": "Netflix", "dayOfMonth": 20}',
+      'General advice.',
+    ]);
     final agent = MentorAgent(llm, db);
 
     final result = await agent.chat('add Netflix recurring on the 20th');
@@ -574,23 +702,30 @@ void main() {
     await db.close();
   });
 
-  test('add_subscription with a missing dayOfMonth falls back to chat', () async {
-    final db = _db();
-    final llm = _ScriptedLlm(
-        ['{"intent": "add_subscription", "merchant": "Netflix", "amount": 30}', 'General advice.']);
-    final agent = MentorAgent(llm, db);
+  test(
+    'add_subscription with a missing dayOfMonth falls back to chat',
+    () async {
+      final db = _db();
+      final llm = _ScriptedLlm([
+        '{"intent": "add_subscription", "merchant": "Netflix", "amount": 30}',
+        'General advice.',
+      ]);
+      final agent = MentorAgent(llm, db);
 
-    final result = await agent.chat('add Netflix for \$30');
+      final result = await agent.chat('add Netflix for \$30');
 
-    expect(result.kind, 'text');
-    expect(result.content, 'General advice.');
-    await db.close();
-  });
+      expect(result.kind, 'text');
+      expect(result.content, 'General advice.');
+      await db.close();
+    },
+  );
 
   test('add_subscription with a missing name falls back to chat', () async {
     final db = _db();
-    final llm = _ScriptedLlm(
-        ['{"intent": "add_subscription", "amount": 30, "dayOfMonth": 20}', 'General advice.']);
+    final llm = _ScriptedLlm([
+      '{"intent": "add_subscription", "amount": 30, "dayOfMonth": 20}',
+      'General advice.',
+    ]);
     final agent = MentorAgent(llm, db);
 
     final result = await agent.chat('add a subscription for \$30 on the 20th');
@@ -602,16 +737,20 @@ void main() {
 
   test('edit_transaction with exactly one match and a new amount returns edit_transaction_confirm', () async {
     final db = _db();
-    await db.transactionsDao.insertWithDedup(NewTransaction(
-      amount: 45.0,
-      currency: 'USD',
-      merchant: 'Nike Store',
-      category: 'Shopping & E-commerce',
-      source: 'manual',
-      rawText: 'Nike Store 45.0',
-      timestamp: DateTime.now(),
-    ));
-    final llm = _ScriptedLlm(['{"intent": "edit_transaction", "merchant": "Nike", "amount": 50}']);
+    await db.transactionsDao.insertWithDedup(
+      NewTransaction(
+        amount: 45.0,
+        currency: 'USD',
+        merchant: 'Nike Store',
+        category: 'Shopping & E-commerce',
+        source: 'manual',
+        rawText: 'Nike Store 45.0',
+        timestamp: DateTime.now(),
+      ),
+    );
+    final llm = _ScriptedLlm([
+      '{"intent": "edit_transaction", "merchant": "Nike", "amount": 50}',
+    ]);
     final agent = MentorAgent(llm, db);
 
     final result = await agent.chat('change my Nike purchase to \$50');
@@ -626,25 +765,31 @@ void main() {
 
   test('edit_transaction with multiple matches returns an informational list, not a confirm card', () async {
     final db = _db();
-    await db.transactionsDao.insertWithDedup(NewTransaction(
-      amount: 45.0,
-      currency: 'USD',
-      merchant: 'Nike Store',
-      category: 'Shopping & E-commerce',
-      source: 'manual',
-      rawText: 'Nike Store 45.0',
-      timestamp: DateTime.now(),
-    ));
-    await db.transactionsDao.insertWithDedup(NewTransaction(
-      amount: 30.0,
-      currency: 'USD',
-      merchant: 'Nike Outlet',
-      category: 'Shopping & E-commerce',
-      source: 'manual',
-      rawText: 'Nike Outlet 30.0',
-      timestamp: DateTime.now(),
-    ));
-    final llm = _ScriptedLlm(['{"intent": "edit_transaction", "merchant": "Nike", "amount": 50}']);
+    await db.transactionsDao.insertWithDedup(
+      NewTransaction(
+        amount: 45.0,
+        currency: 'USD',
+        merchant: 'Nike Store',
+        category: 'Shopping & E-commerce',
+        source: 'manual',
+        rawText: 'Nike Store 45.0',
+        timestamp: DateTime.now(),
+      ),
+    );
+    await db.transactionsDao.insertWithDedup(
+      NewTransaction(
+        amount: 30.0,
+        currency: 'USD',
+        merchant: 'Nike Outlet',
+        category: 'Shopping & E-commerce',
+        source: 'manual',
+        rawText: 'Nike Outlet 30.0',
+        timestamp: DateTime.now(),
+      ),
+    );
+    final llm = _ScriptedLlm([
+      '{"intent": "edit_transaction", "merchant": "Nike", "amount": 50}',
+    ]);
     final agent = MentorAgent(llm, db);
 
     final result = await agent.chat('change the Nike one to \$50');
@@ -655,7 +800,9 @@ void main() {
 
   test('edit_transaction with no matches returns text-only', () async {
     final db = _db();
-    final llm = _ScriptedLlm(['{"intent": "edit_transaction", "merchant": "nothing", "amount": 50}']);
+    final llm = _ScriptedLlm([
+      '{"intent": "edit_transaction", "merchant": "nothing", "amount": 50}',
+    ]);
     final agent = MentorAgent(llm, db);
 
     final result = await agent.chat('change the nothing purchase to \$50');
@@ -664,52 +811,96 @@ void main() {
     await db.close();
   });
 
-  test('edit_transaction with neither amount nor newMerchant falls back to chat', () async {
+  test(
+    'edit_transaction with neither amount nor newMerchant falls back to chat',
+    () async {
+      final db = _db();
+      final llm = _ScriptedLlm([
+        '{"intent": "edit_transaction", "merchant": "Nike"}',
+        'General advice.',
+      ]);
+      final agent = MentorAgent(llm, db);
+
+      final result = await agent.chat('change my Nike purchase');
+
+      expect(result.kind, 'text');
+      expect(result.content, 'General advice.');
+      await db.close();
+    },
+  );
+
+  test(
+    'edit_transaction can change the merchant instead of the amount',
+    () async {
+      final db = _db();
+      await db.transactionsDao.insertWithDedup(
+        NewTransaction(
+          amount: 45.0,
+          currency: 'USD',
+          merchant: 'Store',
+          category: 'Shopping & E-commerce',
+          source: 'manual',
+          rawText: 'Store 45.0',
+          timestamp: DateTime.now(),
+        ),
+      );
+      final llm = _ScriptedLlm([
+        '{"intent": "edit_transaction", "merchant": "Store", "newMerchant": "Starbucks"}',
+      ]);
+      final agent = MentorAgent(llm, db);
+
+      final result = await agent.chat('rename my store purchase to Starbucks');
+
+      expect(result.kind, 'edit_transaction_confirm');
+      final edit = decodeTransactionEditSummary(result.dataJson!);
+      expect(edit.newAmount, isNull);
+      expect(edit.newMerchant, 'Starbucks');
+      await db.close();
+    },
+  );
+
+  test('edit_transaction can move a record to a corrected category', () async {
     final db = _db();
-    final llm = _ScriptedLlm(['{"intent": "edit_transaction", "merchant": "Nike"}', 'General advice.']);
+    await db.transactionsDao.insertWithDedup(
+      NewTransaction(
+        amount: 12.0,
+        currency: 'USD',
+        merchant: 'Starbucks',
+        category: 'Other',
+        source: 'manual',
+        rawText: 'Starbucks 12.0',
+        timestamp: DateTime.now(),
+      ),
+    );
+    final llm = _ScriptedLlm([
+      '{"intent": "edit_transaction", "merchant": "Starbucks", "newCategory": "Coffee & Dining"}',
+    ]);
     final agent = MentorAgent(llm, db);
 
-    final result = await agent.chat('change my Nike purchase');
-
-    expect(result.kind, 'text');
-    expect(result.content, 'General advice.');
-    await db.close();
-  });
-
-  test('edit_transaction can change the merchant instead of the amount', () async {
-    final db = _db();
-    await db.transactionsDao.insertWithDedup(NewTransaction(
-      amount: 45.0,
-      currency: 'USD',
-      merchant: 'Store',
-      category: 'Shopping & E-commerce',
-      source: 'manual',
-      rawText: 'Store 45.0',
-      timestamp: DateTime.now(),
-    ));
-    final llm = _ScriptedLlm(
-        ['{"intent": "edit_transaction", "merchant": "Store", "newMerchant": "Starbucks"}']);
-    final agent = MentorAgent(llm, db);
-
-    final result = await agent.chat('rename my store purchase to Starbucks');
+    final result = await agent.chat(
+      'move my Starbucks purchase to Coffee & Dining',
+    );
 
     expect(result.kind, 'edit_transaction_confirm');
     final edit = decodeTransactionEditSummary(result.dataJson!);
-    expect(edit.newAmount, isNull);
-    expect(edit.newMerchant, 'Starbucks');
+    expect(edit.newCategory, 'Coffee & Dining');
     await db.close();
   });
 
   test('edit_subscription with exactly one match returns edit_subscription_confirm', () async {
     final db = _db();
-    await db.subscriptionsDao.add(SubscriptionsCompanion.insert(
-      name: 'Netflix',
-      amount: 15.99,
-      cycle: 'monthly',
-      nextChargeDate: DateTime(2026, 9, 1),
-      createdAt: DateTime.now(),
-    ));
-    final llm = _ScriptedLlm(['{"intent": "edit_subscription", "merchant": "Netflix", "amount": 18.99}']);
+    await db.subscriptionsDao.add(
+      SubscriptionsCompanion.insert(
+        name: 'Netflix',
+        amount: 15.99,
+        cycle: 'monthly',
+        nextChargeDate: DateTime(2026, 9, 1),
+        createdAt: DateTime.now(),
+      ),
+    );
+    final llm = _ScriptedLlm([
+      '{"intent": "edit_subscription", "merchant": "Netflix", "amount": 18.99}',
+    ]);
     final agent = MentorAgent(llm, db);
 
     final result = await agent.chat('change Netflix to \$18.99');
@@ -723,21 +914,27 @@ void main() {
 
   test('edit_subscription with multiple matches returns an informational list, not a confirm card', () async {
     final db = _db();
-    await db.subscriptionsDao.add(SubscriptionsCompanion.insert(
-      name: 'Disney Plus',
-      amount: 10.0,
-      cycle: 'monthly',
-      nextChargeDate: DateTime(2026, 9, 1),
-      createdAt: DateTime.now(),
-    ));
-    await db.subscriptionsDao.add(SubscriptionsCompanion.insert(
-      name: 'Disney Bundle',
-      amount: 13.0,
-      cycle: 'monthly',
-      nextChargeDate: DateTime(2026, 9, 5),
-      createdAt: DateTime.now(),
-    ));
-    final llm = _ScriptedLlm(['{"intent": "edit_subscription", "merchant": "Disney", "amount": 15}']);
+    await db.subscriptionsDao.add(
+      SubscriptionsCompanion.insert(
+        name: 'Disney Plus',
+        amount: 10.0,
+        cycle: 'monthly',
+        nextChargeDate: DateTime(2026, 9, 1),
+        createdAt: DateTime.now(),
+      ),
+    );
+    await db.subscriptionsDao.add(
+      SubscriptionsCompanion.insert(
+        name: 'Disney Bundle',
+        amount: 13.0,
+        cycle: 'monthly',
+        nextChargeDate: DateTime(2026, 9, 5),
+        createdAt: DateTime.now(),
+      ),
+    );
+    final llm = _ScriptedLlm([
+      '{"intent": "edit_subscription", "merchant": "Disney", "amount": 15}',
+    ]);
     final agent = MentorAgent(llm, db);
 
     final result = await agent.chat('change the Disney one to \$15');
@@ -748,7 +945,9 @@ void main() {
 
   test('edit_subscription with no matches returns text-only', () async {
     final db = _db();
-    final llm = _ScriptedLlm(['{"intent": "edit_subscription", "merchant": "nothing", "amount": 15}']);
+    final llm = _ScriptedLlm([
+      '{"intent": "edit_subscription", "merchant": "nothing", "amount": 15}',
+    ]);
     final agent = MentorAgent(llm, db);
 
     final result = await agent.chat('change nothing to \$15');
@@ -759,7 +958,10 @@ void main() {
 
   test('edit_subscription with a missing amount falls back to chat', () async {
     final db = _db();
-    final llm = _ScriptedLlm(['{"intent": "edit_subscription", "merchant": "Netflix"}', 'General advice.']);
+    final llm = _ScriptedLlm([
+      '{"intent": "edit_subscription", "merchant": "Netflix"}',
+      'General advice.',
+    ]);
     final agent = MentorAgent(llm, db);
 
     final result = await agent.chat('change Netflix');
@@ -771,40 +973,49 @@ void main() {
 
   test('classify() marks a recognized intent that fails its presence guard as degraded', () async {
     final db = _db();
-    final llm = _ScriptedLlm(['{"intent": "add_subscription", "merchant": "Netflix"}']);
+    final llm = _ScriptedLlm([
+      '{"intent": "add_subscription", "merchant": "Netflix"}',
+    ]);
     final agent = MentorAgent(llm, db);
 
-    final intent = await agent.classify('add Netflix for \$30 recurring on the 20th');
+    final intent = await agent.classify(
+      'add Netflix for \$30 recurring on the 20th',
+    );
 
     expect(intent.intent, 'chat');
     expect(intent.degraded, isTrue);
     await db.close();
   });
 
-  test('classify() leaves degraded false for a genuine chat classification', () async {
-    final db = _db();
-    final llm = _ScriptedLlm(['{"intent": "chat"}']);
-    final agent = MentorAgent(llm, db);
+  test(
+    'classify() leaves degraded false for a genuine chat classification',
+    () async {
+      final db = _db();
+      final llm = _ScriptedLlm(['{"intent": "chat"}']);
+      final agent = MentorAgent(llm, db);
 
-    final intent = await agent.classify('how am I doing this month?');
+      final intent = await agent.classify('how am I doing this month?');
 
-    expect(intent.intent, 'chat');
-    expect(intent.degraded, isFalse);
-    await db.close();
-  });
+      expect(intent.intent, 'chat');
+      expect(intent.degraded, isFalse);
+      await db.close();
+    },
+  );
 
   test('query_transactions with a count set returns exactly that many, total scoped to them', () async {
     final db = _db();
     for (var i = 0; i < 10; i++) {
-      await db.transactionsDao.insertWithDedup(NewTransaction(
-        amount: 10.0,
-        currency: 'USD',
-        merchant: 'Store',
-        category: 'Other',
-        source: 'manual',
-        rawText: 'Store 10.0 #$i',
-        timestamp: DateTime.now(),
-      ));
+      await db.transactionsDao.insertWithDedup(
+        NewTransaction(
+          amount: 10.0,
+          currency: 'USD',
+          merchant: 'Store',
+          category: 'Other',
+          source: 'manual',
+          rawText: 'Store 10.0 #$i',
+          timestamp: DateTime.now(),
+        ),
+      );
     }
     final llm = _ScriptedLlm(['{"intent": "query_transactions", "count": 5}']);
     final agent = MentorAgent(llm, db);
@@ -821,16 +1032,20 @@ void main() {
 
   test('query_transactions without a count keeps the existing "Found N matching" wording', () async {
     final db = _db();
-    await db.transactionsDao.insertWithDedup(NewTransaction(
-      amount: 10.0,
-      currency: 'USD',
-      merchant: 'Store',
-      category: 'Other',
-      source: 'manual',
-      rawText: 'Store 10.0',
-      timestamp: DateTime.now(),
-    ));
-    final llm = _ScriptedLlm(['{"intent": "query_transactions", "merchant": "Store"}']);
+    await db.transactionsDao.insertWithDedup(
+      NewTransaction(
+        amount: 10.0,
+        currency: 'USD',
+        merchant: 'Store',
+        category: 'Other',
+        source: 'manual',
+        rawText: 'Store 10.0',
+        timestamp: DateTime.now(),
+      ),
+    );
+    final llm = _ScriptedLlm([
+      '{"intent": "query_transactions", "merchant": "Store"}',
+    ]);
     final agent = MentorAgent(llm, db);
 
     final result = await agent.chat('show me my Store purchases');
@@ -843,30 +1058,37 @@ void main() {
     final db = _db();
     await db.budgetsDao.upsert('Groceries', 400.0, '2026-08');
     await db.budgetsDao.upsert('Travel', 400.0, '2026-08');
-    await db.transactionsDao.insertWithDedup(NewTransaction(
-      amount: 300.0,
-      currency: 'USD',
-      merchant: 'Store',
-      category: 'Groceries',
-      source: 'manual',
-      rawText: 'Store 300.0',
-      timestamp: DateTime.now(),
-    ));
-    await db.transactionsDao.insertWithDedup(NewTransaction(
-      amount: 50.0,
-      currency: 'USD',
-      merchant: 'Airline',
-      category: 'Travel',
-      source: 'manual',
-      rawText: 'Airline 50.0',
-      timestamp: DateTime.now(),
-    ));
+    await db.transactionsDao.insertWithDedup(
+      NewTransaction(
+        amount: 300.0,
+        currency: 'USD',
+        merchant: 'Store',
+        category: 'Groceries',
+        source: 'manual',
+        rawText: 'Store 300.0',
+        timestamp: DateTime.now(),
+      ),
+    );
+    await db.transactionsDao.insertWithDedup(
+      NewTransaction(
+        amount: 50.0,
+        currency: 'USD',
+        merchant: 'Airline',
+        category: 'Travel',
+        source: 'manual',
+        rawText: 'Airline 50.0',
+        timestamp: DateTime.now(),
+      ),
+    );
     final llm = _CapturingLlm(['{"intent": "chat"}', 'Reply.']);
     final agent = MentorAgent(llm, db);
 
     await agent.chat('what am I spending the most on?');
 
-    expect(llm.lastUserPrompt, contains('Highest spending category this month: Groceries'));
+    expect(
+      llm.lastUserPrompt,
+      contains('Highest spending category this month: Groceries'),
+    );
     await db.close();
   });
 }
