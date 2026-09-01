@@ -6,6 +6,7 @@ import 'package:intl/intl.dart';
 
 import '../../core/format.dart';
 import '../../data/db.dart';
+import '../../data/subscription_projection.dart';
 import '../../providers.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/kit.dart';
@@ -82,6 +83,8 @@ class _BudgetScreenState extends ConsumerState<BudgetScreen> {
             ?.where((t) => _isInSelectedMonth(t.timestamp))
             .toList() ??
         const [];
+    final subscriptions =
+        ref.watch(subscriptionsProvider).valueOrNull ?? const <Subscription>[];
     final spent = monthTransactions.fold<double>(0, (sum, t) => sum + t.amount);
     final planned =
         planData?.limits.values.fold<double>(0, (sum, v) => sum + v) ?? 0;
@@ -100,28 +103,38 @@ class _BudgetScreenState extends ConsumerState<BudgetScreen> {
               SliverPadding(
                 padding: const EdgeInsets.all(AppSpacing.margin),
                 sliver: SliverToBoxAdapter(
-                  child: _PlanOverview(
-                    monthLabel: DateFormat('MMMM yyyy').format(_month),
-                    income: planData?.income,
-                    planned: planned,
-                    spent: spent,
-                    categoryCount: planData?.limits.length ?? 0,
-                    isLoading: plan.isLoading,
-                    onPreviousMonth: () => _changeMonth(-1),
-                    onNextMonth: () => _changeMonth(1),
-                    onEditIncome: () => _editIncome(planData?.income),
-                    previousMonthLabel: DateFormat('MMMM')
-                        .format(DateTime(_month.year, _month.month - 1)),
-                    isCopyingPreviousPlan: _isCopyingPreviousPlan,
-                    onCopyPreviousPlan: _copyPreviousPlan,
-                    currency: _currency,
-                    onCurrencyChanged: (value) {
-                      setState(() => _currency = value);
-                      ref
-                          .read(appDatabaseProvider)
-                          .settingsDao
-                          .setDefaultCurrency(value);
-                    },
+                  child: Column(
+                    children: [
+                      _PlanOverview(
+                        monthLabel: DateFormat('MMMM yyyy').format(_month),
+                        income: planData?.income,
+                        planned: planned,
+                        spent: spent,
+                        categoryCount: planData?.limits.length ?? 0,
+                        isLoading: plan.isLoading,
+                        onPreviousMonth: () => _changeMonth(-1),
+                        onNextMonth: () => _changeMonth(1),
+                        onEditIncome: () => _editIncome(planData?.income),
+                        previousMonthLabel: DateFormat('MMMM')
+                            .format(DateTime(_month.year, _month.month - 1)),
+                        isCopyingPreviousPlan: _isCopyingPreviousPlan,
+                        onCopyPreviousPlan: _copyPreviousPlan,
+                        currency: _currency,
+                        onCurrencyChanged: (value) {
+                          setState(() => _currency = value);
+                          ref
+                              .read(appDatabaseProvider)
+                              .settingsDao
+                              .setDefaultCurrency(value);
+                        },
+                      ),
+                      const SizedBox(height: 12),
+                      _RecurringProjectionCard(
+                        subscriptions: subscriptions,
+                        month: _month,
+                        currency: _currency,
+                      ),
+                    ],
                   ),
                 ),
               ),
@@ -753,6 +766,106 @@ class _PlanMetric extends StatelessWidget {
       ),
     ),
   );
+}
+
+class _RecurringProjectionCard extends StatelessWidget {
+  final List<Subscription> subscriptions;
+  final DateTime month;
+  final String currency;
+
+  const _RecurringProjectionCard({
+    required this.subscriptions,
+    required this.month,
+    required this.currency,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final projection = projectSubscriptionCharges(
+      subscriptions: subscriptions,
+      month: month,
+      currency: currency,
+    );
+    final charges = projection.charges;
+    return AppCard(
+      child: Padding(
+        padding: const EdgeInsets.all(AppSpacing.md),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(
+                  Icons.event_repeat_outlined,
+                  color: AppColors.primary,
+                ),
+                const SizedBox(width: 8),
+                const Expanded(child: AppSectionLabel('RECURRING FORECAST')),
+                Text(currency, style: AppTextStyles.labelCaps),
+              ],
+            ),
+            const SizedBox(height: 10),
+            if (charges.isEmpty)
+              Text(
+                'No tracked recurring charges remaining this month.',
+                style: AppTextStyles.bodyMd.copyWith(
+                  color: AppColors.onSurfaceVariant,
+                ),
+              )
+            else ...[
+              Text(
+                '${fmtCurrency(projection.total)} scheduled this month',
+                style: AppTextStyles.headlineMd,
+              ),
+              const SizedBox(height: 8),
+              for (final charge in charges.take(3))
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 6),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          charge.subscription.name,
+                          overflow: TextOverflow.ellipsis,
+                          style: AppTextStyles.bodyMd,
+                        ),
+                      ),
+                      Text(
+                        fmtDate(charge.chargeDate),
+                        style: AppTextStyles.monoData.copyWith(
+                          color: AppColors.onSurfaceVariant,
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Text(
+                        fmtCurrency(charge.subscription.amount),
+                        style: AppTextStyles.monoData,
+                      ),
+                    ],
+                  ),
+                ),
+              if (charges.length > 3)
+                Text(
+                  '+${charges.length - 3} more tracked charges',
+                  style: AppTextStyles.bodyMd.copyWith(
+                    fontSize: 13,
+                    color: AppColors.onSurfaceVariant,
+                  ),
+                ),
+            ],
+            const SizedBox(height: 6),
+            Text(
+              'Based on subscriptions you track, not your bank balance.',
+              style: AppTextStyles.bodyMd.copyWith(
+                fontSize: 12,
+                color: AppColors.onSurfaceVariant,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 class _PlanStatus extends StatelessWidget {

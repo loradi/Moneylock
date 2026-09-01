@@ -46,6 +46,7 @@ Future<AppDatabase> _pumpBudgetScreen(WidgetTester tester) async {
         transactionsStreamProvider.overrideWith(
           (ref) => Stream.value(const []),
         ),
+        subscriptionsProvider.overrideWith((ref) => Stream.value(const [])),
         monthlyPlanProvider.overrideWith(
           (ref, period) =>
               Future.value(const MonthlyPlanData(income: null, limits: {})),
@@ -94,6 +95,7 @@ void main() {
             transactionsStreamProvider.overrideWith(
               (ref) => Stream.value(const []),
             ),
+            subscriptionsProvider.overrideWith((ref) => Stream.value(const [])),
             monthlyPlanProvider.overrideWith(
               (ref, period) => planCompleter.future,
             ),
@@ -192,6 +194,7 @@ void main() {
           transactionsStreamProvider.overrideWith(
             (ref) => Stream.value(const []),
           ),
+          subscriptionsProvider.overrideWith((ref) => Stream.value(const [])),
           monthlyPlanProvider.overrideWith(
             (ref, period) =>
                 Future.value(const MonthlyPlanData(income: null, limits: {})),
