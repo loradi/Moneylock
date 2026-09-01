@@ -81,22 +81,24 @@ class TransactionsDao {
   }
 
   Future<bool> hasEntrySince(DateTime start) async {
-    final row = await (db.select(db.transactions)
-          ..where((t) => t.timestamp.isBiggerOrEqualValue(start))
-          ..limit(1))
-        .getSingleOrNull();
+    final row =
+        await (db.select(db.transactions)
+              ..where((t) => t.timestamp.isBiggerOrEqualValue(start))
+              ..limit(1))
+            .getSingleOrNull();
     return row != null;
   }
 
   Future<double> totalSpentThisPeriod(String period) async {
     final start = DateTime.parse('$period-01T00:00:00');
     final end = DateTime(start.year, start.month + 1, 1);
-    final rows = await (db.select(db.transactions)..where(
-          (t) =>
-              t.timestamp.isBiggerOrEqualValue(start) &
-              t.timestamp.isSmallerThanValue(end),
-        ))
-        .get();
+    final rows =
+        await (db.select(db.transactions)..where(
+              (t) =>
+                  t.timestamp.isBiggerOrEqualValue(start) &
+                  t.timestamp.isSmallerThanValue(end),
+            ))
+            .get();
     return rows.fold<double>(0.0, (sum, r) => sum + r.amount);
   }
 
@@ -117,23 +119,31 @@ class TransactionsDao {
     return transaction.copyWith(category: category);
   }
 
-  Future<void> updateFields(int id, {double? amount, String? merchant}) =>
-      (db.update(db.transactions)..where((row) => row.id.equals(id))).write(
-        TransactionsCompanion(
-          amount: amount == null ? const Value.absent() : Value(amount),
-          merchant: merchant == null ? const Value.absent() : Value(merchant),
-        ),
-      );
+  Future<void> updateFields(
+    int id, {
+    double? amount,
+    String? merchant,
+    String? category,
+    DateTime? timestamp,
+  }) => (db.update(db.transactions)..where((row) => row.id.equals(id))).write(
+    TransactionsCompanion(
+      amount: amount == null ? const Value.absent() : Value(amount),
+      merchant: merchant == null ? const Value.absent() : Value(merchant),
+      category: category == null ? const Value.absent() : Value(category),
+      timestamp: timestamp == null ? const Value.absent() : Value(timestamp),
+    ),
+  );
 
   Future<Map<String, double>> spentByCategoryThisPeriod(String period) async {
     final start = DateTime.parse('$period-01T00:00:00');
     final end = DateTime(start.year, start.month + 1, 1);
-    final rows = await (db.select(db.transactions)..where(
-          (t) =>
-              t.timestamp.isBiggerOrEqualValue(start) &
-              t.timestamp.isSmallerThanValue(end),
-        ))
-        .get();
+    final rows =
+        await (db.select(db.transactions)..where(
+              (t) =>
+                  t.timestamp.isBiggerOrEqualValue(start) &
+                  t.timestamp.isSmallerThanValue(end),
+            ))
+            .get();
     final result = <String, double>{};
     for (final r in rows) {
       result[r.category] = (result[r.category] ?? 0) + r.amount;
