@@ -93,6 +93,52 @@ void main() {
     },
   );
 
+  test('general chat includes an actionable financial runway in model context', () async {
+    final db = _db();
+    final now = DateTime.now();
+    final period =
+        '${now.year.toString().padLeft(4, '0')}-${now.month.toString().padLeft(2, '0')}';
+    await db.budgetsDao.upsert('Groceries', 500.0, period);
+    await db.transactionsDao.insertWithDedup(
+      NewTransaction(
+        amount: 100.0,
+        currency: 'USD',
+        merchant: 'Market',
+        category: 'Groceries',
+        source: 'manual',
+        rawText: 'Market 100',
+        timestamp: now,
+      ),
+    );
+    await db.subscriptionsDao.add(
+      SubscriptionsCompanion.insert(
+        name: 'Music',
+        amount: 20.0,
+        cycle: 'monthly',
+        nextChargeDate: DateTime(now.year, now.month, now.day),
+        createdAt: now,
+      ),
+    );
+    final llm = _CapturingLlm(['Financially on track.']);
+    final agent = MentorAgent(llm, db);
+
+    await agent.chat(
+      'what can I safely spend today?',
+      preclassified: ChatIntent(intent: 'chat'),
+    );
+
+    expect(llm.lastUserPrompt, contains('Financial runway:'));
+    expect(
+      llm.lastUserPrompt,
+      contains('Upcoming tracked recurring charges this month: USD 20.00'),
+    );
+    expect(
+      llm.lastUserPrompt,
+      contains('Flexible money after spending and those charges: USD 380.00'),
+    );
+    await db.close();
+  });
+
   test('malformed intent JSON falls back to chat', () async {
     final db = _db();
     final llm = _ScriptedLlm(['not json', 'General advice.']);

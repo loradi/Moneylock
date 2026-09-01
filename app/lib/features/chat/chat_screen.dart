@@ -60,27 +60,29 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           children: [
             const _ChatHeader(),
             Expanded(
-              child: ListView.builder(
-                controller: _scroll,
-                padding: const EdgeInsets.all(AppSpacing.md),
-                itemCount: messages.length + (_thinking ? 1 : 0),
-                itemBuilder: (_, i) {
-                  if (i == messages.length) {
-                    return const _Bubble(
-                      role: 'mentor',
-                      content: '',
-                      thinking: true,
-                    );
-                  }
-                  final m = messages[i];
-                  return _Bubble(
-                    role: m.role,
-                    content: m.content,
-                    kind: m.kind,
-                    dataJson: m.dataJson,
-                  );
-                },
-              ),
+              child: messages.isEmpty && !_thinking
+                  ? _VectorWelcome(onPrompt: _sendPrompt)
+                  : ListView.builder(
+                      controller: _scroll,
+                      padding: const EdgeInsets.all(AppSpacing.md),
+                      itemCount: messages.length + (_thinking ? 1 : 0),
+                      itemBuilder: (_, i) {
+                        if (i == messages.length) {
+                          return const _Bubble(
+                            role: 'mentor',
+                            content: '',
+                            thinking: true,
+                          );
+                        }
+                        final m = messages[i];
+                        return _Bubble(
+                          role: m.role,
+                          content: m.content,
+                          kind: m.kind,
+                          dataJson: m.dataJson,
+                        );
+                      },
+                    ),
             ),
             _Composer(
               controller: _controller,
@@ -149,6 +151,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     if (mounted) setState(() => _thinking = false);
   }
 
+  void _sendPrompt(String prompt) {
+    _controller.text = prompt;
+    _send();
+  }
+
   Future<void> _scanReceipt() async {
     if (_thinking) return;
     if (mounted) setState(() => _thinking = true);
@@ -182,6 +189,62 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       if (mounted) setState(() => _thinking = false);
     }
   }
+}
+
+class _VectorWelcome extends StatelessWidget {
+  const _VectorWelcome({required this.onPrompt});
+
+  final ValueChanged<String> onPrompt;
+
+  static const _prompts = [
+    'Give me a money check-in',
+    'What can I safely spend today?',
+    'Show my recent transactions',
+    'Show my subscriptions',
+    'How can I reduce spending this month?',
+  ];
+
+  @override
+  Widget build(BuildContext context) => ListView(
+    padding: const EdgeInsets.all(AppSpacing.margin),
+    children: [
+      const SizedBox(height: 32),
+      const Icon(Icons.auto_awesome, color: AppColors.primary, size: 34),
+      const SizedBox(height: 16),
+      const Text(
+        'Your financial command center',
+        textAlign: TextAlign.center,
+        style: TextStyle(
+          color: AppColors.darkOnSurface,
+          fontSize: 22,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+      const SizedBox(height: 8),
+      const Text(
+        'Vector can organize your records and turn your plan into clear next steps.',
+        textAlign: TextAlign.center,
+        style: TextStyle(color: AppColors.darkOnSurfaceVariant, height: 1.4),
+      ),
+      const SizedBox(height: 28),
+      for (final prompt in _prompts)
+        Padding(
+          padding: const EdgeInsets.only(bottom: 10),
+          child: OutlinedButton(
+            onPressed: () => onPrompt(prompt),
+            style: OutlinedButton.styleFrom(
+              alignment: Alignment.centerLeft,
+              foregroundColor: AppColors.darkOnSurface,
+              side: const BorderSide(
+                color: AppColors.darkSurfaceContainerHighest,
+              ),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            ),
+            child: Text(prompt),
+          ),
+        ),
+    ],
+  );
 }
 
 class _ChatHeader extends StatelessWidget {

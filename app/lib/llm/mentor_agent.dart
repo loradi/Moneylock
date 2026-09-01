@@ -5,9 +5,11 @@ import 'package:moneylock/data/db.dart';
 import '../data/budget_change_summary.dart';
 import '../data/new_subscription_summary.dart';
 import '../data/subscription_edit_summary.dart';
+import '../data/subscription_projection.dart';
 import '../data/subscription_summary.dart';
 import '../data/transaction_edit_summary.dart';
 import '../data/transaction_summary.dart';
+import '../features/dashboard/spendable_amount.dart';
 import 'mentor_guardrails.dart';
 import 'prompts.dart';
 import 'llm_provider.dart';
@@ -268,6 +270,7 @@ class MentorAgent {
 
   Future<MentorChatResult> _generalChat(String userMessage) async {
     final tone = await db.settingsDao.mentorTone();
+    final currency = await db.settingsDao.defaultCurrency();
     final now = DateTime.now();
     final period =
         '${now.year.toString().padLeft(4, '0')}-${now.month.toString().padLeft(2, '0')}';
@@ -278,6 +281,23 @@ class MentorAgent {
     final totalSpent = spentByCategory.values.fold<double>(0, (a, b) => a + b);
     final totalLimit = limits.values.fold<double>(0, (a, b) => a + b);
     final subs = await db.subscriptionsDao.allForScheduling();
+    final upcomingSubscriptions = projectSubscriptionCharges(
+      subscriptions: subs,
+      month: now,
+      currency: currency,
+      now: now,
+    );
+    final startOfToday = DateTime(now.year, now.month, now.day);
+    final daysRemaining = DateTime(
+      now.year,
+      now.month + 1,
+    ).difference(startOfToday).inDays;
+    final spendable = calculateSpendableAmount(
+      totalLimit: totalLimit,
+      totalSpent: totalSpent,
+      recurringCommitments: upcomingSubscriptions.total,
+      daysLeft: daysRemaining,
+    );
 
     final categoryLines = limits.entries
         .map(
@@ -305,9 +325,14 @@ class MentorAgent {
     final history = await _historyBlock();
     final context =
         '${history}This month ($period) so far:\n'
-        'Total spent: \$${totalSpent.toStringAsFixed(2)} of \$${totalLimit.toStringAsFixed(2)} budgeted\n'
+        'Currency: $currency\n'
+        'Total spent: $currency ${totalSpent.toStringAsFixed(2)} of $currency ${totalLimit.toStringAsFixed(2)} budgeted\n'
         'By category:\n${categoryLines.isEmpty ? '(no budgets set)' : categoryLines}\n'
         '$topCategoryLine'
+        'Financial runway:\n'
+        '- Upcoming tracked recurring charges this month: $currency ${upcomingSubscriptions.total.toStringAsFixed(2)}\n'
+        '- Flexible money after spending and those charges: $currency ${spendable.availableAfterCommitments.toStringAsFixed(2)}\n'
+        '- Safe daily amount for the remaining $daysRemaining day${daysRemaining == 1 ? '' : 's'}: $currency ${spendable.dailyAmount.toStringAsFixed(2)}\n'
         'Active subscriptions:\n$subsLines\n\n'
         'User: $userMessage';
 

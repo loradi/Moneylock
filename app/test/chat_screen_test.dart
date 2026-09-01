@@ -45,6 +45,9 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('VECTOR'), findsOneWidget);
+    expect(find.text('Your financial command center'), findsOneWidget);
+    expect(find.text('Give me a money check-in'), findsOneWidget);
+    expect(find.text('What can I safely spend today?'), findsOneWidget);
     expect(tester.takeException(), isNull);
 
     await disposeTestDatabase(tester, db);
