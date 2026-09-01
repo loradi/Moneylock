@@ -45,6 +45,7 @@ class _BudgetScreenState extends ConsumerState<BudgetScreen> {
   bool _currencyInitialized = false;
   String _hydratedPeriod = '';
   final _controllers = <String, TextEditingController>{};
+  final _editedCategories = <String>{};
 
   @override
   void dispose() {
@@ -150,6 +151,7 @@ class _BudgetScreenState extends ConsumerState<BudgetScreen> {
                       category: names[i],
                       controller: _controllers[names[i]]!,
                       currency: _currency,
+                      onEdited: () => _editedCategories.add(names[i]),
                       onSave: _save,
                       onConfirmRemove: () => _removeCategory(names[i]),
                       isDefault: records[names[i]]?.isDefault ?? false,
@@ -244,6 +246,9 @@ class _BudgetScreenState extends ConsumerState<BudgetScreen> {
 
   void _hydrateControllers(String period, Map<String, double> limits) {
     for (final entry in _controllers.entries) {
+      // A user can start typing before the async plan query returns. Never
+      // replace that in-progress value with the older value from storage.
+      if (_editedCategories.contains(entry.key)) continue;
       final controller = entry.value;
       controller.value = controller.value.copyWith(
         text: limits[entry.key]?.toStringAsFixed(0) ?? '',
@@ -260,6 +265,7 @@ class _BudgetScreenState extends ConsumerState<BudgetScreen> {
   void _changeMonth(int offset) => setState(() {
     _month = DateTime(_month.year, _month.month + offset);
     _hydratedPeriod = '';
+    _editedCategories.clear();
   });
 
   Future<void> _editIncome(double? current) async {
@@ -347,6 +353,7 @@ class _BudgetRow extends StatefulWidget {
   final String category;
   final TextEditingController controller;
   final String currency;
+  final VoidCallback onEdited;
   final Future<void> Function(String, String) onSave;
   final Future<bool> Function() onConfirmRemove;
   final bool isDefault;
@@ -354,6 +361,7 @@ class _BudgetRow extends StatefulWidget {
     required this.category,
     required this.controller,
     required this.currency,
+    required this.onEdited,
     required this.onSave,
     required this.onConfirmRemove,
     required this.isDefault,
@@ -390,6 +398,7 @@ class _BudgetRowState extends State<_BudgetRow> {
   }
 
   void _onChanged(String _) {
+    widget.onEdited();
     _debounce?.cancel();
     _debounce = Timer(const Duration(milliseconds: 600), _triggerSave);
   }
@@ -447,9 +456,7 @@ class _BudgetRowState extends State<_BudgetRow> {
                   ),
                   textInputAction: TextInputAction.done,
                   onChanged: _onChanged,
-                  decoration: InputDecoration(
-                    hintText: 'No cap',
-                  ),
+                  decoration: InputDecoration(hintText: 'No cap'),
                 ),
               ),
               const SizedBox(width: 8),

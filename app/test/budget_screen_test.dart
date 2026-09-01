@@ -71,6 +71,44 @@ void main() {
   });
 
   testWidgets(
+    'keeps an entry typed before the initial monthly plan finishes loading',
+    (tester) async {
+      final db = createTestDatabase();
+      final planCompleter = Completer<MonthlyPlanData>();
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            appDatabaseProvider.overrideWithValue(db),
+            categoriesProvider.overrideWith(
+              (ref) => Stream.value(_testCategories),
+            ),
+            transactionsStreamProvider.overrideWith(
+              (ref) => Stream.value(const []),
+            ),
+            monthlyPlanProvider.overrideWith(
+              (ref, period) => planCompleter.future,
+            ),
+          ],
+          child: const MaterialApp(home: BudgetScreen()),
+        ),
+      );
+      await tester.pump();
+
+      final capField = find.widgetWithText(TextField, 'No cap').first;
+      await tester.enterText(capField, '75');
+
+      planCompleter.complete(
+        const MonthlyPlanData(income: null, limits: {'Bills & Utilities': 20}),
+      );
+      await tester.pump();
+      await tester.pump();
+
+      expect(tester.widget<TextField>(capField).controller!.text, '75');
+      await disposeTestDatabase(tester, db);
+    },
+  );
+
+  testWidgets(
     'typing a cap amount auto-saves after the debounce without tapping a button',
     (tester) async {
       final db = await _pumpBudgetScreen(tester);
