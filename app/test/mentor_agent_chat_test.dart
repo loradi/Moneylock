@@ -374,7 +374,7 @@ void main() {
     },
   );
 
-  test('classify() includes recent conversation history in the prompt sent to the model', () async {
+  test('classify() keeps the model prompt to the current message', () async {
     final db = _db();
     await db.messagesDao.add('user', 'search Nike transactions');
     await db.messagesDao.add(
@@ -387,9 +387,7 @@ void main() {
 
     await agent.classify('cancel it');
 
-    expect(llm.lastUserPrompt, contains('search Nike transactions'));
-    expect(llm.lastUserPrompt, contains('Found 2 matching "Nike"'));
-    expect(llm.lastUserPrompt, contains('User: cancel it'));
+    expect(llm.lastUserPrompt, 'User: cancel it');
     await db.close();
   });
 

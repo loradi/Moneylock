@@ -1,13 +1,16 @@
 import 'dart:async';
 import 'dart:io';
+
 import 'package:http/http.dart' as http;
 import 'package:llama_cpp_dart/llama_cpp_dart.dart' as llama;
 import 'package:path_provider/path_provider.dart';
+
 import '../core/config.dart';
 import 'llm_provider.dart';
 
 const _minModelSize = 1024 * 1024 * 1024; // >= 1GB
-const _maxTokens = 256;
+const _defaultMaxTokens = 144;
+const _fastMaxTokens = 80;
 
 class LlamaService {
   Future<Directory> _modelsDir() async {
@@ -48,9 +51,7 @@ class LlamaService {
         }
         if (response.statusCode != 200 && response.statusCode != 206) {
           if (await tmp.exists()) await tmp.delete();
-          throw Exception(
-            'Model download failed: HTTP ${response.statusCode}',
-          );
+          throw Exception('Model download failed: HTTP ${response.statusCode}');
         }
 
         if (response.statusCode == 206 && downloadedBytes > 0) {
@@ -96,7 +97,7 @@ class LlamaService {
   }
 }
 
-class LocalLlmProvider implements LlmProvider {
+class LocalLlmProvider implements FastLlmProvider {
   final LlamaService service;
   LocalLlmProvider(this.service);
 
@@ -110,10 +111,54 @@ class LocalLlmProvider implements LlmProvider {
     String user, {
     double temperature = 0.2,
   }) {
+    return _complete(
+      system,
+      user,
+      temperature: temperature,
+      maxTokens: _defaultMaxTokens,
+      timeout: const Duration(seconds: 45),
+    );
+  }
+
+  @override
+  Future<String> completeFast(
+    String system,
+    String user, {
+    double temperature = 0.0,
+  }) {
+    return _complete(
+      system,
+      user,
+      temperature: temperature,
+      maxTokens: _fastMaxTokens,
+      timeout: const Duration(seconds: 20),
+    );
+  }
+
+  @override
+  Future<void> warmUp() async {
+    if (!await service.isModelReady()) return;
+    await _enqueue<void>(() async {
+      await _ensureEngine();
+    });
+  }
+
+  Future<String> _complete(
+    String system,
+    String user, {
+    required double temperature,
+    required int maxTokens,
+    required Duration timeout,
+  }) {
     return _enqueue(() async {
       final engine = await _ensureEngine();
-      return _generate(engine, system, user, temperature)
-          .timeout(const Duration(seconds: 60));
+      return _generate(
+        engine,
+        system,
+        user,
+        temperature,
+        maxTokens,
+      ).timeout(timeout);
     });
   }
 
@@ -136,6 +181,7 @@ class LocalLlmProvider implements LlmProvider {
     String system,
     String user,
     double temperature,
+    int maxTokens,
   ) async {
     final sampler = llama.SamplerParams(temperature: temperature);
     if (engine.modelChatTemplate != null) {
@@ -145,10 +191,9 @@ class LocalLlmProvider implements LlmProvider {
       try {
         chat.addSystem(system);
         chat.addUser(user);
-        return await _collect(chat.generate(
-          sampler: sampler,
-          maxTokens: _maxTokens,
-        ));
+        return await _collect(
+          chat.generate(sampler: sampler, maxTokens: maxTokens),
+        );
       } finally {
         await chat.dispose();
       }
@@ -156,14 +201,17 @@ class LocalLlmProvider implements LlmProvider {
     // Modelo sin template: inyectar chatml manual como texto.
     final session = await engine.createSession();
     try {
-      final prompt = '<|im_start|>system\n$system<|im_end|>\n'
+      final prompt =
+          '<|im_start|>system\n$system<|im_end|>\n'
           '<|im_start|>user\n$user<|im_end|>\n<|im_start|>assistant\n';
-      return await _collect(session.generate(
-        prompt: prompt,
-        addSpecial: true,
-        sampler: sampler,
-        maxTokens: _maxTokens,
-      ));
+      return await _collect(
+        session.generate(
+          prompt: prompt,
+          addSpecial: true,
+          sampler: sampler,
+          maxTokens: maxTokens,
+        ),
+      );
     } finally {
       await session.dispose();
     }

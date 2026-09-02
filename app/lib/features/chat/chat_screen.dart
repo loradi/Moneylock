@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:drift/drift.dart' show Value;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -14,6 +16,7 @@ import '../../data/transaction_edit_summary.dart';
 import '../../data/transaction_summary.dart';
 import '../../llm/category_correction.dart';
 import '../../llm/mentor_guardrails.dart';
+import '../../llm/llm_provider.dart';
 import '../../providers.dart';
 import '../../theme/app_theme.dart';
 import '../../receipt/receipt_ocr_service.dart';
@@ -41,6 +44,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   @override
   void initState() {
     super.initState();
+    unawaited(ref.read(llmProviderProvider).warmUp());
     if (widget.quickAction == 'addPurchase') {
       _controller.text = 'Add a purchase: ';
       WidgetsBinding.instance.addPostFrameCallback(

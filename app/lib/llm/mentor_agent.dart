@@ -363,43 +363,24 @@ class MentorAgent {
     final limit = limits[category];
     final severity = assessSpend(spent, limit);
 
-    final tone = await db.settingsDao.mentorTone();
-    final recent = await db.transactionsDao.recent(5);
-    final recentText = recent.isEmpty
-        ? 'No prior transactions.'
-        : recent
-              .map(
-                (t) =>
-                    '${t.merchant.isEmpty ? t.category : t.merchant}: \$${t.amount.toStringAsFixed(2)} (${t.category})',
-              )
-              .join('\n');
-
-    final context =
-        'Category: $category\n'
-        'New amount: \$${amount.toStringAsFixed(2)}\n'
-        'Spent this month in $category: \$${spent.toStringAsFixed(2)}\n'
-        'Monthly limit for $category: ${limit == null ? 'none' : '\$${limit.toStringAsFixed(2)}'}\n'
-        'Recent transactions:\n$recentText';
-
-    String message;
-    if (severity == Severity.info && limit == null) {
-      message =
-          'Transaction recorded: \$${amount.toStringAsFixed(2)} in $category.';
-    } else {
-      try {
-        message = await provider.complete(mentorPromptFor(tone), context);
-      } catch (_) {
-        message = severity == Severity.alert
-            ? 'You are over budget on $category (${spent.toStringAsFixed(2)}). Tighten up.'
-            : severity == Severity.warning
-            ? 'You have used ${(spent / limit! * 100).toStringAsFixed(0)}% of your $category budget.'
-            : 'Transaction recorded in $category.';
-      }
-    }
+    // Saving a transaction must feel immediate. The status is fully known
+    // locally, so reserve the model for requests that actually need language
+    // generation (advice and summaries), rather than for a notification.
+    final message = switch (severity) {
+      Severity.alert =>
+        '$category is over its budget: ${spent.toStringAsFixed(2)} of ${limit!.toStringAsFixed(2)} used.',
+      Severity.warning =>
+        '$category is at ${(spent / limit! * 100).toStringAsFixed(0)}% of its budget.',
+      Severity.info =>
+        'Transaction recorded: \$${amount.toStringAsFixed(2)} in $category.',
+    };
     return MentorVerdict(severity, message);
   }
 
-  Future<String> _historyBlock() async {
+  Future<String> _historyBlock({
+    int limit = 3,
+    int maxCharsPerTurn = 280,
+  }) async {
     // recent() includes the just-saved current turn as its newest row --
     // every call site in chat_screen.dart persists the user's message via
     // messagesDao.add() before calling classify()/chat(). Drop the newest
@@ -408,11 +389,14 @@ class MentorAgent {
     // (e.g. these unit tests calling agent.chat() directly): dropping "the
     // newest of zero-to-N rows" never removes a real prior turn that
     // wasn't already accounted for.
-    final rows = await db.messagesDao.recent(7);
+    final rows = await db.messagesDao.recent(limit + 1);
     final priorTurns = rows.isEmpty ? rows : rows.sublist(0, rows.length - 1);
     if (priorTurns.isEmpty) return '';
     final lines = priorTurns
-        .map((m) => '${m.role == 'user' ? 'User' : 'Mentor'}: ${m.content}')
+        .map(
+          (m) =>
+              '${m.role == 'user' ? 'User' : 'Mentor'}: ${m.content.length > maxCharsPerTurn ? '${m.content.substring(0, maxCharsPerTurn)}…' : m.content}',
+        )
         .join('\n');
     return 'Recent conversation:\n$lines\n\n';
   }
@@ -421,10 +405,9 @@ class MentorAgent {
     final local = _fastIntent(userMessage);
     if (local != null) return local;
     try {
-      final history = await _historyBlock();
-      final raw = await provider.complete(
+      final raw = await provider.completeFast(
         mentorIntentPrompt,
-        '${history}User: $userMessage',
+        'User: $userMessage',
         temperature: 0.0,
       );
       final parsed = _parseIntent(raw);

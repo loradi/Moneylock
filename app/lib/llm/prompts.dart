@@ -29,121 +29,32 @@ raw: "UBER *TRIP 18.40 CAD" -> {"amount": 18.40, "currency": "CAD", "merchant": 
 
 final mentorIntentPrompt =
     '''
-Classify the user's message about their personal finances into ONE JSON
-object, no markdown, no commentary:
-{"intent": "chat"|"financial_checkin"|"query_transactions"|"delete_transaction"|"query_subscriptions"|"cancel_subscription"|"update_budget_limit"|"record_transaction"|"add_subscription"|"edit_transaction"|"edit_subscription"|"set_plan_income"|"set_plan_cycle"|"set_plan_currency"|"add_category"|"remove_category"|"set_savings_goal"|"contribute_savings_goal"|"clear_savings_goal",
- "category": "<one of: ${categoryCatalog.join(', ')}>"|null,
- "merchant": "<short keyword or null>", "monthsBack": <integer or null>,
- "newLimit": <number or null>, "amount": <number or null>, "dayOfMonth": <integer 1-31 or null>,
- "newMerchant": "<string or null>", "newCategory": "<one of: ${categoryCatalog.join(', ')}>"|null, "count": <integer or null>,
- "planCycle": "weekly"|"fortnightly"|"monthly"|null, "targetCurrency": "USD"|"CAD"|"EUR"|"GBP"|null, "exchangeRate": <number or null>, "goalName": "<string or null>"}
-Rules:
-- "chat" is for general questions, advice requests, or anything not asking
-  to find, list, cancel, or delete a specific past transaction or
-  subscription, and not asking to log a new one.
-- "financial_checkin" is for requests for a spending check-in, a safe amount
-  to spend, or practical ways to reduce current spending. It uses local data.
-- "query_transactions" is for requests to find, list, or show past
-  transactions (by category, merchant, or time range).
-- "delete_transaction" is for requests to remove or delete a specific past
-  transaction.
-- "query_subscriptions" is for requests to find, list, or ask about
-  recurring subscriptions (e.g. "how much do I pay for streaming?", "when
-  does Netflix renew?").
-- "cancel_subscription" is for requests to cancel or remove a specific
-  subscription.
-- "update_budget_limit" is for requests to change a category's ongoing
-  monthly spending LIMIT/CAP going forward (e.g. "raise my groceries limit
-  to \$400", "set travel budget to \$200"). Requires both "category" (one
-  of the listed categories) and "newLimit" (the target amount as a plain
-  number, no currency symbol) -- if either can't be confidently determined,
-  use "chat" instead of guessing.
-- "record_transaction" is for requests to log, add, or record a NEW
-  purchase or expense that just happened (e.g. "add a new expense for 35
-  on coffee", "log 12 dollars for parking", "I spent 20 on groceries").
-  Look for verbs like "add"/"log"/"record"/"spent"/"bought" describing
-  something the user paid for, as opposed to "update_budget_limit"'s
-  "raise"/"set"/"change ... limit/budget/cap" describing a future spending
-  cap.
-- "add_subscription" is for requests to add a new recurring monthly
-  subscription (e.g. "add Netflix for \$30 recurring on the 20th", "add a
-  new subscription: Spotify, \$12, charges on the 5th"). Requires "merchant"
-  (the subscription's name), "amount" (the monthly charge as a plain
-  number), and "dayOfMonth" (the day of the month it recurs on, 1-31) --
-  if any of the three can't be confidently determined, use "chat" instead
-  of guessing. Only monthly subscriptions can be added this way; if the
-  user asks for a yearly one, use "chat".
-- "edit_transaction" is for requests to correct a specific past
-  transaction's amount, merchant name and/or category (e.g. "change my Nike purchase
-  to \$50", "move the Starbucks charge to Coffee & Dining"). Same
-  search fields as "delete_transaction" ("category"/"merchant"/
-  "monthsBack" identify WHICH transaction), plus "amount" (the corrected
-  amount), "newMerchant" (the corrected merchant name) and/or "newCategory"
-  (the corrected category) for WHAT to change -- at least one is required, else use
-  "chat".
-- "edit_subscription" is for requests to change an existing subscription's
-  monthly amount (e.g. "change Netflix to \$18.99", "Spotify is now \$13").
-  "merchant" identifies WHICH subscription (same as "cancel_subscription"),
-  "amount" is the corrected monthly charge -- required, else use "chat".
-- "set_plan_income" is for setting take-home income for the current plan.
-  Requires a positive "amount".
-- "set_plan_cycle" is for changing planning frequency. Set "planCycle" to
-  exactly weekly, fortnightly, or monthly.
-- "set_plan_currency" is for converting the current plan to another currency.
-  Set "targetCurrency" and the positive "exchangeRate" meaning how many target
-  currency units equal one current currency unit. Never guess a rate; use
-  "chat" if the user did not provide one.
-- "add_category" and "remove_category" manage plan categories. Put the exact
-  category name in "category". These are the only intents where category may
-  be a custom name outside the catalog.
-- "set_savings_goal" creates or changes the current savings goal. "amount" is
-  the positive target and "goalName" is the goal label when supplied.
-- "contribute_savings_goal" adds a positive "amount" to the current goal.
-- "clear_savings_goal" removes the current goal. It has no amount.
-- "amount" is the requested monetary amount as a plain number, used by
-  "add_subscription" (the subscription's charge), "edit_transaction" (the
-  corrected amount), and "edit_subscription" (the corrected monthly
-  charge), else null.
-- "dayOfMonth" is the day of the month (1-31) a new subscription recurs
-  on, used only by "add_subscription", else null.
-- "newMerchant" is the corrected merchant name if the intent is
-  "edit_transaction", else null.
-- "newCategory" is the corrected category only for "edit_transaction", else null.
-- "count" is how many results the user explicitly asked for (e.g. "my
-  last 5 transactions" -> 5, "the last three purchases" -> 3), used only
-  by "query_transactions", else null. Do not guess a count if the user
-  didn't give one.
-- "category" must be one of the listed categories if the user names one,
-  else null. Not used for subscription intents.
-- "merchant" is a short keyword identifying what was bought or which
-  subscription is meant (e.g. "shoes", "Nike", "Netflix"), else null.
-- "monthsBack" is how many months back to search if the user gives a time
-  hint (e.g. "two months ago" -> 2, "last six months" -> 6), else null. Not
-  used for subscription intents.
-- "newLimit" is the requested new limit as a plain number if the intent is
-  "update_budget_limit", else null.
-- "planCycle", "targetCurrency", and "exchangeRate" are used only by their
-  matching plan-management intents, else null.
-Examples:
-"what can I cut this month?" -> {"intent": "chat", "category": null, "merchant": null, "monthsBack": null}
-"show me groceries transactions from the last six months" -> {"intent": "query_transactions", "category": "Groceries", "merchant": null, "monthsBack": 6}
-"I bought shoes about two months ago, how much did they cost?" -> {"intent": "query_transactions", "category": null, "merchant": "shoes", "monthsBack": 2}
-"delete that Nike purchase" -> {"intent": "delete_transaction", "category": null, "merchant": "Nike", "monthsBack": null}
-"how much do I pay in subscriptions?" -> {"intent": "query_subscriptions", "category": null, "merchant": null, "monthsBack": null}
-"cancel my Netflix" -> {"intent": "cancel_subscription", "category": null, "merchant": "Netflix", "monthsBack": null}
-"raise my groceries limit to \$400" -> {"intent": "update_budget_limit", "category": "Groceries", "merchant": null, "monthsBack": null, "newLimit": 400}
-"add a new expense for 35 on coffee" -> {"intent": "record_transaction", "category": "Coffee & Dining", "merchant": null, "monthsBack": null, "newLimit": null}
-"log 12 dollars for parking" -> {"intent": "record_transaction", "category": "Transport", "merchant": "parking", "monthsBack": null, "newLimit": null}
-"add Netflix for \$30 recurring on the 20th" -> {"intent": "add_subscription", "category": null, "merchant": "Netflix", "monthsBack": null, "newLimit": null, "amount": 30, "dayOfMonth": 20}
-"change my Nike purchase to \$50" -> {"intent": "edit_transaction", "category": null, "merchant": "Nike", "monthsBack": null, "newLimit": null, "amount": 50, "dayOfMonth": null, "newMerchant": null, "newCategory": null}
-"move my Starbucks purchase to Coffee & Dining" -> {"intent": "edit_transaction", "category": null, "merchant": "Starbucks", "monthsBack": null, "newLimit": null, "amount": null, "dayOfMonth": null, "newMerchant": null, "newCategory": "Coffee & Dining"}
-"change Netflix to \$18.99" -> {"intent": "edit_subscription", "category": null, "merchant": "Netflix", "monthsBack": null, "newLimit": null, "amount": 18.99, "dayOfMonth": null, "newMerchant": null}
-"give me my last 5 transactions" -> {"intent": "query_transactions", "category": null, "merchant": null, "monthsBack": null, "count": 5}
-"set my income to 4500" -> {"intent": "set_plan_income", "category": null, "amount": 4500, "planCycle": null, "targetCurrency": null, "exchangeRate": null}
-"plan by week" -> {"intent": "set_plan_cycle", "category": null, "amount": null, "planCycle": "weekly", "targetCurrency": null, "exchangeRate": null}
-"convert my plan to CAD at 1.36" -> {"intent": "set_plan_currency", "category": null, "amount": null, "planCycle": null, "targetCurrency": "CAD", "exchangeRate": 1.36}
-"add Pets as a category" -> {"intent": "add_category", "category": "Pets", "amount": null, "planCycle": null, "targetCurrency": null, "exchangeRate": null}
-"remove Travel category" -> {"intent": "remove_category", "category": "Travel", "amount": null, "planCycle": null, "targetCurrency": null, "exchangeRate": null}
+Return exactly one compact JSON object. No markdown or explanation.
+intent is one of: chat, financial_checkin, query_transactions,
+delete_transaction, query_subscriptions, cancel_subscription,
+update_budget_limit, record_transaction, add_subscription,
+edit_transaction, edit_subscription, set_plan_income, set_plan_cycle,
+set_plan_currency, add_category, remove_category, set_savings_goal,
+contribute_savings_goal, clear_savings_goal.
+
+Use only fields that apply: intent, category, merchant, monthsBack, newLimit,
+amount, dayOfMonth, newMerchant, newCategory, count, planCycle,
+targetCurrency, exchangeRate, goalName. Use null when a required value is
+missing; never invent a value. Categories: ${categoryCatalog.join(', ')}.
+
+Rules: New purchase verbs (add, log, record, spent, bought) are
+record_transaction. A cap, limit or budget amount is update_budget_limit.
+Find/list/show expenses is query_transactions; delete a past expense is
+delete_transaction; correct one is edit_transaction. Subscription actions use
+subscription intents: adding needs merchant, positive amount and day 1-31.
+Plan income needs a positive amount; planCycle is weekly, fortnightly or
+monthly; currency conversion needs targetCurrency (USD/CAD/EUR/GBP) and a
+positive exchangeRate. Adding/removing categories uses the exact category
+label. Saving-goal set/contribution needs a positive amount. If uncertain,
+return {"intent":"chat"}.
+
+Example: "raise groceries cap to 400" ->
+{"intent":"update_budget_limit","category":"Groceries","newLimit":400}
 ''';
 
 const strictRamseyPrompt = '''
