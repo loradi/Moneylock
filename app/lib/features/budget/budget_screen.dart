@@ -8,11 +8,14 @@ import '../../core/format.dart';
 import '../../data/budgets_dao.dart';
 import '../../data/db.dart';
 import '../../data/subscription_projection.dart';
+import '../../data/savings_goal.dart';
 import '../../providers.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/kit.dart';
 import 'plan_foreign_currency_notice.dart';
 import 'plan_period.dart';
+import 'plan_scenario_card.dart';
+import 'savings_goal_card.dart';
 
 final categoriesProvider = StreamProvider<List<Category>>((ref) async* {
   final dao = ref.watch(appDatabaseProvider).categoriesDao;
@@ -121,11 +124,27 @@ class _BudgetScreenState extends ConsumerState<BudgetScreen> {
     }
     final subscriptions =
         ref.watch(subscriptionsProvider).valueOrNull ?? const <Subscription>[];
+    final savingsGoal = ref.watch(savingsGoalProvider).valueOrNull;
     final spent = monthTransactions
         .where((transaction) => transaction.currency == planCurrency)
         .fold<double>(0, (sum, transaction) => sum + transaction.amount);
     final planned =
         planData?.limits.values.fold<double>(0, (sum, v) => sum + v) ?? 0;
+    final goalContribution = planData?.income == null
+        ? 0.0
+        : (planData!.income! - planned).clamp(0, double.infinity).toDouble();
+    final recurring = projectSubscriptionChargesInRange(
+      subscriptions: subscriptions,
+      start: _cycle.startFor(_periodAnchor),
+      end: _cycle.endFor(_periodAnchor),
+      currency: planCurrency,
+    ).total;
+    final daysLeft = _cycle
+        .endFor(_periodAnchor)
+        .difference(DateTime.now())
+        .inDays
+        .clamp(1, _cycle.daysFor(_periodAnchor))
+        .toInt();
     return Scaffold(
       backgroundColor: AppColors.background,
       body: GestureDetector(
@@ -215,6 +234,37 @@ class _BudgetScreenState extends ConsumerState<BudgetScreen> {
                       isDefault: records[names[i]]?.isDefault ?? false,
                     ),
                     childCount: names.length,
+                  ),
+                ),
+              ),
+              SliverPadding(
+                padding: const EdgeInsets.fromLTRB(
+                  AppSpacing.margin,
+                  12,
+                  AppSpacing.margin,
+                  0,
+                ),
+                sliver: SliverToBoxAdapter(
+                  child: Column(
+                    children: [
+                      SavingsGoalCard(
+                        goal: savingsGoal,
+                        planCurrency: planCurrency,
+                        contributionPerCycle: goalContribution,
+                        cycleDays: _cycle.daysFor(_periodAnchor),
+                        onEdit: () =>
+                            _editSavingsGoal(savingsGoal, planCurrency),
+                      ),
+                      const SizedBox(height: 12),
+                      PlanScenarioCard(
+                        income: planData?.income,
+                        planned: planned,
+                        spent: spent,
+                        recurring: recurring,
+                        daysLeft: daysLeft,
+                        currency: planCurrency,
+                      ),
+                    ],
                   ),
                 ),
               ),
@@ -574,6 +624,88 @@ class _BudgetScreenState extends ConsumerState<BudgetScreen> {
         .settingsDao
         .setPlanCurrency(_periodKey(), _currency);
     ref.invalidate(monthlyPlanProvider(_periodKey()));
+  }
+
+  Future<void> _editSavingsGoal(SavingsGoal? current, String currency) async {
+    if (current != null && current.currency != currency) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('This goal is tracked in ${current.currency}.')),
+      );
+      return;
+    }
+    final name = TextEditingController(text: current?.name ?? '');
+    final target = TextEditingController(
+      text: current?.targetAmount.toStringAsFixed(0) ?? '',
+    );
+    final saved = TextEditingController(
+      text: current?.savedAmount.toStringAsFixed(0) ?? '0',
+    );
+    final goal = await showDialog<SavingsGoal>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Savings goal'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: name,
+              autofocus: true,
+              decoration: const InputDecoration(labelText: 'Goal name'),
+            ),
+            TextField(
+              controller: target,
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
+              ),
+              decoration: InputDecoration(labelText: 'Target ($currency)'),
+            ),
+            TextField(
+              controller: saved,
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
+              ),
+              decoration: InputDecoration(
+                labelText: 'Already saved ($currency)',
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () {
+              final targetAmount = double.tryParse(target.text.trim());
+              final savedAmount = double.tryParse(saved.text.trim()) ?? 0;
+              if (name.text.trim().isEmpty ||
+                  targetAmount == null ||
+                  targetAmount <= 0 ||
+                  savedAmount < 0) {
+                return;
+              }
+              Navigator.pop(
+                context,
+                SavingsGoal(
+                  name: name.text.trim(),
+                  targetAmount: targetAmount,
+                  savedAmount: savedAmount,
+                  currency: currency,
+                ),
+              );
+            },
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+    name.dispose();
+    target.dispose();
+    saved.dispose();
+    if (goal == null) return;
+    await ref.read(appDatabaseProvider).settingsDao.setSavingsGoal(goal);
+    ref.invalidate(savingsGoalProvider);
   }
 
   String _periodKey() => _periodKeyFor(_periodAnchor);

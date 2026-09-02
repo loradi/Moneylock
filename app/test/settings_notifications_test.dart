@@ -4,12 +4,24 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:moneylock/features/settings/settings_screen.dart';
 import 'package:moneylock/llm/llama_service.dart';
 import 'package:moneylock/providers.dart';
+import 'package:moneylock/sync/sync_credential_store.dart';
 
 import 'helpers/test_database.dart';
 
 class _FakeLlamaService extends LlamaService {
   @override
   Future<bool> isModelReady() async => false;
+}
+
+class _FakeCredentialStore implements SyncCredentialStore {
+  @override
+  Future<void> clearApiKey() async {}
+
+  @override
+  Future<String> readApiKey() async => '';
+
+  @override
+  Future<void> writeApiKey(String apiKey) async {}
 }
 
 void main() {
@@ -46,6 +58,7 @@ void main() {
             (ref) => Future.value('strict_ramsey'),
           ),
           llamaServiceProvider.overrideWithValue(_FakeLlamaService()),
+          syncCredentialStoreProvider.overrideWithValue(_FakeCredentialStore()),
         ],
         child: const MaterialApp(home: SettingsScreen()),
       ),

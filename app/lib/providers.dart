@@ -8,6 +8,7 @@ import 'core/deep_links.dart';
 import 'core/notification_scheduler.dart';
 import 'core/notifications.dart';
 import 'data/db.dart';
+import 'data/savings_goal.dart';
 import 'features/add/add_transaction_flow.dart';
 import 'features/insights/insights_agent.dart';
 import 'features/insights/spending_trend.dart';
@@ -16,6 +17,7 @@ import 'llm/llama_service.dart';
 import 'llm/llm_provider.dart';
 import 'llm/mentor_agent.dart';
 import 'sync/sync_service.dart';
+import 'sync/sync_credential_store.dart';
 import 'voice/speech_service.dart';
 
 final appDatabaseProvider = Provider<AppDatabase>((ref) {
@@ -62,8 +64,15 @@ final deepLinkHandlerProvider = Provider<DeepLinkHandler>(
   (ref) => DeepLinkHandler(flow: ref.watch(addFlowProvider)),
 );
 
+final syncCredentialStoreProvider = Provider<SyncCredentialStore>(
+  (ref) => PlatformSyncCredentialStore(),
+);
+
 final syncServiceProvider = Provider<SyncService>(
-  (ref) => SyncService(ref.watch(appDatabaseProvider)),
+  (ref) => SyncService(
+    ref.watch(appDatabaseProvider),
+    credentialStore: ref.watch(syncCredentialStoreProvider),
+  ),
 );
 
 final speechServiceProvider = Provider<SpeechToTextService>(
@@ -99,6 +108,10 @@ final defaultCurrencyProvider = FutureProvider<String>(
 
 final planCycleProvider = FutureProvider<String>(
   (ref) => ref.watch(appDatabaseProvider).settingsDao.planCycle(),
+);
+
+final savingsGoalProvider = FutureProvider<SavingsGoal?>(
+  (ref) => ref.watch(appDatabaseProvider).settingsDao.savingsGoal(),
 );
 
 /// Combina el stream de transacciones y el de presupuestos: se re-emite

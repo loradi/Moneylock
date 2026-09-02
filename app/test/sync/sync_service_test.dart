@@ -5,6 +5,7 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:moneylock/data/transactions_dao.dart';
 import 'package:moneylock/sync/api_client.dart';
+import 'package:moneylock/sync/sync_credential_store.dart';
 import 'package:moneylock/sync/sync_service.dart';
 
 import '../helpers/test_database.dart';
@@ -27,7 +28,6 @@ void main() {
       );
       await db.settingsDao.setSyncConfiguration(
         baseUrl: 'https://sync.example.test/',
-        apiKey: 'secret',
       );
 
       final httpClient = MockClient((request) async {
@@ -60,6 +60,7 @@ void main() {
       });
       final service = SyncService(
         db,
+        credentialStore: _TestCredentialStore('secret'),
         clientFactory: (url, key) => SyncClient(url, key, client: httpClient),
       );
 
@@ -76,9 +77,24 @@ void main() {
 
   test('sync rejects a missing configuration before network work', () async {
     final db = createTestDatabase();
-    final service = SyncService(db);
+    final service = SyncService(db, credentialStore: _TestCredentialStore());
 
     await expectLater(service.sync(), throwsA(isA<StateError>()));
     await db.close();
   });
+}
+
+class _TestCredentialStore implements SyncCredentialStore {
+  _TestCredentialStore([this.value = '']);
+
+  String value;
+
+  @override
+  Future<void> clearApiKey() async => value = '';
+
+  @override
+  Future<String> readApiKey() async => value;
+
+  @override
+  Future<void> writeApiKey(String apiKey) async => value = apiKey;
 }

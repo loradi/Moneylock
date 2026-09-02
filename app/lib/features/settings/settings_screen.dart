@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:flutter/services.dart';
 
+import '../../data/transaction_csv_backup.dart';
 import '../../providers.dart';
 import '../../theme/app_theme.dart';
 import '../../voice/speech_service.dart';
@@ -46,6 +48,9 @@ class SettingsScreen extends ConsumerWidget {
             const SizedBox(height: 28),
             const _Section('PRIVATE SYNC'),
             const _SyncCard(),
+            const SizedBox(height: 28),
+            const _Section('DATA PORTABILITY'),
+            const _BackupCard(),
             const SizedBox(height: 28),
             const _Section('SUBSCRIPTIONS'),
             _SubscriptionsEntry(onTap: () => context.push('/subscriptions')),
@@ -142,6 +147,178 @@ class _SubscriptionsEntry extends StatelessWidget {
   );
 }
 
+class _BackupCard extends ConsumerStatefulWidget {
+  const _BackupCard();
+
+  @override
+  ConsumerState<_BackupCard> createState() => _BackupCardState();
+}
+
+class _BackupCardState extends ConsumerState<_BackupCard> {
+  bool _exporting = false;
+
+  Future<void> _export() async {
+    if (_exporting) return;
+    setState(() => _exporting = true);
+    try {
+      final records = await ref.read(appDatabaseProvider).transactionsDao.all();
+      final csv = TransactionCsvBackup().exportRows(records);
+      await Clipboard.setData(ClipboardData(text: csv));
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('${records.length} transactions copied as CSV.'),
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _exporting = false);
+    }
+  }
+
+  Future<void> _import() async {
+    final result = await showDialog<CsvImportResult>(
+      context: context,
+      builder: (_) => const _ImportCsvDialog(),
+    );
+    if (result == null || !mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          '${result.imported} imported, ${result.duplicates} already present, ${result.rejected} skipped.',
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) => _Card(
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Copy your transactions as CSV, or paste a Moneylock CSV backup. Records already present stay unchanged.',
+          style: AppTextStyles.bodyMd.copyWith(
+            color: AppColors.onSurfaceVariant,
+          ),
+        ),
+        const SizedBox(height: 12),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            OutlinedButton.icon(
+              onPressed: _exporting ? null : _export,
+              icon: _exporting
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.copy_all_outlined),
+              label: Text(_exporting ? 'Copying…' : 'Copy CSV backup'),
+            ),
+            OutlinedButton.icon(
+              onPressed: _import,
+              icon: const Icon(Icons.file_upload_outlined),
+              label: const Text('Import CSV'),
+            ),
+          ],
+        ),
+      ],
+    ),
+  );
+}
+
+class _ImportCsvDialog extends ConsumerStatefulWidget {
+  const _ImportCsvDialog();
+
+  @override
+  ConsumerState<_ImportCsvDialog> createState() => _ImportCsvDialogState();
+}
+
+class _ImportCsvDialogState extends ConsumerState<_ImportCsvDialog> {
+  final _controller = TextEditingController();
+  String? _error;
+  bool _importing = false;
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  Future<void> _paste() async {
+    final data = await Clipboard.getData(Clipboard.kTextPlain);
+    if (data?.text == null || !mounted) return;
+    setState(() => _controller.text = data!.text!);
+  }
+
+  Future<void> _import() async {
+    if (_importing) return;
+    setState(() {
+      _error = null;
+      _importing = true;
+    });
+    try {
+      final result = await TransactionCsvBackup().importRows(
+        ref.read(appDatabaseProvider).transactionsDao,
+        _controller.text,
+      );
+      if (mounted) Navigator.pop(context, result);
+    } on FormatException catch (error) {
+      if (mounted) setState(() => _error = error.message);
+    } catch (_) {
+      if (mounted) {
+        setState(() => _error = 'The CSV could not be imported.');
+      }
+    } finally {
+      if (mounted) setState(() => _importing = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+    title: const Text('Import CSV backup'),
+    content: SizedBox(
+      width: 420,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('Paste a CSV copied from Moneylock.'),
+          const SizedBox(height: 10),
+          TextField(
+            controller: _controller,
+            minLines: 5,
+            maxLines: 9,
+            autocorrect: false,
+            enableSuggestions: false,
+            decoration: InputDecoration(
+              labelText: 'CSV backup',
+              errorText: _error,
+              suffixIcon: IconButton(
+                tooltip: 'Paste from clipboard',
+                onPressed: _paste,
+                icon: const Icon(Icons.content_paste),
+              ),
+            ),
+          ),
+        ],
+      ),
+    ),
+    actions: [
+      TextButton(
+        onPressed: _importing ? null : () => Navigator.pop(context),
+        child: const Text('Cancel'),
+      ),
+      FilledButton(
+        onPressed: _importing ? null : _import,
+        child: Text(_importing ? 'Importing…' : 'Import'),
+      ),
+    ],
+  );
+}
+
 class _SyncCard extends ConsumerStatefulWidget {
   const _SyncCard();
 
@@ -173,9 +350,21 @@ class _SyncCardState extends ConsumerState<_SyncCard> {
         .read(appDatabaseProvider)
         .settingsDao
         .syncConfiguration();
+    final credentials = ref.read(syncCredentialStoreProvider);
+    var apiKey = '';
+    try {
+      await ref
+          .read(appDatabaseProvider)
+          .settingsDao
+          .migrateLegacySyncApiKey(credentials.writeApiKey);
+      apiKey = await credentials.readApiKey();
+    } on PlatformException {
+      // The credential vault is available in the iOS app. Leaving this empty
+      // keeps Settings usable in previews and unsupported platforms.
+    }
     if (!mounted) return;
     _urlController.text = config.baseUrl;
-    _apiKeyController.text = config.apiKey;
+    _apiKeyController.text = apiKey;
     setState(() => _loading = false);
   }
 
@@ -194,7 +383,8 @@ class _SyncCardState extends ConsumerState<_SyncCard> {
       await ref
           .read(appDatabaseProvider)
           .settingsDao
-          .setSyncConfiguration(baseUrl: baseUrl, apiKey: apiKey);
+          .setSyncConfiguration(baseUrl: baseUrl);
+      await ref.read(syncCredentialStoreProvider).writeApiKey(apiKey);
       final outcome = await ref.read(syncServiceProvider).sync();
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(

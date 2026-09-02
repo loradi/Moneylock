@@ -1,5 +1,6 @@
 import '../data/db.dart';
 import 'api_client.dart';
+import 'sync_credential_store.dart';
 
 class SyncOutcome {
   const SyncOutcome({
@@ -18,16 +19,21 @@ typedef SyncClientFactory = SyncClient Function(String baseUrl, String apiKey);
 /// Synchronizes only transaction records. Mentor chats, plan inputs, and
 /// on-device model data remain local to the device.
 class SyncService {
-  SyncService(this._db, {SyncClientFactory? clientFactory})
-    : _clientFactory = clientFactory ?? ((url, key) => SyncClient(url, key));
+  SyncService(
+    this._db, {
+    required this.credentialStore,
+    SyncClientFactory? clientFactory,
+  }) : _clientFactory = clientFactory ?? ((url, key) => SyncClient(url, key));
 
   final AppDatabase _db;
+  final SyncCredentialStore credentialStore;
   final SyncClientFactory _clientFactory;
 
   Future<SyncOutcome> sync() async {
     final config = await _db.settingsDao.syncConfiguration();
     final baseUrl = config.baseUrl.trim().replaceFirst(RegExp(r'/+$'), '');
-    final apiKey = config.apiKey.trim();
+    await _db.settingsDao.migrateLegacySyncApiKey(credentialStore.writeApiKey);
+    final apiKey = (await credentialStore.readApiKey()).trim();
     if (baseUrl.isEmpty || apiKey.isEmpty) {
       throw StateError('Add your sync server URL and API key first.');
     }

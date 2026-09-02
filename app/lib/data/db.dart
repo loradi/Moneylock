@@ -3,6 +3,7 @@ import 'package:drift/drift.dart';
 import 'budgets_dao.dart';
 import 'categories_dao.dart';
 import 'memories_dao.dart';
+import 'savings_goal.dart';
 import 'messages_dao.dart';
 import 'subscriptions_dao.dart';
 import 'tables.dart';
@@ -63,7 +64,7 @@ class SettingsDao {
         SettingsCompanion.insert(key: 'default_currency', value: currency),
       );
 
-  Future<({String baseUrl, String apiKey})> syncConfiguration() async {
+  Future<({String baseUrl, String legacyApiKey})> syncConfiguration() async {
     final rows =
         await (db.select(db.settings)..where(
               (setting) =>
@@ -74,24 +75,86 @@ class SettingsDao {
     final values = {for (final row in rows) row.key: row.value};
     return (
       baseUrl: values['sync_base_url'] ?? '',
-      apiKey: values['sync_api_key'] ?? '',
+      legacyApiKey: values['sync_api_key'] ?? '',
     );
   }
 
-  Future<void> setSyncConfiguration({
-    required String baseUrl,
-    required String apiKey,
-  }) => db.transaction(() async {
-    await db
-        .into(db.settings)
-        .insertOnConflictUpdate(
-          SettingsCompanion.insert(key: 'sync_base_url', value: baseUrl),
-        );
-    await db
-        .into(db.settings)
-        .insertOnConflictUpdate(
-          SettingsCompanion.insert(key: 'sync_api_key', value: apiKey),
-        );
+  Future<void> setSyncConfiguration({required String baseUrl}) => db
+      .into(db.settings)
+      .insertOnConflictUpdate(
+        SettingsCompanion.insert(key: 'sync_base_url', value: baseUrl),
+      );
+
+  Future<void> clearLegacySyncApiKey() => (db.delete(
+    db.settings,
+  )..where((setting) => setting.key.equals('sync_api_key'))).go();
+
+  Future<void> migrateLegacySyncApiKey(
+    Future<void> Function(String apiKey) saveSecurely,
+  ) async {
+    final config = await syncConfiguration();
+    if (config.legacyApiKey.isEmpty) return;
+    await saveSecurely(config.legacyApiKey);
+    await clearLegacySyncApiKey();
+  }
+
+  Future<SavingsGoal?> savingsGoal() async {
+    final rows =
+        await (db.select(db.settings)..where(
+              (setting) =>
+                  setting.key.equals('savings_goal_name') |
+                  setting.key.equals('savings_goal_target') |
+                  setting.key.equals('savings_goal_saved') |
+                  setting.key.equals('savings_goal_currency'),
+            ))
+            .get();
+    final values = {for (final row in rows) row.key: row.value};
+    final name = values['savings_goal_name'];
+    final target = double.tryParse(values['savings_goal_target'] ?? '');
+    final saved = double.tryParse(values['savings_goal_saved'] ?? '') ?? 0;
+    final currency = values['savings_goal_currency'];
+    if (name == null ||
+        name.trim().isEmpty ||
+        target == null ||
+        target <= 0 ||
+        currency == null) {
+      return null;
+    }
+    return SavingsGoal(
+      name: name,
+      targetAmount: target,
+      savedAmount: saved.clamp(0, target).toDouble(),
+      currency: currency,
+    );
+  }
+
+  Future<void> setSavingsGoal(SavingsGoal goal) => db.transaction(() async {
+    final values = {
+      'savings_goal_name': goal.name.trim(),
+      'savings_goal_target': goal.targetAmount.toStringAsFixed(2),
+      'savings_goal_saved': goal.savedAmount.toStringAsFixed(2),
+      'savings_goal_currency': goal.currency,
+    };
+    for (final entry in values.entries) {
+      await db
+          .into(db.settings)
+          .insertOnConflictUpdate(
+            SettingsCompanion.insert(key: entry.key, value: entry.value),
+          );
+    }
+  });
+
+  Future<void> clearSavingsGoal() => db.transaction(() async {
+    for (final key in const [
+      'savings_goal_name',
+      'savings_goal_target',
+      'savings_goal_saved',
+      'savings_goal_currency',
+    ]) {
+      await (db.delete(
+        db.settings,
+      )..where((setting) => setting.key.equals(key))).go();
+    }
   });
 
   Future<String> planCycle() async {

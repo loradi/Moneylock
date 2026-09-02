@@ -1,6 +1,7 @@
 import Flutter
 import UIKit
 import Vision
+import Security
 
 @main
 @objc class AppDelegate: FlutterAppDelegate, FlutterImplicitEngineDelegate {
@@ -47,5 +48,81 @@ import Vision
         }
       }
     }
+    let credentialsChannel = FlutterMethodChannel(
+      name: "moneylock/sync_credentials",
+      binaryMessenger: engineBridge.applicationRegistrar.messenger()
+    )
+    credentialsChannel.setMethodCallHandler { [weak self] call, result in
+      guard let self else {
+        result(FlutterError(code: "UNAVAILABLE", message: "Credential store unavailable.", details: nil))
+        return
+      }
+      switch call.method {
+      case "readApiKey":
+        result(self.readSyncApiKey() ?? "")
+      case "writeApiKey":
+        guard let args = call.arguments as? [String: Any],
+              let apiKey = args["apiKey"] as? String else {
+          result(FlutterError(code: "INVALID_ARGUMENT", message: "Missing API key.", details: nil))
+          return
+        }
+        self.writeSyncApiKey(apiKey, result: result)
+      case "clearApiKey":
+        self.clearSyncApiKey(result: result)
+      default:
+        result(FlutterMethodNotImplemented)
+      }
+    }
+  }
+
+  private let syncKeychainService = "com.moneylock.moneylock.sync"
+  private let syncKeychainAccount = "api-key"
+
+  private func syncKeychainQuery() -> [CFString: Any] {
+    [
+      kSecClass: kSecClassGenericPassword,
+      kSecAttrService: syncKeychainService,
+      kSecAttrAccount: syncKeychainAccount,
+    ]
+  }
+
+  private func readSyncApiKey() -> String? {
+    var query = syncKeychainQuery()
+    query[kSecReturnData] = true
+    query[kSecMatchLimit] = kSecMatchLimitOne
+    var item: CFTypeRef?
+    let status = SecItemCopyMatching(query as CFDictionary, &item)
+    guard status == errSecSuccess,
+          let data = item as? Data else { return nil }
+    return String(data: data, encoding: .utf8)
+  }
+
+  private func writeSyncApiKey(_ apiKey: String, result: @escaping FlutterResult) {
+    let data = Data(apiKey.utf8)
+    let query = syncKeychainQuery()
+    let updateStatus = SecItemUpdate(query as CFDictionary, [kSecValueData: data] as CFDictionary)
+    let status: OSStatus
+    if updateStatus == errSecItemNotFound {
+      var insert = query
+      insert[kSecValueData] = data
+      insert[kSecAttrAccessible] = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
+      status = SecItemAdd(insert as CFDictionary, nil)
+    } else {
+      status = updateStatus
+    }
+    guard status == errSecSuccess else {
+      result(FlutterError(code: "KEYCHAIN_WRITE_FAILED", message: "Could not store API key.", details: status))
+      return
+    }
+    result(nil)
+  }
+
+  private func clearSyncApiKey(result: @escaping FlutterResult) {
+    let status = SecItemDelete(syncKeychainQuery() as CFDictionary)
+    guard status == errSecSuccess || status == errSecItemNotFound else {
+      result(FlutterError(code: "KEYCHAIN_DELETE_FAILED", message: "Could not remove API key.", details: status))
+      return
+    }
+    result(nil)
   }
 }
