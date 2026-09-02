@@ -16,11 +16,26 @@ void main() {
     expect(mentorRequestAllowed('Help me write a poem'), isFalse);
   });
 
-  test('rechaza asesoría regulada de inversión, impuestos y legal', () {
-    expect(mentorRequestAllowed('Which stock should I buy?'), isFalse);
-    expect(mentorRequestAllowed('How do I evade taxes?'), isFalse);
-    expect(mentorRequestAllowed('Give me legal advice about debt'), isFalse);
-  });
+  test(
+    'permite educación financiera pero mantiene la advertencia en el prompt',
+    () {
+      expect(mentorRequestAllowed('What is an index fund?'), isTrue);
+      expect(mentorRequestAllowed('How does credit utilization work?'), isTrue);
+      expect(mentorRequestAllowed('How do taxes affect my savings?'), isTrue);
+    },
+  );
+
+  test(
+    'rechaza investigación o ayuda que no es financiera ni de Moneylock',
+    () {
+      expect(mentorRequestAllowed('Research the history of Rome'), isFalse);
+      expect(
+        mentorRequestAllowed('Investigate the best laptop for me'),
+        isFalse,
+      );
+      expect(mentorRequestAllowed('Help me plan a vacation'), isFalse);
+    },
+  );
 
   test('reemplaza respuestas con código por una respuesta de alcance', () {
     expect(
