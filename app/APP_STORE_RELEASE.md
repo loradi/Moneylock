@@ -87,9 +87,9 @@ Camera, microphone, and speech-recognition permissions are requested only after 
 
 These values must be real public URLs and contact details. Do not submit placeholders.
 
-- Support URL: `[REQUIRED: https://…]`
-- Privacy policy URL: `[REQUIRED: https://…]`
-- Marketing URL: `[optional: https://…]`
+- Support URL: `https://moneylock-legal.vercel.app/support`
+- Privacy policy URL: `https://moneylock-legal.vercel.app/privacy`
+- Marketing URL: `https://moneylock-legal.vercel.app/`
 - App Review contact name, email, and phone number
 - Copyright holder and year
 - Availability territories and price

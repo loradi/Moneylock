@@ -40,6 +40,6 @@ You control your on-device records. You can edit or delete records in Moneylock 
 
 ## Changes and contact
 
-We may update this policy when Moneylock’s data practices change. The current version will be published at `[INSERT PUBLIC PRIVACY POLICY URL]`.
+We may update this policy when Moneylock’s data practices change. The current version is published at https://moneylock-legal.vercel.app/privacy.
 
 For privacy questions, contact `[INSERT SUPPORT EMAIL]`.
