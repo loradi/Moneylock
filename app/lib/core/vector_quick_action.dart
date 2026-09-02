@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 
 enum VectorQuickAction { addPurchase }
 
@@ -24,3 +25,16 @@ class VectorQuickActionController extends ChangeNotifier {
 }
 
 final vectorQuickActionController = VectorQuickActionController();
+
+class VectorQuickActionBridge {
+  static const _channel = MethodChannel('moneylock/vector_quick_action');
+
+  static Future<bool> takePendingAddPurchase() async {
+    try {
+      return await _channel.invokeMethod<bool>('takePendingAddPurchase') ??
+          false;
+    } on PlatformException {
+      return false;
+    }
+  }
+}

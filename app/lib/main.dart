@@ -56,9 +56,10 @@ class _MoneylockAppState extends State<MoneylockApp>
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     vectorQuickActionController.addListener(_openVectorQuickAction);
-    WidgetsBinding.instance.addPostFrameCallback(
-      (_) => _openVectorQuickAction(),
-    );
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _openVectorQuickAction();
+      unawaited(_consumeNativeVectorQuickAction());
+    });
   }
 
   @override
@@ -77,9 +78,17 @@ class _MoneylockAppState extends State<MoneylockApp>
     }
   }
 
+  Future<void> _consumeNativeVectorQuickAction() async {
+    if (!await VectorQuickActionBridge.takePendingAddPurchase() || !mounted) {
+      return;
+    }
+    vectorQuickActionController.requestAddPurchase();
+  }
+
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
+      unawaited(_consumeNativeVectorQuickAction());
       final container = ProviderScope.containerOf(context, listen: false);
       NotificationScheduler(
         container.read(appDatabaseProvider),

@@ -73,6 +73,20 @@ import Security
         result(FlutterMethodNotImplemented)
       }
     }
+    let vectorQuickActionChannel = FlutterMethodChannel(
+      name: "moneylock/vector_quick_action",
+      binaryMessenger: engineBridge.applicationRegistrar.messenger()
+    )
+    vectorQuickActionChannel.setMethodCallHandler { call, result in
+      guard call.method == "takePendingAddPurchase" else {
+        result(FlutterMethodNotImplemented)
+        return
+      }
+      let key = "moneylock.vector.addPurchase"
+      let requested = UserDefaults.standard.bool(forKey: key)
+      UserDefaults.standard.removeObject(forKey: key)
+      result(requested)
+    }
   }
 
   private let syncKeychainService = "com.moneylock.moneylock.sync"

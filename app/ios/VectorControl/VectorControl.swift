@@ -1,15 +1,5 @@
-import AppIntents
 import SwiftUI
 import WidgetKit
-
-struct OpenVectorAddPurchaseIntent: AppIntent {
-  static var title: LocalizedStringResource = "Add with Vector"
-  static var openAppWhenRun = true
-
-  func perform() async throws -> some IntentResult & OpensIntent {
-    .result(opensIntent: OpenURLIntent(URL(string: "moneylock://vector/add")!))
-  }
-}
 
 struct VectorAddPurchaseControl: ControlWidget {
   static let kind = "com.moneylock.moneylock.add-with-vector"
@@ -17,7 +7,7 @@ struct VectorAddPurchaseControl: ControlWidget {
   var body: some ControlWidgetConfiguration {
     StaticControlConfiguration(kind: Self.kind) {
       ControlWidgetButton(action: OpenVectorAddPurchaseIntent()) {
-        Label("Add with Vector", systemImage: "plus.circle.fill")
+        Label("Add with Vector", systemImage: "lock.badge.plus")
       }
     }
     .displayName("Add with Vector")
