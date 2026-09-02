@@ -10,6 +10,7 @@ import '../data/subscription_projection.dart';
 import '../data/subscription_summary.dart';
 import '../data/transaction_edit_summary.dart';
 import '../data/transaction_summary.dart';
+import '../features/budget/plan_period.dart';
 import '../features/dashboard/spendable_amount.dart';
 import 'mentor_guardrails.dart';
 import 'prompts.dart';
@@ -80,6 +81,11 @@ class ChatIntent {
     this.degraded = false,
   });
 }
+
+bool _hasExplicitBudgetLimitLanguage(String message) => RegExp(
+  r'\b(limit|cap|budget|allocation|l[ií]mite|tope|presupuesto|asignaci[oó]n)\b',
+  caseSensitive: false,
+).hasMatch(message);
 
 ChatIntent _parseIntent(String raw) {
   try {
@@ -270,7 +276,19 @@ class MentorAgent {
         '${history}User: $userMessage',
         temperature: 0.0,
       );
-      return _parseIntent(raw);
+      final parsed = _parseIntent(raw);
+      // A number added to a category is an expense unless the user explicitly
+      // asks to change an ongoing budget cap. This protects the durable
+      // transaction path from an over-eager classifier.
+      if (parsed.intent == 'update_budget_limit' &&
+          !_hasExplicitBudgetLimitLanguage(userMessage)) {
+        return ChatIntent(
+          intent: 'record_transaction',
+          category: parsed.category,
+          amount: parsed.newLimit,
+        );
+      }
+      return parsed;
     } catch (_) {
       return ChatIntent(intent: 'chat');
     }
@@ -538,8 +556,7 @@ class MentorAgent {
     final category = parsed.category!;
     final newLimit = parsed.newLimit!;
     final now = DateTime.now();
-    final period =
-        '${now.year.toString().padLeft(4, '0')}-${now.month.toString().padLeft(2, '0')}';
+    final period = await _currentPlanPeriod(now);
     final limits = await db.budgetsDao.limitsForPeriod(period);
     final currentLimit = limits[category] ?? 0.0;
     final change = BudgetChangeSummary(
@@ -559,8 +576,7 @@ class MentorAgent {
 
   Future<MentorChatResult> _setPlanIncome(ChatIntent parsed) async {
     final now = DateTime.now();
-    final period =
-        '${now.year.toString().padLeft(4, '0')}-${now.month.toString().padLeft(2, '0')}';
+    final period = await _currentPlanPeriod(now);
     final currency =
         await db.settingsDao.planCurrency(period) ??
         await db.settingsDao.defaultCurrency();
@@ -589,8 +605,7 @@ class MentorAgent {
 
   Future<MentorChatResult> _setPlanCurrency(ChatIntent parsed) async {
     final now = DateTime.now();
-    final period =
-        '${now.year.toString().padLeft(4, '0')}-${now.month.toString().padLeft(2, '0')}';
+    final period = await _currentPlanPeriod(now);
     final rows = await db.budgetsDao.forPeriod(period);
     final currentCurrency =
         await db.settingsDao.planCurrency(period) ??
@@ -637,6 +652,11 @@ class MentorAgent {
         PlanActionSummary(action: 'remove_category', category: category),
       ),
     );
+  }
+
+  Future<String> _currentPlanPeriod(DateTime now) async {
+    final cycle = PlanCycle.fromStorage(await db.settingsDao.planCycle());
+    return cycle.keyFor(now);
   }
 
   Future<MentorChatResult> _addSubscription(ChatIntent parsed) async {

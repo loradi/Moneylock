@@ -633,79 +633,25 @@ class _BudgetScreenState extends ConsumerState<BudgetScreen> {
       );
       return;
     }
-    final name = TextEditingController(text: current?.name ?? '');
-    final target = TextEditingController(
-      text: current?.targetAmount.toStringAsFixed(0) ?? '',
-    );
-    final saved = TextEditingController(
-      text: current?.savedAmount.toStringAsFixed(0) ?? '0',
-    );
     final goal = await showDialog<SavingsGoal>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Savings goal'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: name,
-              autofocus: true,
-              decoration: const InputDecoration(labelText: 'Goal name'),
-            ),
-            TextField(
-              controller: target,
-              keyboardType: const TextInputType.numberWithOptions(
-                decimal: true,
-              ),
-              decoration: InputDecoration(labelText: 'Target ($currency)'),
-            ),
-            TextField(
-              controller: saved,
-              keyboardType: const TextInputType.numberWithOptions(
-                decimal: true,
-              ),
-              decoration: InputDecoration(
-                labelText: 'Already saved ($currency)',
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () {
-              final targetAmount = double.tryParse(target.text.trim());
-              final savedAmount = double.tryParse(saved.text.trim()) ?? 0;
-              if (name.text.trim().isEmpty ||
-                  targetAmount == null ||
-                  targetAmount <= 0 ||
-                  savedAmount < 0) {
-                return;
-              }
-              Navigator.pop(
-                context,
-                SavingsGoal(
-                  name: name.text.trim(),
-                  targetAmount: targetAmount,
-                  savedAmount: savedAmount,
-                  currency: currency,
-                ),
-              );
-            },
-            child: const Text('Save'),
-          ),
-        ],
-      ),
+      builder: (_) => _SavingsGoalDialog(current: current, currency: currency),
     );
-    name.dispose();
-    target.dispose();
-    saved.dispose();
     if (goal == null) return;
-    await ref.read(appDatabaseProvider).settingsDao.setSavingsGoal(goal);
-    ref.invalidate(savingsGoalProvider);
+    try {
+      await ref.read(appDatabaseProvider).settingsDao.setSavingsGoal(goal);
+      ref.invalidate(savingsGoalProvider);
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(const SnackBar(content: Text('Savings goal saved.')));
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not save this savings goal.')),
+        );
+      }
+    }
   }
 
   String _periodKey() => _periodKeyFor(_periodAnchor);
@@ -725,6 +671,127 @@ class _BudgetScreenState extends ConsumerState<BudgetScreen> {
     final end = _cycle.endFor(date).subtract(const Duration(days: 1));
     return '${DateFormat('MMM d').format(start)} – ${DateFormat('MMM d, yyyy').format(end)}';
   }
+}
+
+class _SavingsGoalDialog extends StatefulWidget {
+  const _SavingsGoalDialog({required this.current, required this.currency});
+
+  final SavingsGoal? current;
+  final String currency;
+
+  @override
+  State<_SavingsGoalDialog> createState() => _SavingsGoalDialogState();
+}
+
+class _SavingsGoalDialogState extends State<_SavingsGoalDialog> {
+  late final TextEditingController _name;
+  late final TextEditingController _target;
+  late final TextEditingController _saved;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _name = TextEditingController(text: widget.current?.name ?? '');
+    _target = TextEditingController(
+      text: widget.current?.targetAmount.toStringAsFixed(0) ?? '',
+    );
+    _saved = TextEditingController(
+      text: widget.current?.savedAmount.toStringAsFixed(0) ?? '0',
+    );
+  }
+
+  @override
+  void dispose() {
+    _name.dispose();
+    _target.dispose();
+    _saved.dispose();
+    super.dispose();
+  }
+
+  void _save() {
+    final name = _name.text.trim();
+    final target = parseSavingsGoalAmount(_target.text);
+    final saved = parseSavingsGoalAmount(_saved.text);
+    final error = name.isEmpty
+        ? 'Enter a name for this goal.'
+        : target == null
+        ? 'Enter a valid target amount.'
+        : target <= 0
+        ? 'The target must be greater than zero.'
+        : saved == null
+        ? 'Enter a valid saved amount.'
+        : saved < 0
+        ? 'The saved amount cannot be negative.'
+        : saved > target
+        ? 'Saved amount cannot exceed the target.'
+        : null;
+    if (error != null) {
+      setState(() => _error = error);
+      return;
+    }
+    Navigator.pop(
+      context,
+      SavingsGoal(
+        name: name,
+        targetAmount: target!,
+        savedAmount: saved!,
+        currency: widget.currency,
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+    title: const Text('Savings goal'),
+    content: Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        TextField(
+          controller: _name,
+          autofocus: true,
+          decoration: const InputDecoration(labelText: 'Goal name'),
+        ),
+        TextField(
+          controller: _target,
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          decoration: InputDecoration(labelText: 'Target (${widget.currency})'),
+        ),
+        TextField(
+          controller: _saved,
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          decoration: InputDecoration(
+            labelText: 'Already saved (${widget.currency})',
+            errorText: _error,
+          ),
+          onSubmitted: (_) => _save(),
+        ),
+      ],
+    ),
+    actions: [
+      TextButton(
+        onPressed: () => Navigator.pop(context),
+        child: const Text('Cancel'),
+      ),
+      FilledButton(onPressed: _save, child: const Text('Save')),
+    ],
+  );
+}
+
+double? parseSavingsGoalAmount(String text) {
+  final compact = text.trim().replaceAll(RegExp(r'[\s\$]'), '');
+  if (compact.isEmpty) return null;
+  final comma = compact.lastIndexOf(',');
+  final dot = compact.lastIndexOf('.');
+  final separator = comma > dot ? comma : dot;
+  final hasBoth = comma >= 0 && dot >= 0;
+  if (separator < 0) return double.tryParse(compact);
+  final decimals = compact.length - separator - 1;
+  final isThousandsOnly = !hasBoth && decimals == 3;
+  final normalized = isThousandsOnly
+      ? compact.replaceAll(RegExp(r'[,.]'), '')
+      : '${compact.substring(0, separator).replaceAll(RegExp(r'[,.]'), '')}.${compact.substring(separator + 1)}';
+  return double.tryParse(normalized);
 }
 
 class _AddCategoryDialog extends StatefulWidget {

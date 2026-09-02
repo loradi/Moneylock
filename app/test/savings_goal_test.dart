@@ -1,5 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:moneylock/data/savings_goal.dart';
+import 'package:moneylock/features/budget/budget_screen.dart'
+    show parseSavingsGoalAmount;
 
 void main() {
   const goal = SavingsGoal(
@@ -32,5 +34,11 @@ void main() {
 
     expect(projection.cyclesRemaining, isNull);
     expect(projection.targetDate, isNull);
+  });
+
+  test('accepts localized savings-goal amounts', () {
+    expect(parseSavingsGoalAmount('1,250.50'), 1250.50);
+    expect(parseSavingsGoalAmount('1.250,50'), 1250.50);
+    expect(parseSavingsGoalAmount(' 950,25 '), 950.25);
   });
 }

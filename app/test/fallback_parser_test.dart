@@ -20,6 +20,11 @@ void main() {
       expect(p!.category, 'Other');
       expect(p.confidence, lessThan(0.5));
     });
+    test('recognizes an explicit category in a manual Vector entry', () {
+      final p = parseFallback('add 54 to groceries');
+      expect(p!.amount, 54);
+      expect(p.category, 'Groceries');
+    });
     test('sin monto -> null', () {
       expect(parseFallback('hello world'), isNull);
     });

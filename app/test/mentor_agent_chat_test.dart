@@ -9,6 +9,7 @@ import 'package:moneylock/data/subscription_summary.dart';
 import 'package:moneylock/data/transaction_edit_summary.dart';
 import 'package:moneylock/data/transaction_summary.dart';
 import 'package:moneylock/data/transactions_dao.dart';
+import 'package:moneylock/features/budget/plan_period.dart';
 import 'package:moneylock/llm/llm_provider.dart';
 import 'package:moneylock/llm/mentor_agent.dart';
 
@@ -625,6 +626,36 @@ void main() {
     expect(result.kind, 'budget_confirm');
     final change = decodeBudgetChangeSummary(result.dataJson!);
     expect(change.category, 'Groceries');
+    await db.close();
+  });
+
+  test('classify treats adding an amount to a category as a transaction, not a cap', () async {
+    final db = _db();
+    final llm = _ScriptedLlm([
+      '{"intent": "update_budget_limit", "category": "Groceries", "newLimit": 54}',
+    ]);
+    final agent = MentorAgent(llm, db);
+
+    final intent = await agent.classify('add 54 to groceries');
+
+    expect(intent.intent, 'record_transaction');
+    expect(intent.category, 'Groceries');
+    expect(intent.amount, 54);
+    await db.close();
+  });
+
+  test('budget changes use the active weekly plan period', () async {
+    final db = _db();
+    await db.settingsDao.setPlanCycle('weekly');
+    final llm = _ScriptedLlm([
+      '{"intent": "update_budget_limit", "category": "Groceries", "newLimit": 400}',
+    ]);
+    final agent = MentorAgent(llm, db);
+
+    final result = await agent.chat('raise my groceries limit to 400');
+
+    final change = decodeBudgetChangeSummary(result.dataJson!);
+    expect(change.period, PlanCycle.weekly.keyFor(DateTime.now()));
     await db.close();
   });
 
