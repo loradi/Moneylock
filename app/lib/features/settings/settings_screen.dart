@@ -390,7 +390,7 @@ class _SyncCardState extends ConsumerState<_SyncCard> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            'Synced: ${outcome.uploaded} uploaded, ${outcome.downloaded} downloaded.',
+            'Synced: ${outcome.uploaded} uploaded, ${outcome.downloaded} downloaded${outcome.profileConflicts == 0 ? '' : ', ${outcome.profileConflicts} server changes kept'}.',
           ),
         ),
       );
@@ -452,7 +452,7 @@ class _SyncCardState extends ConsumerState<_SyncCard> {
               ),
               const SizedBox(height: 8),
               Text(
-                'Only transaction records are synced. Plans, Vector chats, and model data stay on this device.',
+                'Transactions, plans, categories, subscriptions, and your savings goal are synced. Vector chats and model data stay on this device.',
                 style: AppTextStyles.bodyMd.copyWith(
                   fontSize: 12,
                   color: AppColors.onSurfaceVariant,

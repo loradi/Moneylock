@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+
 import 'package:http/http.dart' as http;
 
 class SyncStats {
@@ -14,28 +15,56 @@ class SyncClient {
   final http.Client _client;
 
   SyncClient(this.baseUrl, this.apiKey, {http.Client? client})
-      : _client = client ?? http.Client();
+    : _client = client ?? http.Client();
 
   Future<SyncStats> push(List<Map<String, dynamic>> txs) =>
       _withRetry(() async {
         final r = await _client.post(
-            Uri.parse('$baseUrl/sync/transactions'),
-            headers: {'Content-Type': 'application/json', 'X-API-Key': apiKey},
-            body: jsonEncode({'transactions': txs}));
+          Uri.parse('$baseUrl/sync/transactions'),
+          headers: {'Content-Type': 'application/json', 'X-API-Key': apiKey},
+          body: jsonEncode({'transactions': txs}),
+        );
         if (r.statusCode != 200) throw Exception('sync push ${r.statusCode}');
         final j = jsonDecode(r.body) as Map<String, dynamic>;
         return SyncStats(j['inserted'] as int, j['duplicates'] as int);
       });
 
-  Future<List<Map<String, dynamic>>> pull(DateTime since) =>
+  Future<List<Map<String, dynamic>>> pull(DateTime since) => _withRetry(
+    () async {
+      final r = await _client.get(
+        Uri.parse(
+          '$baseUrl/sync/transactions?since=${since.toUtc().toIso8601String()}',
+        ),
+        headers: {'X-API-Key': apiKey},
+      );
+      if (r.statusCode != 200) throw Exception('sync pull ${r.statusCode}');
+      return (jsonDecode(r.body)['transactions'] as List)
+          .cast<Map<String, dynamic>>();
+    },
+  );
+
+  Future<Map<String, dynamic>?> pullProfile() => _withRetry(() async {
+    final r = await _client.get(
+      Uri.parse('$baseUrl/sync/profile'),
+      headers: {'X-API-Key': apiKey},
+    );
+    if (r.statusCode != 200) {
+      throw Exception('sync profile pull ${r.statusCode}');
+    }
+    final profile = (jsonDecode(r.body) as Map<String, dynamic>)['profile'];
+    return profile is Map<String, dynamic> ? profile : null;
+  });
+
+  Future<void> pushProfile(Map<String, dynamic> profile) =>
       _withRetry(() async {
-        final r = await _client.get(
-            Uri.parse(
-                '$baseUrl/sync/transactions?since=${since.toUtc().toIso8601String()}'),
-            headers: {'X-API-Key': apiKey});
-        if (r.statusCode != 200) throw Exception('sync pull ${r.statusCode}');
-        return (jsonDecode(r.body)['transactions'] as List)
-            .cast<Map<String, dynamic>>();
+        final r = await _client.put(
+          Uri.parse('$baseUrl/sync/profile'),
+          headers: {'Content-Type': 'application/json', 'X-API-Key': apiKey},
+          body: jsonEncode({'profile': profile}),
+        );
+        if (r.statusCode != 200) {
+          throw Exception('sync profile push ${r.statusCode}');
+        }
       });
 
   Future<T> _withRetry<T>(Future<T> Function() fn) async {

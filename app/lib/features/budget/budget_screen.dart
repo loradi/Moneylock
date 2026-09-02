@@ -7,6 +7,7 @@ import 'package:intl/intl.dart';
 import '../../core/format.dart';
 import '../../data/budgets_dao.dart';
 import '../../data/db.dart';
+import '../../data/exchange_rate_service.dart';
 import '../../data/subscription_projection.dart';
 import '../../data/savings_goal.dart';
 import '../../providers.dart';
@@ -448,7 +449,19 @@ class _BudgetScreenState extends ConsumerState<BudgetScreen> {
     required String targetCurrency,
     required MonthlyPlanData? planData,
   }) async {
-    final controller = TextEditingController();
+    ExchangeRateQuote? suggested;
+    try {
+      suggested = await ref
+          .read(exchangeRateServiceProvider)
+          .quote(base: sourceCurrency, target: targetCurrency);
+    } catch (_) {
+      // The manual entry remains available when offline or when a reference
+      // rate is temporarily unavailable.
+    }
+    if (!mounted) return null;
+    final controller = TextEditingController(
+      text: suggested?.rate.toStringAsFixed(4) ?? '',
+    );
     final rate = await showDialog<double>(
       context: context,
       builder: (context) => _CurrencyConversionDialog(
@@ -462,6 +475,7 @@ class _BudgetScreenState extends ConsumerState<BudgetScreen> {
               ),
         income: planData?.income,
         controller: controller,
+        suggested: suggested,
       ),
     );
     controller.dispose();
@@ -1133,6 +1147,7 @@ class _CurrencyConversionDialog extends StatefulWidget {
     required this.planned,
     required this.income,
     required this.controller,
+    required this.suggested,
   });
 
   final String sourceCurrency;
@@ -1140,6 +1155,7 @@ class _CurrencyConversionDialog extends StatefulWidget {
   final double planned;
   final double? income;
   final TextEditingController controller;
+  final ExchangeRateQuote? suggested;
 
   @override
   State<_CurrencyConversionDialog> createState() =>
@@ -1164,6 +1180,16 @@ class _CurrencyConversionDialogState extends State<_CurrencyConversionDialog> {
           Text(
             'Enter how many ${widget.targetCurrency} equal 1 ${widget.sourceCurrency}.',
           ),
+          if (widget.suggested != null) ...[
+            const SizedBox(height: 6),
+            Text(
+              'Suggested by Frankfurter: ${widget.suggested!.rate.toStringAsFixed(4)} on ${DateFormat.yMMMd().format(widget.suggested!.asOf)}. Review it before converting.',
+              style: AppTextStyles.bodyMd.copyWith(
+                fontSize: 12,
+                color: AppColors.onSurfaceVariant,
+              ),
+            ),
+          ],
           const SizedBox(height: 12),
           TextField(
             controller: widget.controller,

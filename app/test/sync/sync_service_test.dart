@@ -31,7 +31,8 @@ void main() {
       );
 
       final httpClient = MockClient((request) async {
-        if (request.method == 'POST') {
+        if (request.method == 'POST' &&
+            request.url.path == '/sync/transactions') {
           final body = jsonDecode(request.body) as Map<String, dynamic>;
           final sent = body['transactions'] as List<dynamic>;
           expect(request.headers['X-API-Key'], 'secret');
@@ -39,23 +40,42 @@ void main() {
           expect((sent.single as Map<String, dynamic>)['currency'], 'CAD');
           return http.Response('{"inserted": 1, "duplicates": 0}', 200);
         }
-        expect(request.url.queryParameters['since'], startsWith('1970-01-01'));
-        return http.Response(
-          jsonEncode({
-            'transactions': [
-              {
-                'amount': 19.99,
-                'currency': 'EUR',
-                'merchant': 'Remote shop',
-                'category': 'Shopping & E-commerce',
-                'source': 'receipt',
-                'raw_text': 'Remote shop 19.99 EUR',
-                'timestamp': '2026-09-02T10:30:00.000Z',
-                'dedup_hash': 'remote-sync-hash-0001',
-              },
-            ],
-          }),
-          200,
+        if (request.method == 'GET' &&
+            request.url.path == '/sync/transactions') {
+          expect(
+            request.url.queryParameters['since'],
+            startsWith('1970-01-01'),
+          );
+          return http.Response(
+            jsonEncode({
+              'transactions': [
+                {
+                  'amount': 19.99,
+                  'currency': 'EUR',
+                  'merchant': 'Remote shop',
+                  'category': 'Shopping & E-commerce',
+                  'source': 'receipt',
+                  'raw_text': 'Remote shop 19.99 EUR',
+                  'timestamp': '2026-09-02T10:30:00.000Z',
+                  'dedup_hash': 'remote-sync-hash-0001',
+                },
+              ],
+            }),
+            200,
+          );
+        }
+        if (request.method == 'GET' && request.url.path == '/sync/profile') {
+          return http.Response('{"profile": null}', 200);
+        }
+        if (request.method == 'PUT' && request.url.path == '/sync/profile') {
+          final body = jsonDecode(request.body) as Map<String, dynamic>;
+          final profile = body['profile'] as Map<String, dynamic>;
+          expect(profile['categories'], isNotEmpty);
+          expect(request.headers['X-API-Key'], 'secret');
+          return http.Response('{"ok": true}', 200);
+        }
+        throw StateError(
+          'Unexpected sync request: ${request.method} ${request.url}',
         );
       });
       final service = SyncService(
@@ -68,6 +88,7 @@ void main() {
 
       expect(outcome.uploaded, 1);
       expect(outcome.downloaded, 1);
+      expect(outcome.profileConflicts, 0);
       final rows = await db.transactionsDao.all();
       expect(rows, hasLength(2));
       expect(rows.map((row) => row.currency), contains('EUR'));

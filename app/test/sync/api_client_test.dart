@@ -14,7 +14,7 @@ void main() {
     });
     final sync = SyncClient('http://localhost:8000', 'k', client: client);
     final stats = await sync.push([
-      {'amount': 12.5}
+      {'amount': 12.5},
     ]);
     expect(stats.inserted, 2);
     expect(stats.duplicates, 1);
@@ -27,13 +27,43 @@ void main() {
       expect(req.url.path, '/sync/transactions');
       expect(req.url.queryParameters['since'], startsWith('2026-01-01'));
       return http.Response(
-          '{"transactions": [{"amount": 1.0}]}',
-          200,
-          headers: {'content-type': 'application/json'});
+        '{"transactions": [{"amount": 1.0}]}',
+        200,
+        headers: {'content-type': 'application/json'},
+      );
     });
     final sync = SyncClient('http://localhost:8000', 'k', client: client);
     final txs = await sync.pull(DateTime.utc(2026, 1, 1));
     expect(txs, hasLength(1));
+  });
+
+  test('profile se descarga y sube con la misma clave', () async {
+    final client = MockClient((req) async {
+      expect(req.url.path, '/sync/profile');
+      expect(req.headers['X-API-Key'], 'k');
+      if (req.method == 'GET') {
+        return http.Response(
+          '{"profile": {"settings": {"plan_cycle": "weekly"}}}',
+          200,
+        );
+      }
+      expect(req.method, 'PUT');
+      expect(
+        (jsonDecode(req.body) as Map<String, dynamic>)['profile'],
+        containsPair('settings', containsPair('plan_cycle', 'weekly')),
+      );
+      return http.Response('{"ok": true}', 200);
+    });
+    final sync = SyncClient('http://localhost:8000', 'k', client: client);
+
+    final profile = await sync.pullProfile();
+    expect(
+      profile,
+      containsPair('settings', containsPair('plan_cycle', 'weekly')),
+    );
+    await sync.pushProfile({
+      'settings': {'plan_cycle': 'weekly'},
+    });
   });
 
   test('reintenta tras un 500 y lanza al tercer intento', () async {

@@ -51,3 +51,17 @@ def test_sync_accepts_receipts_and_supported_plan_currencies():
                       json={"transactions": [tx]})
     assert response.status_code == 200
     assert response.json() == {"inserted": 1, "duplicates": 0}
+
+
+def test_sync_profile_roundtrip_is_private_to_the_api_key():
+    c = _client()
+    api_key = c.post("/users", json={"email": "profile@b.co"}).json()["api_key"]
+    headers = {"X-API-Key": api_key}
+    profile = {
+        "settings": {"plan_cycle": "weekly"},
+        "budgets": [{"category": "Groceries", "limit": 120, "period": "2026-09-01"}],
+        "categories": [{"name": "Groceries", "is_active": True, "is_default": True}],
+        "subscriptions": [],
+    }
+    assert c.put("/sync/profile", headers=headers, json={"profile": profile}).json() == {"ok": True}
+    assert c.get("/sync/profile", headers=headers).json() == {"profile": profile}

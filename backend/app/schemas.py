@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Any
 from pydantic import BaseModel, Field
 
 
@@ -29,3 +30,7 @@ class SyncRequest(BaseModel):
 class SyncResult(BaseModel):
     inserted: int
     duplicates: int
+
+
+class SyncProfileRequest(BaseModel):
+    profile: dict[str, Any]

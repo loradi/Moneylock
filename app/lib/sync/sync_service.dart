@@ -1,23 +1,26 @@
 import '../data/db.dart';
 import 'api_client.dart';
 import 'sync_credential_store.dart';
+import 'sync_profile.dart';
 
 class SyncOutcome {
   const SyncOutcome({
     required this.uploaded,
     required this.duplicates,
     required this.downloaded,
+    required this.profileConflicts,
   });
 
   final int uploaded;
   final int duplicates;
   final int downloaded;
+  final int profileConflicts;
 }
 
 typedef SyncClientFactory = SyncClient Function(String baseUrl, String apiKey);
 
-/// Synchronizes only transaction records. Mentor chats, plan inputs, and
-/// on-device model data remain local to the device.
+/// Synchronizes transactions and the user's financial setup. Mentor chats and
+/// on-device model data intentionally remain local to the device.
 class SyncService {
   SyncService(
     this._db, {
@@ -75,10 +78,18 @@ class SyncService {
       );
       if (inserted) downloaded++;
     }
+    final localProfile = await SyncProfile.fromDatabase(_db);
+    final remoteProfile = await client.pullProfile();
+    final mergedProfile = localProfile.mergeServer(
+      remoteProfile == null ? null : SyncProfile.fromJson(remoteProfile),
+    );
+    await mergedProfile.profile.applyTo(_db);
+    await client.pushProfile(mergedProfile.profile.toJson());
     return SyncOutcome(
       uploaded: pushed.inserted,
       duplicates: pushed.duplicates,
       downloaded: downloaded,
+      profileConflicts: mergedProfile.conflicts,
     );
   }
 }

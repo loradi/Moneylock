@@ -2433,6 +2433,21 @@ class $SubscriptionsTable extends Subscriptions
     type: DriftSqlType.dateTime,
     requiredDuringInsert: true,
   );
+  static const VerificationMeta _isActiveMeta = const VerificationMeta(
+    'isActive',
+  );
+  @override
+  late final GeneratedColumn<bool> isActive = GeneratedColumn<bool>(
+    'is_active',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("is_active" IN (0, 1))',
+    ),
+    defaultValue: const Constant(true),
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -2444,6 +2459,7 @@ class $SubscriptionsTable extends Subscriptions
     nextChargeDate,
     source,
     createdAt,
+    isActive,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -2521,6 +2537,12 @@ class $SubscriptionsTable extends Subscriptions
     } else if (isInserting) {
       context.missing(_createdAtMeta);
     }
+    if (data.containsKey('is_active')) {
+      context.handle(
+        _isActiveMeta,
+        isActive.isAcceptableOrUnknown(data['is_active']!, _isActiveMeta),
+      );
+    }
     return context;
   }
 
@@ -2566,6 +2588,10 @@ class $SubscriptionsTable extends Subscriptions
         DriftSqlType.dateTime,
         data['${effectivePrefix}created_at'],
       )!,
+      isActive: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}is_active'],
+      )!,
     );
   }
 
@@ -2585,6 +2611,7 @@ class Subscription extends DataClass implements Insertable<Subscription> {
   final DateTime nextChargeDate;
   final String source;
   final DateTime createdAt;
+  final bool isActive;
   const Subscription({
     required this.id,
     required this.name,
@@ -2595,6 +2622,7 @@ class Subscription extends DataClass implements Insertable<Subscription> {
     required this.nextChargeDate,
     required this.source,
     required this.createdAt,
+    required this.isActive,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -2610,6 +2638,7 @@ class Subscription extends DataClass implements Insertable<Subscription> {
     map['next_charge_date'] = Variable<DateTime>(nextChargeDate);
     map['source'] = Variable<String>(source);
     map['created_at'] = Variable<DateTime>(createdAt);
+    map['is_active'] = Variable<bool>(isActive);
     return map;
   }
 
@@ -2626,6 +2655,7 @@ class Subscription extends DataClass implements Insertable<Subscription> {
       nextChargeDate: Value(nextChargeDate),
       source: Value(source),
       createdAt: Value(createdAt),
+      isActive: Value(isActive),
     );
   }
 
@@ -2644,6 +2674,7 @@ class Subscription extends DataClass implements Insertable<Subscription> {
       nextChargeDate: serializer.fromJson<DateTime>(json['nextChargeDate']),
       source: serializer.fromJson<String>(json['source']),
       createdAt: serializer.fromJson<DateTime>(json['createdAt']),
+      isActive: serializer.fromJson<bool>(json['isActive']),
     );
   }
   @override
@@ -2659,6 +2690,7 @@ class Subscription extends DataClass implements Insertable<Subscription> {
       'nextChargeDate': serializer.toJson<DateTime>(nextChargeDate),
       'source': serializer.toJson<String>(source),
       'createdAt': serializer.toJson<DateTime>(createdAt),
+      'isActive': serializer.toJson<bool>(isActive),
     };
   }
 
@@ -2672,6 +2704,7 @@ class Subscription extends DataClass implements Insertable<Subscription> {
     DateTime? nextChargeDate,
     String? source,
     DateTime? createdAt,
+    bool? isActive,
   }) => Subscription(
     id: id ?? this.id,
     name: name ?? this.name,
@@ -2682,6 +2715,7 @@ class Subscription extends DataClass implements Insertable<Subscription> {
     nextChargeDate: nextChargeDate ?? this.nextChargeDate,
     source: source ?? this.source,
     createdAt: createdAt ?? this.createdAt,
+    isActive: isActive ?? this.isActive,
   );
   Subscription copyWithCompanion(SubscriptionsCompanion data) {
     return Subscription(
@@ -2696,6 +2730,7 @@ class Subscription extends DataClass implements Insertable<Subscription> {
           : this.nextChargeDate,
       source: data.source.present ? data.source.value : this.source,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      isActive: data.isActive.present ? data.isActive.value : this.isActive,
     );
   }
 
@@ -2710,7 +2745,8 @@ class Subscription extends DataClass implements Insertable<Subscription> {
           ..write('cycle: $cycle, ')
           ..write('nextChargeDate: $nextChargeDate, ')
           ..write('source: $source, ')
-          ..write('createdAt: $createdAt')
+          ..write('createdAt: $createdAt, ')
+          ..write('isActive: $isActive')
           ..write(')'))
         .toString();
   }
@@ -2726,6 +2762,7 @@ class Subscription extends DataClass implements Insertable<Subscription> {
     nextChargeDate,
     source,
     createdAt,
+    isActive,
   );
   @override
   bool operator ==(Object other) =>
@@ -2739,7 +2776,8 @@ class Subscription extends DataClass implements Insertable<Subscription> {
           other.cycle == this.cycle &&
           other.nextChargeDate == this.nextChargeDate &&
           other.source == this.source &&
-          other.createdAt == this.createdAt);
+          other.createdAt == this.createdAt &&
+          other.isActive == this.isActive);
 }
 
 class SubscriptionsCompanion extends UpdateCompanion<Subscription> {
@@ -2752,6 +2790,7 @@ class SubscriptionsCompanion extends UpdateCompanion<Subscription> {
   final Value<DateTime> nextChargeDate;
   final Value<String> source;
   final Value<DateTime> createdAt;
+  final Value<bool> isActive;
   const SubscriptionsCompanion({
     this.id = const Value.absent(),
     this.name = const Value.absent(),
@@ -2762,6 +2801,7 @@ class SubscriptionsCompanion extends UpdateCompanion<Subscription> {
     this.nextChargeDate = const Value.absent(),
     this.source = const Value.absent(),
     this.createdAt = const Value.absent(),
+    this.isActive = const Value.absent(),
   });
   SubscriptionsCompanion.insert({
     this.id = const Value.absent(),
@@ -2773,6 +2813,7 @@ class SubscriptionsCompanion extends UpdateCompanion<Subscription> {
     required DateTime nextChargeDate,
     this.source = const Value.absent(),
     required DateTime createdAt,
+    this.isActive = const Value.absent(),
   }) : name = Value(name),
        amount = Value(amount),
        cycle = Value(cycle),
@@ -2788,6 +2829,7 @@ class SubscriptionsCompanion extends UpdateCompanion<Subscription> {
     Expression<DateTime>? nextChargeDate,
     Expression<String>? source,
     Expression<DateTime>? createdAt,
+    Expression<bool>? isActive,
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
@@ -2799,6 +2841,7 @@ class SubscriptionsCompanion extends UpdateCompanion<Subscription> {
       if (nextChargeDate != null) 'next_charge_date': nextChargeDate,
       if (source != null) 'source': source,
       if (createdAt != null) 'created_at': createdAt,
+      if (isActive != null) 'is_active': isActive,
     });
   }
 
@@ -2812,6 +2855,7 @@ class SubscriptionsCompanion extends UpdateCompanion<Subscription> {
     Value<DateTime>? nextChargeDate,
     Value<String>? source,
     Value<DateTime>? createdAt,
+    Value<bool>? isActive,
   }) {
     return SubscriptionsCompanion(
       id: id ?? this.id,
@@ -2823,6 +2867,7 @@ class SubscriptionsCompanion extends UpdateCompanion<Subscription> {
       nextChargeDate: nextChargeDate ?? this.nextChargeDate,
       source: source ?? this.source,
       createdAt: createdAt ?? this.createdAt,
+      isActive: isActive ?? this.isActive,
     );
   }
 
@@ -2856,6 +2901,9 @@ class SubscriptionsCompanion extends UpdateCompanion<Subscription> {
     if (createdAt.present) {
       map['created_at'] = Variable<DateTime>(createdAt.value);
     }
+    if (isActive.present) {
+      map['is_active'] = Variable<bool>(isActive.value);
+    }
     return map;
   }
 
@@ -2870,7 +2918,8 @@ class SubscriptionsCompanion extends UpdateCompanion<Subscription> {
           ..write('cycle: $cycle, ')
           ..write('nextChargeDate: $nextChargeDate, ')
           ..write('source: $source, ')
-          ..write('createdAt: $createdAt')
+          ..write('createdAt: $createdAt, ')
+          ..write('isActive: $isActive')
           ..write(')'))
         .toString();
   }
@@ -4149,6 +4198,7 @@ typedef $$SubscriptionsTableCreateCompanionBuilder =
       required DateTime nextChargeDate,
       Value<String> source,
       required DateTime createdAt,
+      Value<bool> isActive,
     });
 typedef $$SubscriptionsTableUpdateCompanionBuilder =
     SubscriptionsCompanion Function({
@@ -4161,6 +4211,7 @@ typedef $$SubscriptionsTableUpdateCompanionBuilder =
       Value<DateTime> nextChargeDate,
       Value<String> source,
       Value<DateTime> createdAt,
+      Value<bool> isActive,
     });
 
 class $$SubscriptionsTableFilterComposer
@@ -4214,6 +4265,11 @@ class $$SubscriptionsTableFilterComposer
 
   ColumnFilters<DateTime> get createdAt => $composableBuilder(
     column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get isActive => $composableBuilder(
+    column: $table.isActive,
     builder: (column) => ColumnFilters(column),
   );
 }
@@ -4271,6 +4327,11 @@ class $$SubscriptionsTableOrderingComposer
     column: $table.createdAt,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<bool> get isActive => $composableBuilder(
+    column: $table.isActive,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $$SubscriptionsTableAnnotationComposer
@@ -4310,6 +4371,9 @@ class $$SubscriptionsTableAnnotationComposer
 
   GeneratedColumn<DateTime> get createdAt =>
       $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<bool> get isActive =>
+      $composableBuilder(column: $table.isActive, builder: (column) => column);
 }
 
 class $$SubscriptionsTableTableManager
@@ -4352,6 +4416,7 @@ class $$SubscriptionsTableTableManager
                 Value<DateTime> nextChargeDate = const Value.absent(),
                 Value<String> source = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
+                Value<bool> isActive = const Value.absent(),
               }) => SubscriptionsCompanion(
                 id: id,
                 name: name,
@@ -4362,6 +4427,7 @@ class $$SubscriptionsTableTableManager
                 nextChargeDate: nextChargeDate,
                 source: source,
                 createdAt: createdAt,
+                isActive: isActive,
               ),
           createCompanionCallback:
               ({
@@ -4374,6 +4440,7 @@ class $$SubscriptionsTableTableManager
                 required DateTime nextChargeDate,
                 Value<String> source = const Value.absent(),
                 required DateTime createdAt,
+                Value<bool> isActive = const Value.absent(),
               }) => SubscriptionsCompanion.insert(
                 id: id,
                 name: name,
@@ -4384,6 +4451,7 @@ class $$SubscriptionsTableTableManager
                 nextChargeDate: nextChargeDate,
                 source: source,
                 createdAt: createdAt,
+                isActive: isActive,
               ),
           withReferenceMapper: (p0) => p0
               .map((e) => (e.readTable(table), BaseReferences(db, table, e)))

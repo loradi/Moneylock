@@ -11,14 +11,25 @@ void main() {
     );
 
     final seedDb = AppDatabase.forTesting(NativeDatabase(file));
-    await seedDb.categoriesDao.all(); // forces onCreate to run at schemaVersion 6
-    await seedDb.customStatement('ALTER TABLE mentor_messages DROP COLUMN kind');
-    await seedDb.customStatement('ALTER TABLE mentor_messages DROP COLUMN data_json');
+    await seedDb.categoriesDao.all(); // forces onCreate at the current schema
+    await seedDb.customStatement(
+      'ALTER TABLE mentor_messages DROP COLUMN kind',
+    );
+    await seedDb.customStatement(
+      'ALTER TABLE mentor_messages DROP COLUMN data_json',
+    );
+    // Schema v5 had subscriptions but did not yet contain the sync tombstone.
+    await seedDb.customStatement(
+      'ALTER TABLE subscriptions DROP COLUMN is_active',
+    );
     await seedDb.customStatement('PRAGMA user_version = 5');
     await seedDb.close();
 
     final upgradedDb = AppDatabase.forTesting(NativeDatabase(file));
-    await upgradedDb.messagesDao.add('mentor', 'hi'); // does not throw -- columns exist
+    await upgradedDb.messagesDao.add(
+      'mentor',
+      'hi',
+    ); // does not throw -- columns exist
     final rows = await upgradedDb.messagesDao.watchAll().first;
     expect(rows.single.kind, 'text');
 

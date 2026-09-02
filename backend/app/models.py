@@ -1,5 +1,5 @@
 from datetime import datetime, timezone
-from sqlalchemy import String, Float, DateTime, ForeignKey, UniqueConstraint
+from sqlalchemy import String, Float, DateTime, ForeignKey, UniqueConstraint, Text
 from sqlalchemy.orm import Mapped, mapped_column
 from .db import Base
 
@@ -29,3 +29,10 @@ class Transaction(Base):
     timestamp: Mapped[datetime] = mapped_column(DateTime)
     dedup_hash: Mapped[str] = mapped_column(String(64))
     __table_args__ = (UniqueConstraint("user_id", "dedup_hash", name="uq_user_dedup"),)
+
+
+class SyncProfile(Base):
+    __tablename__ = "sync_profiles"
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), primary_key=True)
+    payload: Mapped[str] = mapped_column(Text)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=_utcnow, onupdate=_utcnow)

@@ -40,7 +40,9 @@ class MentorMessages extends Table {
   TextColumn get content => text()();
   DateTimeColumn get createdAt => dateTime()();
   TextColumn get severity => text().withDefault(const Constant('info'))();
-  TextColumn get kind => text().withDefault(const Constant('text'))(); // 'text' | 'transaction_list' | 'delete_confirm'
+  TextColumn get kind => text().withDefault(
+    const Constant('text'),
+  )(); // 'text' | 'transaction_list' | 'delete_confirm'
   TextColumn get dataJson => text().nullable()();
 }
 
@@ -67,6 +69,8 @@ class Subscriptions extends Table {
   TextColumn get currency => text().withDefault(const Constant('USD'))();
   TextColumn get cycle => text()(); // 'monthly' | 'yearly'
   DateTimeColumn get nextChargeDate => dateTime()();
-  TextColumn get source => text().withDefault(const Constant('manual'))(); // 'manual' | 'suggested'
+  TextColumn get source =>
+      text().withDefault(const Constant('manual'))(); // 'manual' | 'suggested'
   DateTimeColumn get createdAt => dateTime()();
+  BoolColumn get isActive => boolean().withDefault(const Constant(true))();
 }

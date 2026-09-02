@@ -19,6 +19,7 @@ Subscription _subscription({
   nextChargeDate: nextChargeDate,
   source: 'manual',
   createdAt: DateTime(2026),
+  isActive: true,
 );
 
 void main() {

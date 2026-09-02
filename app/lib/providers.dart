@@ -8,6 +8,7 @@ import 'core/deep_links.dart';
 import 'core/notification_scheduler.dart';
 import 'core/notifications.dart';
 import 'data/db.dart';
+import 'data/exchange_rate_service.dart';
 import 'data/savings_goal.dart';
 import 'features/add/add_transaction_flow.dart';
 import 'features/insights/insights_agent.dart';
@@ -66,6 +67,10 @@ final deepLinkHandlerProvider = Provider<DeepLinkHandler>(
 
 final syncCredentialStoreProvider = Provider<SyncCredentialStore>(
   (ref) => PlatformSyncCredentialStore(),
+);
+
+final exchangeRateServiceProvider = Provider<ExchangeRateService>(
+  (ref) => ExchangeRateService(),
 );
 
 final syncServiceProvider = Provider<SyncService>(

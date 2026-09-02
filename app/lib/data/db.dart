@@ -157,6 +157,36 @@ class SettingsDao {
     }
   });
 
+  Future<Map<String, String>> syncValues() async {
+    final rows =
+        await (db.select(db.settings)..where(
+              (setting) =>
+                  setting.key.equals('plan_cycle') |
+                  setting.key.like('monthly_income_%') |
+                  setting.key.like('plan_currency_%') |
+                  setting.key.like('savings_goal_%'),
+            ))
+            .get();
+    return {for (final row in rows) row.key: row.value};
+  }
+
+  Future<void> applySyncValues(Map<String, String> values) =>
+      db.transaction(() async {
+        for (final entry in values.entries) {
+          final allowed =
+              entry.key == 'plan_cycle' ||
+              entry.key.startsWith('monthly_income_') ||
+              entry.key.startsWith('plan_currency_') ||
+              entry.key.startsWith('savings_goal_');
+          if (!allowed) continue;
+          await db
+              .into(db.settings)
+              .insertOnConflictUpdate(
+                SettingsCompanion.insert(key: entry.key, value: entry.value),
+              );
+        }
+      });
+
   Future<String> planCycle() async {
     final row = await (db.select(
       db.settings,
@@ -247,7 +277,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.e);
 
   @override
-  int get schemaVersion => 6;
+  int get schemaVersion => 7;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -279,6 +309,9 @@ class AppDatabase extends _$AppDatabase {
       if (from < 6) {
         await m.addColumn(mentorMessages, mentorMessages.kind);
         await m.addColumn(mentorMessages, mentorMessages.dataJson);
+      }
+      if (from >= 5 && from < 7) {
+        await m.addColumn(subscriptions, subscriptions.isActive);
       }
     },
   );

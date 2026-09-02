@@ -14,6 +14,8 @@ class CategoriesDao {
             ..orderBy([(c) => OrderingTerm.asc(c.name)]))
           .get();
 
+  Future<List<Category>> allForSync() => db.select(db.categories).get();
+
   Stream<List<Category>> watchAll() =>
       (db.select(db.categories)
             ..where((c) => c.isActive.equals(true))
@@ -21,14 +23,10 @@ class CategoriesDao {
           .watch();
 
   Future<void> ensureDefaults() => db.batch(
-    (batch) => batch.insertAll(
-      db.categories,
-      [
-        for (final name in defaultCategoryNames)
-          CategoriesCompanion.insert(name: name, isDefault: const Value(true)),
-      ],
-      mode: InsertMode.insertOrIgnore,
-    ),
+    (batch) => batch.insertAll(db.categories, [
+      for (final name in defaultCategoryNames)
+        CategoriesCompanion.insert(name: name, isDefault: const Value(true)),
+    ], mode: InsertMode.insertOrIgnore),
   );
 
   Future<void> add(String name) {
@@ -41,10 +39,7 @@ class CategoriesDao {
         .into(db.categories)
         .insert(
           companion,
-          onConflict: DoUpdate(
-            (_) => companion,
-            target: [db.categories.name],
-          ),
+          onConflict: DoUpdate((_) => companion, target: [db.categories.name]),
         );
   }
 
@@ -52,6 +47,24 @@ class CategoriesDao {
       (db.update(db.categories)..where((c) => c.name.equals(name))).write(
         const CategoriesCompanion(isActive: Value(false)),
       );
+
+  Future<void> upsertForSync({
+    required String name,
+    required bool isActive,
+    required bool isDefault,
+  }) {
+    final companion = CategoriesCompanion.insert(
+      name: name,
+      isActive: Value(isActive),
+      isDefault: Value(isDefault),
+    );
+    return db
+        .into(db.categories)
+        .insert(
+          companion,
+          onConflict: DoUpdate((_) => companion, target: [db.categories.name]),
+        );
+  }
 }
 
 const defaultCategoryNames = [
