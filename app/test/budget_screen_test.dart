@@ -48,8 +48,9 @@ Future<AppDatabase> _pumpBudgetScreen(WidgetTester tester) async {
         ),
         subscriptionsProvider.overrideWith((ref) => Stream.value(const [])),
         monthlyPlanProvider.overrideWith(
-          (ref, period) =>
-              Future.value(const MonthlyPlanData(income: null, limits: {})),
+          (ref, period) => Future.value(
+            const MonthlyPlanData(income: null, limits: {}, currency: 'USD'),
+          ),
         ),
       ],
       child: const MaterialApp(home: BudgetScreen()),
@@ -109,7 +110,11 @@ void main() {
       await tester.enterText(capField, '75');
 
       planCompleter.complete(
-        const MonthlyPlanData(income: null, limits: {'Bills & Utilities': 20}),
+        const MonthlyPlanData(
+          income: null,
+          limits: {'Bills & Utilities': 20},
+          currency: 'USD',
+        ),
       );
       await tester.pump();
       await tester.pump();
@@ -196,8 +201,9 @@ void main() {
           ),
           subscriptionsProvider.overrideWith((ref) => Stream.value(const [])),
           monthlyPlanProvider.overrideWith(
-            (ref, period) =>
-                Future.value(const MonthlyPlanData(income: null, limits: {})),
+            (ref, period) => Future.value(
+              const MonthlyPlanData(income: null, limits: {}, currency: 'USD'),
+            ),
           ),
         ],
         child: const MaterialApp(home: BudgetScreen()),

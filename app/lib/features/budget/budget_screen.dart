@@ -21,8 +21,13 @@ final categoriesProvider = StreamProvider<List<Category>>((ref) async* {
 class MonthlyPlanData {
   final double? income;
   final Map<String, double> limits;
+  final String currency;
 
-  const MonthlyPlanData({required this.income, required this.limits});
+  const MonthlyPlanData({
+    required this.income,
+    required this.limits,
+    required this.currency,
+  });
 }
 
 final monthlyPlanProvider = FutureProvider.family<MonthlyPlanData, String>((
@@ -30,9 +35,19 @@ final monthlyPlanProvider = FutureProvider.family<MonthlyPlanData, String>((
   period,
 ) async {
   final db = ref.watch(appDatabaseProvider);
-  final income = await db.settingsDao.monthlyIncome(period);
-  final limits = await db.budgetsDao.limitsForPeriod(period);
-  return MonthlyPlanData(income: income, limits: limits);
+  final (income, rows, storedCurrency, defaultCurrency) = await (
+    db.settingsDao.monthlyIncome(period),
+    db.budgetsDao.forPeriod(period),
+    db.settingsDao.planCurrency(period),
+    db.settingsDao.defaultCurrency(),
+  ).wait;
+  return MonthlyPlanData(
+    income: income,
+    limits: {for (final row in rows) row.category: row.monthlyLimit},
+    currency:
+        storedCurrency ??
+        (rows.isEmpty ? defaultCurrency : rows.first.currency),
+  );
 });
 
 class BudgetScreen extends ConsumerStatefulWidget {
@@ -83,6 +98,7 @@ class _BudgetScreenState extends ConsumerState<BudgetScreen> {
     final plan = ref.watch(monthlyPlanProvider(period));
     final planData = plan.valueOrNull;
     if (planData != null && _hydratedPeriod != period) {
+      _currency = planData.currency;
       _hydrateControllers(period, planData.limits);
     }
     final monthTransactions =
@@ -128,14 +144,9 @@ class _BudgetScreenState extends ConsumerState<BudgetScreen> {
                         previousPeriodLabel: _previousPeriodLabel(),
                         isCopyingPreviousPlan: _isCopyingPreviousPlan,
                         onCopyPreviousPlan: _copyPreviousPlan,
-                        currency: _currency,
-                        onCurrencyChanged: (value) {
-                          setState(() => _currency = value);
-                          ref
-                              .read(appDatabaseProvider)
-                              .settingsDao
-                              .setDefaultCurrency(value);
-                        },
+                        currency: planData?.currency ?? _currency,
+                        onCurrencyChanged: (value) =>
+                            _changeCurrency(value, planData),
                         onCycleChanged: _changeCycle,
                       ),
                       const SizedBox(height: 12),
@@ -143,7 +154,7 @@ class _BudgetScreenState extends ConsumerState<BudgetScreen> {
                         subscriptions: subscriptions,
                         start: _cycle.startFor(_periodAnchor),
                         end: _cycle.endFor(_periodAnchor),
-                        currency: _currency,
+                        currency: planData?.currency ?? _currency,
                       ),
                     ],
                   ),
@@ -221,6 +232,10 @@ class _BudgetScreenState extends ConsumerState<BudgetScreen> {
             cycleDays: _cycle.daysFor(_periodAnchor),
             currency: _currency,
           );
+      await ref
+          .read(appDatabaseProvider)
+          .settingsDao
+          .setPlanCurrency(_periodKey(), _currency);
       ref.invalidate(monthlyPlanProvider(_periodKey()));
     } catch (error) {
       if (mounted) {
@@ -311,19 +326,59 @@ class _BudgetScreenState extends ConsumerState<BudgetScreen> {
     ref.read(appDatabaseProvider).settingsDao.setPlanCycle(cycle.storageValue);
   }
 
+  Future<void> _changeCurrency(
+    String currency,
+    MonthlyPlanData? planData,
+  ) async {
+    if (currency == _currency) return;
+    final hasValues =
+        planData != null &&
+        (planData.income != null || planData.limits.isNotEmpty);
+    if (hasValues) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'This plan already has values. Create a new period to use a different currency.',
+          ),
+        ),
+      );
+      return;
+    }
+    setState(() => _currency = currency);
+    await ref
+        .read(appDatabaseProvider)
+        .settingsDao
+        .setPlanCurrency(_periodKey(), currency);
+    ref.invalidate(monthlyPlanProvider(_periodKey()));
+  }
+
   Future<void> _copyPreviousPlan() async {
     if (_isCopyingPreviousPlan) return;
     setState(() => _isCopyingPreviousPlan = true);
 
     try {
       final db = ref.read(appDatabaseProvider);
-      final sourceStart = _cycle.shift(_periodAnchor, -1);
-      final sourcePeriod = _periodKeyFor(sourceStart);
+      var sourceStart = _cycle.shift(_periodAnchor, -1);
+      var sourcePeriod = _periodKeyFor(sourceStart);
       final targetPeriod = _periodKey();
-      final sourceLimits = await db.budgetsDao.limitsForPeriod(sourcePeriod);
+      var sourceRows = await db.budgetsDao.forPeriod(sourcePeriod);
+
+      // A first weekly or two-week plan commonly starts from an existing
+      // monthly plan. Fall back to that plan instead of showing an empty
+      // result just because the cadence changed.
+      if (sourceRows.isEmpty && _cycle != PlanCycle.monthly) {
+        final monthlySourceStart = PlanCycle.monthly.startFor(_periodAnchor);
+        final monthlySourcePeriod = PlanCycle.monthly.keyFor(_periodAnchor);
+        final monthlyRows = await db.budgetsDao.forPeriod(monthlySourcePeriod);
+        if (monthlyRows.isNotEmpty) {
+          sourceStart = monthlySourceStart;
+          sourcePeriod = monthlySourcePeriod;
+          sourceRows = monthlyRows;
+        }
+      }
       final sourceIncome = await db.settingsDao.monthlyIncome(sourcePeriod);
 
-      if (sourceLimits.isEmpty && sourceIncome == null) {
+      if (sourceRows.isEmpty && sourceIncome == null) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
@@ -362,16 +417,32 @@ class _BudgetScreenState extends ConsumerState<BudgetScreen> {
         if (confirmed != true) return;
       }
 
+      final sourceCycleDays = sourceRows.isEmpty
+          ? _cycle.daysFor(sourceStart)
+          : sourceRows.first.cycleDays;
+      final targetCycleDays = _cycle.daysFor(_periodAnchor);
+      final multiplier = targetCycleDays / sourceCycleDays;
+      final sourceCurrency =
+          await db.settingsDao.planCurrency(sourcePeriod) ??
+          (sourceRows.isEmpty ? _currency : sourceRows.first.currency);
       final count = await db.budgetsDao.copyPeriod(
         sourcePeriod,
         targetPeriod,
-        targetCycleDays: _cycle.daysFor(_periodAnchor),
+        targetCycleDays: targetCycleDays,
+        targetCycle: _cycle.storageValue,
+        targetCurrency: sourceCurrency,
+        multiplier: multiplier,
       );
       if (sourceIncome != null) {
-        await db.settingsDao.setMonthlyIncome(targetPeriod, sourceIncome);
+        await db.settingsDao.setMonthlyIncome(
+          targetPeriod,
+          sourceIncome * multiplier,
+        );
       }
+      await db.settingsDao.setPlanCurrency(targetPeriod, sourceCurrency);
       if (!mounted) return;
       setState(() {
+        _currency = sourceCurrency;
         _editedCategories.clear();
         _hydratedPeriod = '';
       });
@@ -432,6 +503,10 @@ class _BudgetScreenState extends ConsumerState<BudgetScreen> {
         .read(appDatabaseProvider)
         .settingsDao
         .setMonthlyIncome(_periodKey(), amount);
+    await ref
+        .read(appDatabaseProvider)
+        .settingsDao
+        .setPlanCurrency(_periodKey(), _currency);
     ref.invalidate(monthlyPlanProvider(_periodKey()));
   }
 

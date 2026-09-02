@@ -54,4 +54,34 @@ void main() {
       await db.close();
     },
   );
+
+  test('copyPeriod can scale a monthly plan into a weekly plan', () async {
+    final db = AppDatabase.forTesting(
+      driftDatabase(name: 'test_${DateTime.now().microsecondsSinceEpoch}'),
+    );
+    await db.budgetsDao.upsert(
+      'Groceries',
+      300.0,
+      '2026-09',
+      cycle: 'monthly',
+      cycleDays: 30,
+      currency: 'CAD',
+    );
+
+    await db.budgetsDao.copyPeriod(
+      '2026-09',
+      '2026-09-07',
+      targetCycleDays: 7,
+      targetCycle: 'weekly',
+      targetCurrency: 'CAD',
+      multiplier: 7 / 30,
+    );
+
+    final copied = (await db.budgetsDao.forPeriod('2026-09-07')).single;
+    expect(copied.monthlyLimit, closeTo(70.0, 0.001));
+    expect(copied.cycle, 'weekly');
+    expect(copied.cycleDays, 7);
+    expect(copied.currency, 'CAD');
+    await db.close();
+  });
 }

@@ -34,11 +34,12 @@ class BudgetsDao {
   }
 
   Future<Map<String, double>> limitsForPeriod(String period) async {
-    final rows = await (db.select(
-      db.budgets,
-    )..where((b) => b.period.equals(period))).get();
+    final rows = await forPeriod(period);
     return {for (final r in rows) r.category: r.monthlyLimit};
   }
+
+  Future<List<Budget>> forPeriod(String period) =>
+      (db.select(db.budgets)..where((b) => b.period.equals(period))).get();
 
   /// Copies the category allocations into a new planning month.
   ///
@@ -49,21 +50,22 @@ class BudgetsDao {
     String sourcePeriod,
     String targetPeriod, {
     required int targetCycleDays,
+    String? targetCycle,
+    String? targetCurrency,
+    double multiplier = 1,
   }) async {
-    final source = await (db.select(
-      db.budgets,
-    )..where((b) => b.period.equals(sourcePeriod))).get();
+    final source = await forPeriod(sourcePeriod);
     if (source.isEmpty) return 0;
 
     await db.transaction(() async {
       for (final budget in source) {
         await upsert(
           budget.category,
-          budget.monthlyLimit,
+          budget.monthlyLimit * multiplier,
           targetPeriod,
-          cycle: budget.cycle,
+          cycle: targetCycle ?? budget.cycle,
           cycleDays: targetCycleDays,
-          currency: budget.currency,
+          currency: targetCurrency ?? budget.currency,
         );
       }
     });
