@@ -2,6 +2,9 @@ import 'package:drift/drift.dart';
 
 import 'db.dart';
 
+double convertCurrencyAmount(double amount, double rate) =>
+    (amount * rate * 100).roundToDouble() / 100;
+
 class BudgetsDao {
   final AppDatabase db;
   BudgetsDao(this.db);
@@ -70,6 +73,31 @@ class BudgetsDao {
       }
     });
     return source.length;
+  }
+
+  Future<void> convertPeriodCurrency(
+    String period, {
+    required String targetCurrency,
+    required double rate,
+  }) async {
+    if (!rate.isFinite || rate <= 0) {
+      throw ArgumentError.value(rate, 'rate', 'must be a positive number');
+    }
+    final rows = await forPeriod(period);
+    await db.transaction(() async {
+      for (final budget in rows) {
+        await (db.update(
+          db.budgets,
+        )..where((b) => b.id.equals(budget.id))).write(
+          BudgetsCompanion(
+            monthlyLimit: Value(
+              convertCurrencyAmount(budget.monthlyLimit, rate),
+            ),
+            currency: Value(targetCurrency),
+          ),
+        );
+      }
+    });
   }
 
   Future<List<Budget>> all() => db.select(db.budgets).get();
