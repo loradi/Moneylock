@@ -101,6 +101,31 @@ void main() {
     await db.close();
   });
 
+  test('Vector can save without a model-generated follow-up', () async {
+    final db = _db();
+    final notif = _FakeNotifications();
+    final flow = AddTransactionFlow(
+      categorizer: CategorizerAgent(_FakeLlm('unused')),
+      mentor: MentorAgent(_FakeLlm('unused'), db),
+      db: db,
+      notifications: notif,
+      scheduler: NotificationScheduler(db, _FakeScheduling()),
+    );
+
+    final result = await flow.run(
+      rawText: 'add 54 to groceries',
+      source: 'manual',
+      includeMentorFeedback: false,
+    );
+
+    expect(result.inserted, isTrue);
+    expect(result.transaction?.amount, 54);
+    await result.postSave;
+    expect(await db.messagesDao.watchAll().first, isEmpty);
+    expect(notif.shown, isEmpty);
+    await db.close();
+  });
+
   test('duplicado no inserta ni notifica', () async {
     final db = _db();
     final notif = _FakeNotifications();

@@ -203,6 +203,18 @@ ChatIntent? _fastIntent(String message) {
       newLimit: amount,
     );
   }
+  if (amount != null &&
+      category != null &&
+      RegExp(
+        r'\b(add|log|record|spent|bought|paid|agrega|a[nñ]ade|registr[ae]|gast[eé]|compr[eé]|pag[ué]?)\b',
+        caseSensitive: false,
+      ).hasMatch(normalized)) {
+    return ChatIntent(
+      intent: 'record_transaction',
+      category: category,
+      amount: amount,
+    );
+  }
   if (_isFinancialCheckInRequest(normalized)) {
     return ChatIntent(intent: 'financial_checkin');
   }

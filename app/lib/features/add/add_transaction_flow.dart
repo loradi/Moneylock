@@ -10,6 +10,7 @@ import '../../core/notification_scheduler.dart';
 
 class AddResult {
   final bool inserted;
+  final Transaction? transaction;
   final MentorVerdict? verdict;
   final String? error;
 
@@ -17,7 +18,13 @@ class AddResult {
   /// The saved transaction is already durable when [inserted] is true.
   final Future<void>? postSave;
 
-  AddResult({required this.inserted, this.verdict, this.error, this.postSave});
+  AddResult({
+    required this.inserted,
+    this.transaction,
+    this.verdict,
+    this.error,
+    this.postSave,
+  });
 }
 
 String parseShortcutUrl(Uri uri) {
@@ -47,6 +54,7 @@ class AddTransactionFlow {
     required String rawText,
     required String source,
     DateTime? timestamp,
+    bool includeMentorFeedback = true,
   }) async {
     final ts = timestamp ?? DateTime.now();
     try {
@@ -89,9 +97,14 @@ class AddTransactionFlow {
         rawText: rawText,
         source: source,
         shouldRefine: fallback == null || fallback.confidence < 0.5,
+        includeMentorFeedback: includeMentorFeedback,
       );
       unawaited(postSave);
-      return AddResult(inserted: true, postSave: postSave);
+      return AddResult(
+        inserted: true,
+        transaction: outcome.transaction,
+        postSave: postSave,
+      );
     } catch (e) {
       return AddResult(inserted: false, error: e.toString());
     }
@@ -103,6 +116,7 @@ class AddTransactionFlow {
     required String rawText,
     required String source,
     required bool shouldRefine,
+    required bool includeMentorFeedback,
   }) async {
     var saved = transaction;
     if (shouldRefine) {
@@ -125,6 +139,7 @@ class AddTransactionFlow {
         // or rolling back a user's expense when the model is unavailable.
       }
     }
+    if (!includeMentorFeedback) return;
     try {
       final verdict = await mentor.evaluate(
         category: saved.category,

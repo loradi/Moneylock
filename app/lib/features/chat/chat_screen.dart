@@ -1,6 +1,7 @@
 import 'package:drift/drift.dart' show Value;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../data/budget_change_summary.dart';
 import '../../data/db.dart';
@@ -148,11 +149,28 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       if (shouldRecord) {
         final result = await ref
             .read(addFlowProvider)
-            .run(rawText: text, source: 'manual');
+            .run(rawText: text, source: 'manual', includeMentorFeedback: false);
         if (result.error != null) {
           await db.messagesDao.add(
             'mentor',
             'Could not record that: ${result.error}',
+          );
+        } else if (result.inserted) {
+          final transaction = result.transaction;
+          final label = transaction == null || transaction.merchant.isEmpty
+              ? transaction?.category ?? 'your transaction'
+              : transaction.merchant;
+          final amount = transaction == null
+              ? ''
+              : ' ${transaction.currency} ${transaction.amount.toStringAsFixed(2)}';
+          await db.messagesDao.add(
+            'mentor',
+            'Done — recorded$amount for $label.',
+          );
+        } else {
+          await db.messagesDao.add(
+            'mentor',
+            'That transaction was already recorded.',
           );
         }
       } else {
@@ -268,6 +286,15 @@ class _VectorWelcome extends StatelessWidget {
 
 class _ChatHeader extends StatelessWidget {
   const _ChatHeader();
+
+  void _close(BuildContext context) {
+    if (context.canPop()) {
+      context.pop();
+    } else {
+      context.go('/');
+    }
+  }
+
   @override
   Widget build(BuildContext context) => Container(
     padding: const EdgeInsets.fromLTRB(
@@ -285,7 +312,7 @@ class _ChatHeader extends StatelessWidget {
     child: Row(
       children: [
         IconButton(
-          onPressed: () => Navigator.of(context).maybePop(),
+          onPressed: () => _close(context),
           icon: const Icon(Icons.close, color: AppColors.darkOnSurface),
         ),
         const SizedBox(width: 8),

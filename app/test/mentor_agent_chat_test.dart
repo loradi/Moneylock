@@ -638,6 +638,7 @@ void main() {
     expect(intent.intent, 'record_transaction');
     expect(intent.category, 'Groceries');
     expect(intent.amount, 54);
+    expect(llm.callCount, 0);
     await db.close();
   });
 
