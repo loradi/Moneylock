@@ -50,7 +50,11 @@ final appRouter = GoRouter(
     GoRoute(
       path: '/chat',
       parentNavigatorKey: _rootNavigatorKey,
-      pageBuilder: (_, _) => const NoTransitionPage(child: ChatScreen()),
+      pageBuilder: (_, state) => NoTransitionPage(
+        child: ChatScreen(
+          quickAction: state.uri.queryParameters['quickAction'],
+        ),
+      ),
     ),
     GoRoute(
       path: '/settings',

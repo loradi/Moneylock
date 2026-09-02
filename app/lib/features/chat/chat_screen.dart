@@ -23,7 +23,9 @@ final _amountRe = RegExp(r'\$\s?\d+(?:\.\d{1,2})?|\d+\.\d{2}');
 bool hasMonetaryAmount(String text) => _amountRe.hasMatch(text);
 
 class ChatScreen extends ConsumerStatefulWidget {
-  const ChatScreen({super.key});
+  const ChatScreen({super.key, this.quickAction});
+
+  final String? quickAction;
   @override
   ConsumerState<ChatScreen> createState() => _ChatScreenState();
 }
@@ -31,12 +33,26 @@ class ChatScreen extends ConsumerStatefulWidget {
 class _ChatScreenState extends ConsumerState<ChatScreen> {
   final _controller = TextEditingController();
   final _scroll = ScrollController();
+  final _composerFocus = FocusNode();
   bool _thinking = false;
   int _lastCount = -1;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.quickAction == 'addPurchase') {
+      _controller.text = 'Add a purchase: ';
+      WidgetsBinding.instance.addPostFrameCallback(
+        (_) => _composerFocus.requestFocus(),
+      );
+    }
+  }
+
   @override
   void dispose() {
     _controller.dispose();
     _scroll.dispose();
+    _composerFocus.dispose();
     super.dispose();
   }
 
@@ -88,6 +104,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
             ),
             _Composer(
               controller: _controller,
+              focusNode: _composerFocus,
               onSend: _send,
               onReceipt: _scanReceipt,
             ),
@@ -804,10 +821,12 @@ class _BubbleState extends ConsumerState<_Bubble> {
 
 class _Composer extends StatelessWidget {
   final TextEditingController controller;
+  final FocusNode focusNode;
   final VoidCallback onSend;
   final VoidCallback onReceipt;
   const _Composer({
     required this.controller,
+    required this.focusNode,
     required this.onSend,
     required this.onReceipt,
   });
@@ -826,6 +845,7 @@ class _Composer extends StatelessWidget {
         Expanded(
           child: TextField(
             controller: controller,
+            focusNode: focusNode,
             style: const TextStyle(color: AppColors.darkOnSurface),
             decoration: InputDecoration(
               hintText: 'Ask Vector anything…',

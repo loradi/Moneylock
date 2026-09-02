@@ -9,6 +9,7 @@ import 'package:timezone/timezone.dart' as tz;
 import 'core/notification_scheduler.dart';
 import 'core/notifications.dart';
 import 'core/router.dart';
+import 'core/vector_quick_action.dart';
 import 'providers.dart';
 import 'theme/app_theme.dart';
 
@@ -16,7 +17,9 @@ Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   tz_data.initializeTimeZones();
   try {
-    tz.setLocalLocation(tz.getLocation(await FlutterTimezone.getLocalTimezone()));
+    tz.setLocalLocation(
+      tz.getLocation(await FlutterTimezone.getLocalTimezone()),
+    );
   } catch (_) {
     tz.setLocalLocation(tz.UTC);
   }
@@ -24,14 +27,18 @@ Future<void> main() async {
   await localNotifications.init();
   final container = ProviderContainer();
   unawaited(container.read(deepLinkHandlerProvider).startListening());
-  unawaited(NotificationScheduler(
-    container.read(appDatabaseProvider),
-    localNotifications,
-  ).refresh());
-  runApp(UncontrolledProviderScope(
-    container: container,
-    child: MoneylockApp(notifications: localNotifications),
-  ));
+  unawaited(
+    NotificationScheduler(
+      container.read(appDatabaseProvider),
+      localNotifications,
+    ).refresh(),
+  );
+  runApp(
+    UncontrolledProviderScope(
+      container: container,
+      child: MoneylockApp(notifications: localNotifications),
+    ),
+  );
 }
 
 class MoneylockApp extends StatefulWidget {
@@ -42,17 +49,32 @@ class MoneylockApp extends StatefulWidget {
   State<MoneylockApp> createState() => _MoneylockAppState();
 }
 
-class _MoneylockAppState extends State<MoneylockApp> with WidgetsBindingObserver {
+class _MoneylockAppState extends State<MoneylockApp>
+    with WidgetsBindingObserver {
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    vectorQuickActionController.addListener(_openVectorQuickAction);
+    WidgetsBinding.instance.addPostFrameCallback(
+      (_) => _openVectorQuickAction(),
+    );
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    vectorQuickActionController.removeListener(_openVectorQuickAction);
     super.dispose();
+  }
+
+  void _openVectorQuickAction() {
+    switch (vectorQuickActionController.takePending()) {
+      case VectorQuickAction.addPurchase:
+        appRouter.go('/chat?quickAction=addPurchase');
+      case null:
+        return;
+    }
   }
 
   @override

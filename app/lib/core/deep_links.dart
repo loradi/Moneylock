@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:app_links/app_links.dart';
 
 import 'config.dart';
+import 'vector_quick_action.dart';
 import '../features/add/add_transaction_flow.dart';
 
 /// Handler de deep links `moneylock://add?...`.
@@ -19,9 +20,13 @@ class DeepLinkHandler {
 
   static const _duplicateWindow = Duration(seconds: 2);
 
-  /// Procesa un URI y retorna el resultado del flujo; null si el URI no es
-  /// `moneylock://add`.
+  /// Processes transaction shortcuts and hands Vector quick actions to the
+  /// navigation layer. A Vector action intentionally does not write data.
   Future<AddResult?> handle(Uri uri) async {
+    if (isVectorAddPurchaseLink(uri)) {
+      vectorQuickActionController.requestAddPurchase();
+      return null;
+    }
     if (uri.scheme != Config.appScheme || uri.host != 'add') return null;
 
     final now = DateTime.now();
