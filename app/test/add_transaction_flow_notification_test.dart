@@ -10,23 +10,38 @@ import 'package:moneylock/llm/mentor_agent.dart' show Severity, MentorAgent;
 
 class _FakeLlm implements LlmProvider {
   @override
-  Future<String> complete(String system, String user, {double? temperature}) async =>
+  Future<String> complete(
+    String system,
+    String user, {
+    double? temperature,
+  }) async =>
       '{"amount": 12.0, "merchant": "Test", "category": "Other", "currency": "USD"}';
 }
 
 class _FakeNotifications implements NotificationScheduling {
   int refreshTriggeringCancelCalls = 0;
   @override
-  Future<void> scheduleAt(int id, DateTime when, String title, String body) async {}
+  Future<void> scheduleAt(
+    int id,
+    DateTime when,
+    String title,
+    String body,
+  ) async {}
   @override
   Future<void> cancel(int id) async => refreshTriggeringCancelCalls++;
 }
 
 class _ThrowingNotifications implements NotificationScheduling {
   @override
-  Future<void> scheduleAt(int id, DateTime when, String title, String body) async {
+  Future<void> scheduleAt(
+    int id,
+    DateTime when,
+    String title,
+    String body,
+  ) async {
     throw Exception('scheduling failed');
   }
+
   @override
   Future<void> cancel(int id) async {
     throw Exception('cancel failed');
@@ -35,7 +50,12 @@ class _ThrowingNotifications implements NotificationScheduling {
 
 class _NoOpNotifications implements NotificationScheduling {
   @override
-  Future<void> scheduleAt(int id, DateTime when, String title, String body) async {}
+  Future<void> scheduleAt(
+    int id,
+    DateTime when,
+    String title,
+    String body,
+  ) async {}
   @override
   Future<void> cancel(int id) async {}
 }
@@ -58,29 +78,35 @@ class _ThrowingLocalNotifications extends LocalNotifications {
 }
 
 AppDatabase _db() => AppDatabase.forTesting(
-    driftDatabase(name: 'test_${DateTime.now().microsecondsSinceEpoch}'));
+  driftDatabase(name: 'test_${DateTime.now().microsecondsSinceEpoch}'),
+);
 
 void main() {
-  test('a successfully recorded transaction triggers a scheduler refresh', () async {
-    final db = _db();
-    final llm = _FakeLlm();
-    final fakeNotifications = _FakeNotifications();
-    final flow = AddTransactionFlow(
-      categorizer: CategorizerAgent(llm),
-      mentor: MentorAgent(llm, db),
-      db: db,
-      notifications: _FakeLocalNotifications(),
-      scheduler: NotificationScheduler(db, fakeNotifications),
-    );
+  test(
+    'a successfully recorded transaction triggers a scheduler refresh',
+    () async {
+      final db = _db();
+      final llm = _FakeLlm();
+      final fakeNotifications = _FakeNotifications();
+      final flow = AddTransactionFlow(
+        categorizer: CategorizerAgent(llm),
+        mentor: MentorAgent(llm, db),
+        db: db,
+        notifications: _FakeLocalNotifications(),
+        scheduler: NotificationScheduler(db, fakeNotifications),
+      );
 
-    final result = await flow.run(rawText: 'Test 12 USD', source: 'manual');
+      final result = await flow.run(rawText: 'Test 12 USD', source: 'manual');
 
-    // refresh() always cancels the 4 known IDs first; a non-zero count
-    // proves refresh() ran as a result of this call.
-    expect(fakeNotifications.refreshTriggeringCancelCalls, greaterThan(0));
-    expect(result.inserted, isTrue);
-    await db.close();
-  });
+      await result.postSave;
+
+      // refresh() always cancels the 4 known IDs first; a non-zero count
+      // proves refresh() ran as a result of this call.
+      expect(fakeNotifications.refreshTriggeringCancelCalls, greaterThan(0));
+      expect(result.inserted, isTrue);
+      await db.close();
+    },
+  );
 
   test('a scheduler failure does not mask a successful transaction', () async {
     final db = _db();
@@ -90,29 +116,40 @@ void main() {
       mentor: MentorAgent(llm, db),
       db: db,
       notifications: _FakeLocalNotifications(),
-      scheduler: NotificationScheduler(db, _ThrowingNotifications(), now: () => DateTime(2024, 1, 1, 10, 0)),
+      scheduler: NotificationScheduler(
+        db,
+        _ThrowingNotifications(),
+        now: () => DateTime(2024, 1, 1, 10, 0),
+      ),
     );
 
     final result = await flow.run(rawText: 'Test 12 USD', source: 'manual');
+
+    await result.postSave;
 
     expect(result.inserted, isTrue);
     await db.close();
   });
 
-  test('a mentor/notification failure does not mask a successful transaction', () async {
-    final db = _db();
-    final llm = _FakeLlm();
-    final flow = AddTransactionFlow(
-      categorizer: CategorizerAgent(llm),
-      mentor: MentorAgent(llm, db),
-      db: db,
-      notifications: _ThrowingLocalNotifications(),
-      scheduler: NotificationScheduler(db, _NoOpNotifications()),
-    );
+  test(
+    'a mentor/notification failure does not mask a successful transaction',
+    () async {
+      final db = _db();
+      final llm = _FakeLlm();
+      final flow = AddTransactionFlow(
+        categorizer: CategorizerAgent(llm),
+        mentor: MentorAgent(llm, db),
+        db: db,
+        notifications: _ThrowingLocalNotifications(),
+        scheduler: NotificationScheduler(db, _NoOpNotifications()),
+      );
 
-    final result = await flow.run(rawText: 'Test 12 USD', source: 'manual');
+      final result = await flow.run(rawText: 'Test 12 USD', source: 'manual');
 
-    expect(result.inserted, isTrue);
-    await db.close();
-  });
+      await result.postSave;
+
+      expect(result.inserted, isTrue);
+      await db.close();
+    },
+  );
 }

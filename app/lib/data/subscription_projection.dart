@@ -30,20 +30,32 @@ MonthlySubscriptionProjection projectSubscriptionCharges({
 }) {
   final monthStart = DateTime(month.year, month.month);
   final monthEnd = DateTime(month.year, month.month + 1);
+  return projectSubscriptionChargesInRange(
+    subscriptions: subscriptions,
+    start: monthStart,
+    end: monthEnd,
+    currency: currency,
+    now: now,
+  );
+}
+
+/// Forecasts recurring charges in the half-open [start, end) planning window.
+/// A past period is intentionally empty because historic scheduled dates are
+/// not reliable enough to reconstruct after the fact.
+MonthlySubscriptionProjection projectSubscriptionChargesInRange({
+  required List<Subscription> subscriptions,
+  required DateTime start,
+  required DateTime end,
+  required String currency,
+  DateTime? now,
+}) {
   final today = now ?? DateTime.now();
   final startOfToday = DateTime(today.year, today.month, today.day);
 
-  // Historical subscription dates are not reliable enough to reconstruct, so
-  // only project the current month forward or future months.
-  if (!monthEnd.isAfter(startOfToday)) {
+  if (!end.isAfter(startOfToday)) {
     return const MonthlySubscriptionProjection([]);
   }
-  final windowStart =
-      today.year == month.year &&
-          today.month == month.month &&
-          startOfToday.isAfter(monthStart)
-      ? startOfToday
-      : monthStart;
+  final windowStart = startOfToday.isAfter(start) ? startOfToday : start;
   final charges = <ProjectedSubscriptionCharge>[];
 
   for (final subscription in subscriptions.where(
@@ -57,7 +69,7 @@ MonthlySubscriptionProjection projectSubscriptionCharges({
     while (chargeDate.isBefore(windowStart)) {
       chargeDate = _advanceCycle(chargeDate, subscription.cycle);
     }
-    while (chargeDate.isBefore(monthEnd)) {
+    while (chargeDate.isBefore(end)) {
       charges.add(
         ProjectedSubscriptionCharge(
           subscription: subscription,

@@ -63,6 +63,19 @@ class SettingsDao {
         SettingsCompanion.insert(key: 'default_currency', value: currency),
       );
 
+  Future<String> planCycle() async {
+    final row = await (db.select(
+      db.settings,
+    )..where((s) => s.key.equals('plan_cycle'))).getSingleOrNull();
+    return row?.value ?? 'monthly';
+  }
+
+  Future<void> setPlanCycle(String cycle) => db
+      .into(db.settings)
+      .insertOnConflictUpdate(
+        SettingsCompanion.insert(key: 'plan_cycle', value: cycle),
+      );
+
   /// Income is deliberately stored per planning month: it is a private,
   /// user-declared planning input, not a claimed bank-account balance.
   Future<double?> monthlyIncome(String period) async {

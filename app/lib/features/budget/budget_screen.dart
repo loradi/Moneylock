@@ -10,6 +10,7 @@ import '../../data/subscription_projection.dart';
 import '../../providers.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/kit.dart';
+import 'plan_period.dart';
 
 final categoriesProvider = StreamProvider<List<Category>>((ref) async* {
   final dao = ref.watch(appDatabaseProvider).categoriesDao;
@@ -41,7 +42,9 @@ class BudgetScreen extends ConsumerStatefulWidget {
 }
 
 class _BudgetScreenState extends ConsumerState<BudgetScreen> {
-  DateTime _month = DateTime(DateTime.now().year, DateTime.now().month);
+  DateTime _periodAnchor = DateTime.now();
+  PlanCycle _cycle = PlanCycle.monthly;
+  bool _cycleInitialized = false;
   String _currency = 'USD';
   bool _currencyInitialized = false;
   String _hydratedPeriod = '';
@@ -64,6 +67,12 @@ class _BudgetScreenState extends ConsumerState<BudgetScreen> {
       _currency = defaultCurrency;
       _currencyInitialized = true;
     }
+    final storedCycle = ref.watch(planCycleProvider).valueOrNull;
+    if (!_cycleInitialized && storedCycle != null) {
+      _cycle = PlanCycle.fromStorage(storedCycle);
+      _periodAnchor = _cycle.startFor(DateTime.now());
+      _cycleInitialized = true;
+    }
     final categories = ref.watch(categoriesProvider).valueOrNull ?? const [];
     final names = categories.map((c) => c.name).toList();
     final records = {for (final c in categories) c.name: c};
@@ -80,7 +89,7 @@ class _BudgetScreenState extends ConsumerState<BudgetScreen> {
         ref
             .watch(transactionsStreamProvider)
             .valueOrNull
-            ?.where((t) => _isInSelectedMonth(t.timestamp))
+            ?.where((t) => _isInSelectedPeriod(t.timestamp))
             .toList() ??
         const [];
     final subscriptions =
@@ -106,7 +115,8 @@ class _BudgetScreenState extends ConsumerState<BudgetScreen> {
                   child: Column(
                     children: [
                       _PlanOverview(
-                        monthLabel: DateFormat('MMMM yyyy').format(_month),
+                        periodLabel: _periodLabel(),
+                        cycle: _cycle,
                         income: planData?.income,
                         planned: planned,
                         spent: spent,
@@ -115,8 +125,7 @@ class _BudgetScreenState extends ConsumerState<BudgetScreen> {
                         onPreviousMonth: () => _changeMonth(-1),
                         onNextMonth: () => _changeMonth(1),
                         onEditIncome: () => _editIncome(planData?.income),
-                        previousMonthLabel: DateFormat('MMMM')
-                            .format(DateTime(_month.year, _month.month - 1)),
+                        previousPeriodLabel: _previousPeriodLabel(),
                         isCopyingPreviousPlan: _isCopyingPreviousPlan,
                         onCopyPreviousPlan: _copyPreviousPlan,
                         currency: _currency,
@@ -127,11 +136,13 @@ class _BudgetScreenState extends ConsumerState<BudgetScreen> {
                               .settingsDao
                               .setDefaultCurrency(value);
                         },
+                        onCycleChanged: _changeCycle,
                       ),
                       const SizedBox(height: 12),
                       _RecurringProjectionCard(
                         subscriptions: subscriptions,
-                        month: _month,
+                        start: _cycle.startFor(_periodAnchor),
+                        end: _cycle.endFor(_periodAnchor),
                         currency: _currency,
                       ),
                     ],
@@ -206,8 +217,8 @@ class _BudgetScreenState extends ConsumerState<BudgetScreen> {
             category,
             amount,
             _periodKey(),
-            cycle: 'monthly',
-            cycleDays: DateUtils.getDaysInMonth(_month.year, _month.month),
+            cycle: _cycle.storageValue,
+            cycleDays: _cycle.daysFor(_periodAnchor),
             currency: _currency,
           );
       ref.invalidate(monthlyPlanProvider(_periodKey()));
@@ -277,14 +288,28 @@ class _BudgetScreenState extends ConsumerState<BudgetScreen> {
     _hydratedPeriod = period;
   }
 
-  bool _isInSelectedMonth(DateTime value) =>
-      value.year == _month.year && value.month == _month.month;
+  bool _isInSelectedPeriod(DateTime value) {
+    final start = _cycle.startFor(_periodAnchor);
+    final end = _cycle.endFor(_periodAnchor);
+    return !value.isBefore(start) && value.isBefore(end);
+  }
 
   void _changeMonth(int offset) => setState(() {
-    _month = DateTime(_month.year, _month.month + offset);
+    _periodAnchor = _cycle.shift(_periodAnchor, offset);
     _hydratedPeriod = '';
     _editedCategories.clear();
   });
+
+  void _changeCycle(PlanCycle cycle) {
+    if (_cycle == cycle) return;
+    setState(() {
+      _cycle = cycle;
+      _periodAnchor = cycle.startFor(DateTime.now());
+      _hydratedPeriod = '';
+      _editedCategories.clear();
+    });
+    ref.read(appDatabaseProvider).settingsDao.setPlanCycle(cycle.storageValue);
+  }
 
   Future<void> _copyPreviousPlan() async {
     if (_isCopyingPreviousPlan) return;
@@ -292,8 +317,8 @@ class _BudgetScreenState extends ConsumerState<BudgetScreen> {
 
     try {
       final db = ref.read(appDatabaseProvider);
-      final sourceMonth = DateTime(_month.year, _month.month - 1);
-      final sourcePeriod = _periodKeyFor(sourceMonth);
+      final sourceStart = _cycle.shift(_periodAnchor, -1);
+      final sourcePeriod = _periodKeyFor(sourceStart);
       final targetPeriod = _periodKey();
       final sourceLimits = await db.budgetsDao.limitsForPeriod(sourcePeriod);
       final sourceIncome = await db.settingsDao.monthlyIncome(sourcePeriod);
@@ -303,7 +328,7 @@ class _BudgetScreenState extends ConsumerState<BudgetScreen> {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text(
-                'No plan found for ${DateFormat('MMMM').format(sourceMonth)}.',
+                'No plan found for ${_periodLabelFor(sourceStart)}.',
               ),
             ),
           );
@@ -320,7 +345,7 @@ class _BudgetScreenState extends ConsumerState<BudgetScreen> {
           builder: (context) => AlertDialog(
             title: const Text('Replace this plan?'),
             content: Text(
-              'This copies the income and matching category amounts from ${DateFormat('MMMM').format(sourceMonth)}. Categories you added only in this month stay unchanged.',
+              'This copies the income and matching category amounts from ${_periodLabelFor(sourceStart)}. Categories you added only in this period stay unchanged.',
             ),
             actions: [
               TextButton(
@@ -340,7 +365,7 @@ class _BudgetScreenState extends ConsumerState<BudgetScreen> {
       final count = await db.budgetsDao.copyPeriod(
         sourcePeriod,
         targetPeriod,
-        targetCycleDays: DateUtils.getDaysInMonth(_month.year, _month.month),
+        targetCycleDays: _cycle.daysFor(_periodAnchor),
       );
       if (sourceIncome != null) {
         await db.settingsDao.setMonthlyIncome(targetPeriod, sourceIncome);
@@ -354,7 +379,7 @@ class _BudgetScreenState extends ConsumerState<BudgetScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            'Copied ${count == 1 ? '1 category' : '$count categories'} from ${DateFormat('MMMM').format(sourceMonth)}.',
+            'Copied ${count == 1 ? '1 category' : '$count categories'} from ${_periodLabelFor(sourceStart)}.',
           ),
         ),
       );
@@ -376,7 +401,7 @@ class _BudgetScreenState extends ConsumerState<BudgetScreen> {
     final amount = await showDialog<double>(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text('Income for ${DateFormat('MMMM').format(_month)}'),
+        title: Text('Income for ${_periodLabel()}'),
         content: TextField(
           controller: controller,
           autofocus: true,
@@ -410,10 +435,23 @@ class _BudgetScreenState extends ConsumerState<BudgetScreen> {
     ref.invalidate(monthlyPlanProvider(_periodKey()));
   }
 
-  String _periodKey() => _periodKeyFor(_month);
+  String _periodKey() => _periodKeyFor(_periodAnchor);
 
-  String _periodKeyFor(DateTime month) =>
-      '${month.year.toString().padLeft(4, '0')}-${month.month.toString().padLeft(2, '0')}';
+  String _periodKeyFor(DateTime date) => _cycle.keyFor(date);
+
+  String _periodLabel() => _periodLabelFor(_periodAnchor);
+
+  String _previousPeriodLabel() =>
+      _periodLabelFor(_cycle.shift(_periodAnchor, -1));
+
+  String _periodLabelFor(DateTime date) {
+    if (_cycle == PlanCycle.monthly) {
+      return DateFormat('MMMM yyyy').format(_cycle.startFor(date));
+    }
+    final start = _cycle.startFor(date);
+    final end = _cycle.endFor(date).subtract(const Duration(days: 1));
+    return '${DateFormat('MMM d').format(start)} – ${DateFormat('MMM d, yyyy').format(end)}';
+  }
 }
 
 class _AddCategoryDialog extends StatefulWidget {
@@ -581,7 +619,8 @@ class _BudgetRowState extends State<_BudgetRow> {
 }
 
 class _PlanOverview extends StatelessWidget {
-  final String monthLabel;
+  final String periodLabel;
+  final PlanCycle cycle;
   final double? income;
   final double planned;
   final double spent;
@@ -590,14 +629,16 @@ class _PlanOverview extends StatelessWidget {
   final VoidCallback onPreviousMonth;
   final VoidCallback onNextMonth;
   final VoidCallback onEditIncome;
-  final String previousMonthLabel;
+  final String previousPeriodLabel;
   final bool isCopyingPreviousPlan;
   final Future<void> Function() onCopyPreviousPlan;
   final String currency;
   final ValueChanged<String> onCurrencyChanged;
+  final ValueChanged<PlanCycle> onCycleChanged;
 
   const _PlanOverview({
-    required this.monthLabel,
+    required this.periodLabel,
+    required this.cycle,
     required this.income,
     required this.planned,
     required this.spent,
@@ -606,11 +647,12 @@ class _PlanOverview extends StatelessWidget {
     required this.onPreviousMonth,
     required this.onNextMonth,
     required this.onEditIncome,
-    required this.previousMonthLabel,
+    required this.previousPeriodLabel,
     required this.isCopyingPreviousPlan,
     required this.onCopyPreviousPlan,
     required this.currency,
     required this.onCurrencyChanged,
+    required this.onCycleChanged,
   });
 
   @override
@@ -628,7 +670,9 @@ class _PlanOverview extends StatelessWidget {
                 color: AppColors.primary,
               ),
               const SizedBox(width: 8),
-              const Expanded(child: AppSectionLabel('MONTHLY PLAN')),
+              Expanded(
+                child: AppSectionLabel('${cycle.label.toUpperCase()} PLAN'),
+              ),
               Text(currency, style: AppTextStyles.labelCaps),
             ],
           ),
@@ -636,19 +680,19 @@ class _PlanOverview extends StatelessWidget {
           Row(
             children: [
               IconButton(
-                tooltip: 'Previous month',
+                tooltip: 'Previous period',
                 onPressed: onPreviousMonth,
                 icon: const Icon(Icons.chevron_left),
               ),
               Expanded(
                 child: Text(
-                  monthLabel,
+                  periodLabel,
                   textAlign: TextAlign.center,
                   style: AppTextStyles.headlineMd,
                 ),
               ),
               IconButton(
-                tooltip: 'Next month',
+                tooltip: 'Next period',
                 onPressed: onNextMonth,
                 icon: const Icon(Icons.chevron_right),
               ),
@@ -700,7 +744,7 @@ class _PlanOverview extends StatelessWidget {
                       child: CircularProgressIndicator(strokeWidth: 2),
                     )
                   : const Icon(Icons.content_copy_outlined, size: 18),
-              label: Text('Copy $previousMonthLabel plan'),
+              label: Text('Copy $previousPeriodLabel plan'),
             ),
           ),
           const SizedBox(height: 14),
@@ -717,6 +761,20 @@ class _PlanOverview extends StatelessWidget {
             ],
             onChanged: (v) {
               if (v != null) onCurrencyChanged(v);
+            },
+          ),
+          const SizedBox(height: 12),
+          DropdownButtonFormField<PlanCycle>(
+            initialValue: cycle,
+            decoration: const InputDecoration(labelText: 'Budget cadence'),
+            items: PlanCycle.values
+                .map(
+                  (value) =>
+                      DropdownMenuItem(value: value, child: Text(value.label)),
+                )
+                .toList(),
+            onChanged: (value) {
+              if (value != null) onCycleChanged(value);
             },
           ),
         ],
@@ -777,20 +835,23 @@ class _PlanMetric extends StatelessWidget {
 
 class _RecurringProjectionCard extends StatelessWidget {
   final List<Subscription> subscriptions;
-  final DateTime month;
+  final DateTime start;
+  final DateTime end;
   final String currency;
 
   const _RecurringProjectionCard({
     required this.subscriptions,
-    required this.month,
+    required this.start,
+    required this.end,
     required this.currency,
   });
 
   @override
   Widget build(BuildContext context) {
-    final projection = projectSubscriptionCharges(
+    final projection = projectSubscriptionChargesInRange(
       subscriptions: subscriptions,
-      month: month,
+      start: start,
+      end: end,
       currency: currency,
     );
     final charges = projection.charges;
@@ -814,14 +875,14 @@ class _RecurringProjectionCard extends StatelessWidget {
             const SizedBox(height: 10),
             if (charges.isEmpty)
               Text(
-                'No tracked recurring charges remaining this month.',
+                'No tracked recurring charges remaining in this period.',
                 style: AppTextStyles.bodyMd.copyWith(
                   color: AppColors.onSurfaceVariant,
                 ),
               )
             else ...[
               Text(
-                '${fmtCurrency(projection.total, currency: currency)} scheduled this month',
+                '${fmtCurrency(projection.total, currency: currency)} scheduled in this period',
                 style: AppTextStyles.headlineMd,
               ),
               const SizedBox(height: 8),

@@ -92,6 +92,10 @@ final defaultCurrencyProvider = FutureProvider<String>(
   (ref) => ref.watch(appDatabaseProvider).settingsDao.defaultCurrency(),
 );
 
+final planCycleProvider = FutureProvider<String>(
+  (ref) => ref.watch(appDatabaseProvider).settingsDao.planCycle(),
+);
+
 /// Combina el stream de transacciones y el de presupuestos: se re-emite
 /// cuando cualquiera de las dos tablas cambia, así editar un límite en
 /// Settings refresca las barras del Dashboard sin esperar una transacción.

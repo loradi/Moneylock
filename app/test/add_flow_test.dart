@@ -12,8 +12,11 @@ class _FakeLlm implements LlmProvider {
   final String response;
   _FakeLlm(this.response);
   @override
-  Future<String> complete(String system, String user,
-      {double temperature = 0.2}) async => response;
+  Future<String> complete(
+    String system,
+    String user, {
+    double temperature = 0.2,
+  }) async => response;
 }
 
 class _FakeNotifications extends LocalNotifications {
@@ -28,37 +31,49 @@ class _FakeNotifications extends LocalNotifications {
 
 class _FakeScheduling implements NotificationScheduling {
   @override
-  Future<void> scheduleAt(int id, DateTime when, String title, String body) async {}
+  Future<void> scheduleAt(
+    int id,
+    DateTime when,
+    String title,
+    String body,
+  ) async {}
   @override
   Future<void> cancel(int id) async {}
 }
 
 AppDatabase _db() => AppDatabase.forTesting(
-    driftDatabase(name: 'test_${DateTime.now().microsecondsSinceEpoch}'));
+  driftDatabase(name: 'test_${DateTime.now().microsecondsSinceEpoch}'),
+);
 
 void main() {
   test('inserta, persiste mensaje del mentor y notifica', () async {
     final db = _db();
     final notif = _FakeNotifications();
     final flow = AddTransactionFlow(
-      categorizer: CategorizerAgent(_FakeLlm(
-          '{"amount": 45.5, "currency": "USD", "merchant": "Starbucks", "category": "Coffee & Dining", "confidence": 0.9}')),
+      categorizer: CategorizerAgent(
+        _FakeLlm(
+          '{"amount": 45.5, "currency": "USD", "merchant": "Starbucks", "category": "Coffee & Dining", "confidence": 0.9}',
+        ),
+      ),
       mentor: MentorAgent(_FakeLlm('irrelevant'), db),
       db: db,
       notifications: notif,
       scheduler: NotificationScheduler(db, _FakeScheduling()),
     );
 
-    final r = await flow.run(rawText: 'Starbucks 45.50 USD', source: 'shortcut');
+    final r = await flow.run(
+      rawText: 'Starbucks 45.50 USD',
+      source: 'shortcut',
+    );
 
     expect(r.inserted, isTrue);
     expect(r.error, isNull);
-    expect(r.verdict, isNotNull);
-    expect(r.verdict!.severity, Severity.info);
+    expect(r.verdict, isNull);
     final txs = await db.transactionsDao.recent(10);
     expect(txs, hasLength(1));
     expect(txs.single.merchant, 'Starbucks');
     expect(txs.single.source, 'shortcut');
+    await r.postSave;
     expect(notif.shown, hasLength(1));
     expect(notif.shown.single.title, 'Transaction recorded');
     expect(await db.messagesDao.watchAll().first, hasLength(1));
@@ -82,6 +97,7 @@ void main() {
     final txs = await db.transactionsDao.recent(10);
     expect(txs.single.amount, closeTo(12.5, 0.001));
     expect(txs.single.category, 'Coffee & Dining');
+    await r.postSave;
     await db.close();
   });
 
@@ -89,8 +105,11 @@ void main() {
     final db = _db();
     final notif = _FakeNotifications();
     final flow = AddTransactionFlow(
-      categorizer: CategorizerAgent(_FakeLlm(
-          '{"amount": 45.5, "currency": "USD", "merchant": "Starbucks", "category": "Coffee & Dining", "confidence": 0.9}')),
+      categorizer: CategorizerAgent(
+        _FakeLlm(
+          '{"amount": 45.5, "currency": "USD", "merchant": "Starbucks", "category": "Coffee & Dining", "confidence": 0.9}',
+        ),
+      ),
       mentor: MentorAgent(_FakeLlm('irrelevant'), db),
       db: db,
       notifications: notif,
@@ -99,14 +118,21 @@ void main() {
     final ts = DateTime(2026, 8, 13, 12);
 
     final first = await flow.run(
-        rawText: 'Starbucks 45.50 USD', source: 'shortcut', timestamp: ts);
+      rawText: 'Starbucks 45.50 USD',
+      source: 'shortcut',
+      timestamp: ts,
+    );
     final second = await flow.run(
-        rawText: 'Starbucks 45.50 USD', source: 'shortcut', timestamp: ts);
+      rawText: 'Starbucks 45.50 USD',
+      source: 'shortcut',
+      timestamp: ts,
+    );
 
     expect(first.inserted, isTrue);
     expect(second.inserted, isFalse);
     expect(second.error, isNull);
     expect(await db.transactionsDao.recent(10), hasLength(1));
+    await first.postSave;
     expect(notif.shown, hasLength(1));
     expect(await db.messagesDao.watchAll().first, hasLength(1));
     await db.close();

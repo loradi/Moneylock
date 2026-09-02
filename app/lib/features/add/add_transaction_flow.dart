@@ -1,6 +1,9 @@
+import 'dart:async';
+
 import '../../data/db.dart';
 import '../../data/transactions_dao.dart';
 import '../../llm/categorizer_agent.dart';
+import '../../llm/fallback_parser.dart';
 import '../../llm/mentor_agent.dart';
 import '../../core/notifications.dart';
 import '../../core/notification_scheduler.dart';
@@ -9,7 +12,12 @@ class AddResult {
   final bool inserted;
   final MentorVerdict? verdict;
   final String? error;
-  AddResult({required this.inserted, this.verdict, this.error});
+
+  /// Optional completion signal for non-blocking Vector follow-up work.
+  /// The saved transaction is already durable when [inserted] is true.
+  final Future<void>? postSave;
+
+  AddResult({required this.inserted, this.verdict, this.error, this.postSave});
 }
 
 String parseShortcutUrl(Uri uri) {
@@ -27,25 +35,47 @@ class AddTransactionFlow {
   final AppDatabase db;
   final LocalNotifications notifications;
   final NotificationScheduler scheduler;
-  AddTransactionFlow({required this.categorizer, required this.mentor,
-      required this.db, required this.notifications, required this.scheduler});
+  AddTransactionFlow({
+    required this.categorizer,
+    required this.mentor,
+    required this.db,
+    required this.notifications,
+    required this.scheduler,
+  });
 
-  Future<AddResult> run({required String rawText, required String source, DateTime? timestamp}) async {
+  Future<AddResult> run({
+    required String rawText,
+    required String source,
+    DateTime? timestamp,
+  }) async {
     final ts = timestamp ?? DateTime.now();
     try {
-      final result = await categorizer.categorize(rawText, source: source);
-      final parsed = result.parsed;
+      // A recognized amount can be committed immediately. The on-device model
+      // still refines low-confidence categories after the save, but the user
+      // never has to wait for model inference to protect a simple record.
+      final fallback = parseFallback(rawText);
+      final parsed =
+          fallback ??
+          (await categorizer.categorize(rawText, source: source)).parsed;
       final amount = parsed.amount;
       if (amount == null) {
         return AddResult(inserted: false, error: 'Could not extract amount');
       }
-      final outcome = await db.transactionsDao.insertWithDedup(NewTransaction(
-        amount: amount, currency: parsed.currency,
-        merchant: parsed.merchant ?? '', category: parsed.category ?? 'Other',
-        source: source, rawText: rawText, timestamp: ts));
+      final outcome = await db.transactionsDao.insertWithDedup(
+        NewTransaction(
+          amount: amount,
+          currency: parsed.currency,
+          merchant: parsed.merchant ?? '',
+          category: parsed.category ?? 'Other',
+          source: source,
+          rawText: rawText,
+          timestamp: ts,
+        ),
+      );
       if (!outcome.inserted) {
         return AddResult(inserted: false);
       }
+
       try {
         await scheduler.refresh();
       } catch (_) {
@@ -53,29 +83,68 @@ class AddTransactionFlow {
         // that was already committed; refresh() is idempotent and will be
         // retried on the next app launch/resume/transaction anyway.
       }
-      MentorVerdict? verdict;
-      try {
-        verdict = await mentor.evaluate(
-            category: outcome.transaction!.category,
-            amount: outcome.transaction!.amount,
-            timestamp: ts);
-        await db.messagesDao
-            .add('mentor', verdict.message, severity: verdict.severity.name);
-        final title = switch (verdict.severity) {
-          Severity.alert => 'Over budget',
-          Severity.warning => 'Budget warning',
-          Severity.info => 'Transaction recorded',
-        };
-        await notifications.show(title, verdict.message, verdict.severity);
-      } catch (_) {
-        // Same rationale as the scheduler guard above: the transaction is
-        // already committed, so a failure in the mentor evaluation, the
-        // message log, or the local notification must not report it as
-        // failed to the caller.
-      }
-      return AddResult(inserted: true, verdict: verdict);
+      final postSave = _finishAfterSave(
+        transaction: outcome.transaction!,
+        timestamp: ts,
+        rawText: rawText,
+        source: source,
+        shouldRefine: fallback == null || fallback.confidence < 0.5,
+      );
+      unawaited(postSave);
+      return AddResult(inserted: true, postSave: postSave);
     } catch (e) {
       return AddResult(inserted: false, error: e.toString());
+    }
+  }
+
+  Future<void> _finishAfterSave({
+    required Transaction transaction,
+    required DateTime timestamp,
+    required String rawText,
+    required String source,
+    required bool shouldRefine,
+  }) async {
+    var saved = transaction;
+    if (shouldRefine) {
+      try {
+        final refined = await categorizer.categorize(rawText, source: source);
+        final parsed = refined.parsed;
+        if (parsed.amount != null) {
+          await db.transactionsDao.updateFields(
+            saved.id,
+            merchant: parsed.merchant ?? saved.merchant,
+            category: parsed.category ?? saved.category,
+          );
+          saved = saved.copyWith(
+            merchant: parsed.merchant ?? saved.merchant,
+            category: parsed.category ?? saved.category,
+          );
+        }
+      } catch (_) {
+        // Keeping the immediately recorded fallback is safer than delaying
+        // or rolling back a user's expense when the model is unavailable.
+      }
+    }
+    try {
+      final verdict = await mentor.evaluate(
+        category: saved.category,
+        amount: saved.amount,
+        timestamp: timestamp,
+      );
+      await db.messagesDao.add(
+        'mentor',
+        verdict.message,
+        severity: verdict.severity.name,
+      );
+      final title = switch (verdict.severity) {
+        Severity.alert => 'Over budget',
+        Severity.warning => 'Budget warning',
+        Severity.info => 'Transaction recorded',
+      };
+      await notifications.show(title, verdict.message, verdict.severity);
+    } catch (_) {
+      // The transaction is already committed, so any mentor, message, or
+      // notification failure must not turn a successful save into an error.
     }
   }
 }
