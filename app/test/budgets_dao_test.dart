@@ -85,22 +85,30 @@ void main() {
     await db.close();
   });
 
-  test('convertPeriodCurrency updates every cap and rounds to cents', () async {
-    final db = AppDatabase.forTesting(
-      driftDatabase(name: 'test_${DateTime.now().microsecondsSinceEpoch}'),
-    );
-    await db.budgetsDao.upsert('Groceries', 100.0, '2026-09');
-    await db.budgetsDao.upsert('Transport', 25.555, '2026-09');
+  test(
+    'convertPeriodCurrency atomically updates caps, income, and plan currency',
+    () async {
+      final db = AppDatabase.forTesting(
+        driftDatabase(name: 'test_${DateTime.now().microsecondsSinceEpoch}'),
+      );
+      await db.budgetsDao.upsert('Groceries', 100.0, '2026-09');
+      await db.budgetsDao.upsert('Transport', 25.555, '2026-09');
+      await db.settingsDao.setMonthlyIncome('2026-09', 2000);
+      await db.settingsDao.setPlanCurrency('2026-09', 'USD');
 
-    await db.budgetsDao.convertPeriodCurrency(
-      '2026-09',
-      targetCurrency: 'CAD',
-      rate: 1.36,
-    );
+      await db.budgetsDao.convertPeriodCurrency(
+        '2026-09',
+        targetCurrency: 'CAD',
+        rate: 1.36,
+        income: 2000,
+      );
 
-    final rows = await db.budgetsDao.forPeriod('2026-09');
-    expect(rows.map((row) => row.currency).toSet(), {'CAD'});
-    expect(rows.map((row) => row.monthlyLimit), containsAll([136.0, 34.75]));
-    await db.close();
-  });
+      final rows = await db.budgetsDao.forPeriod('2026-09');
+      expect(rows.map((row) => row.currency).toSet(), {'CAD'});
+      expect(rows.map((row) => row.monthlyLimit), containsAll([136.0, 34.75]));
+      expect(await db.settingsDao.monthlyIncome('2026-09'), 2720.0);
+      expect(await db.settingsDao.planCurrency('2026-09'), 'CAD');
+      await db.close();
+    },
+  );
 }

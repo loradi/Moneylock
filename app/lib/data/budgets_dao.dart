@@ -79,6 +79,7 @@ class BudgetsDao {
     String period, {
     required String targetCurrency,
     required double rate,
+    double? income,
   }) async {
     if (!rate.isFinite || rate <= 0) {
       throw ArgumentError.value(rate, 'rate', 'must be a positive number');
@@ -97,6 +98,24 @@ class BudgetsDao {
           ),
         );
       }
+      if (income != null) {
+        await db
+            .into(db.settings)
+            .insertOnConflictUpdate(
+              SettingsCompanion.insert(
+                key: 'monthly_income_$period',
+                value: convertCurrencyAmount(income, rate).toStringAsFixed(2),
+              ),
+            );
+      }
+      await db
+          .into(db.settings)
+          .insertOnConflictUpdate(
+            SettingsCompanion.insert(
+              key: 'plan_currency_$period',
+              value: targetCurrency,
+            ),
+          );
     });
   }
 

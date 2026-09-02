@@ -361,14 +361,8 @@ class _BudgetScreenState extends ConsumerState<BudgetScreen> {
         _periodKey(),
         targetCurrency: currency,
         rate: rate,
+        income: planData.income,
       );
-      if (planData.income case final income?) {
-        await db.settingsDao.setMonthlyIncome(
-          _periodKey(),
-          convertCurrencyAmount(income, rate),
-        );
-      }
-      await db.settingsDao.setPlanCurrency(_periodKey(), currency);
       if (!mounted) return;
       setState(() => _currency = currency);
       ref.invalidate(monthlyPlanProvider(_periodKey()));
