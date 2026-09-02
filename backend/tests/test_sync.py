@@ -38,3 +38,16 @@ def test_create_user_and_sync_roundtrip():
 def test_sync_requires_api_key():
     r = _client().post("/sync/transactions", json={"transactions": []})
     assert r.status_code == 401
+
+
+def test_sync_accepts_receipts_and_supported_plan_currencies():
+    c = _client()
+    api_key = c.post("/users", json={"email": "currency@b.co"}).json()["api_key"]
+    tx = {"amount": 19.99, "currency": "EUR", "merchant": "Receipt shop",
+          "category": "Shopping & E-commerce", "source": "receipt",
+          "raw_text": "Receipt shop 19.99 EUR", "timestamp": "2026-08-13T10:00:00",
+          "dedup_hash": "receipt-eur-1234"}
+    response = c.post("/sync/transactions", headers={"X-API-Key": api_key},
+                      json={"transactions": [tx]})
+    assert response.status_code == 200
+    assert response.json() == {"inserted": 1, "duplicates": 0}

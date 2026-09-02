@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:moneylock/data/budget_change_summary.dart';
 import 'package:moneylock/data/db.dart';
 import 'package:moneylock/data/new_subscription_summary.dart';
+import 'package:moneylock/data/plan_action_summary.dart';
 import 'package:moneylock/data/subscription_edit_summary.dart';
 import 'package:moneylock/data/subscription_summary.dart';
 import 'package:moneylock/data/transaction_edit_summary.dart';
@@ -679,6 +680,62 @@ void main() {
     expect(result.content, 'General advice.');
     await db.close();
   });
+
+  test(
+    'set_plan_income returns a confirmation action for the current plan',
+    () async {
+      final db = _db();
+      final llm = _ScriptedLlm([
+        '{"intent": "set_plan_income", "amount": 4500}',
+      ]);
+      final agent = MentorAgent(llm, db);
+
+      final result = await agent.chat('set my income to 4500');
+
+      expect(result.kind, 'plan_action_confirm');
+      final action = decodePlanActionSummary(result.dataJson!);
+      expect(action.action, 'set_income');
+      expect(action.amount, 4500);
+      await db.close();
+    },
+  );
+
+  test(
+    'set_plan_currency requires and returns the user-provided rate',
+    () async {
+      final db = _db();
+      final llm = _ScriptedLlm([
+        '{"intent": "set_plan_currency", "targetCurrency": "CAD", "exchangeRate": 1.36}',
+      ]);
+      final agent = MentorAgent(llm, db);
+
+      final result = await agent.chat('convert my plan to CAD at 1.36');
+
+      expect(result.kind, 'plan_action_confirm');
+      final action = decodePlanActionSummary(result.dataJson!);
+      expect(action.action, 'convert_currency');
+      expect(action.targetCurrency, 'CAD');
+      expect(action.rate, 1.36);
+      await db.close();
+    },
+  );
+
+  test(
+    'add_category accepts a custom category and asks for confirmation',
+    () async {
+      final db = _db();
+      final llm = _ScriptedLlm([
+        '{"intent": "add_category", "category": "Pets"}',
+      ]);
+      final agent = MentorAgent(llm, db);
+
+      final result = await agent.chat('add Pets as a category');
+
+      expect(result.kind, 'plan_action_confirm');
+      expect(decodePlanActionSummary(result.dataJson!).category, 'Pets');
+      await db.close();
+    },
+  );
 
   test('add_subscription with a day not yet reached this month computes the next charge this month', () async {
     final db = _db();

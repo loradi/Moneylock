@@ -13,10 +13,10 @@ class UserOut(BaseModel):
 
 class SyncTransaction(BaseModel):
     amount: float = Field(gt=0)
-    currency: str = Field(default="USD", pattern="^(USD|CAD)$")
+    currency: str = Field(default="USD", pattern="^(USD|CAD|EUR|GBP)$")
     merchant: str = Field(default="", max_length=255)
     category: str = Field(default="Other", max_length=80)
-    source: str = Field(pattern="^(shortcut|voice|manual)$")
+    source: str = Field(pattern="^(shortcut|voice|manual|receipt)$")
     raw_text: str = Field(max_length=2000)
     timestamp: datetime
     dedup_hash: str = Field(min_length=8, max_length=64)

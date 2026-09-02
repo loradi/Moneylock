@@ -63,6 +63,37 @@ class SettingsDao {
         SettingsCompanion.insert(key: 'default_currency', value: currency),
       );
 
+  Future<({String baseUrl, String apiKey})> syncConfiguration() async {
+    final rows =
+        await (db.select(db.settings)..where(
+              (setting) =>
+                  setting.key.equals('sync_base_url') |
+                  setting.key.equals('sync_api_key'),
+            ))
+            .get();
+    final values = {for (final row in rows) row.key: row.value};
+    return (
+      baseUrl: values['sync_base_url'] ?? '',
+      apiKey: values['sync_api_key'] ?? '',
+    );
+  }
+
+  Future<void> setSyncConfiguration({
+    required String baseUrl,
+    required String apiKey,
+  }) => db.transaction(() async {
+    await db
+        .into(db.settings)
+        .insertOnConflictUpdate(
+          SettingsCompanion.insert(key: 'sync_base_url', value: baseUrl),
+        );
+    await db
+        .into(db.settings)
+        .insertOnConflictUpdate(
+          SettingsCompanion.insert(key: 'sync_api_key', value: apiKey),
+        );
+  });
+
   Future<String> planCycle() async {
     final row = await (db.select(
       db.settings,

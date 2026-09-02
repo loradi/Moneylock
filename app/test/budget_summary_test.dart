@@ -9,57 +9,79 @@ import 'package:moneylock/features/insights/insights_agent.dart';
 import 'package:moneylock/providers.dart';
 
 AppDatabase _db() => AppDatabase.forTesting(
-    driftDatabase(name: 'test_${DateTime.now().microsecondsSinceEpoch}'));
+  driftDatabase(name: 'test_${DateTime.now().microsecondsSinceEpoch}'),
+);
 
 void main() {
-  test('budgetSummaryProvider solo suma transacciones del periodo actual',
-      () async {
-    final db = _db();
-    final now = DateTime.now();
-    final old = now.subtract(const Duration(days: 40));
-    await db.transactionsDao.insertWithDedup(NewTransaction(
-      amount: 100.0,
-      currency: 'USD',
-      merchant: 'Starbucks',
-      category: 'Coffee & Dining',
-      source: 'manual',
-      rawText: 'current month tx',
-      timestamp: now,
-    ));
-    await db.transactionsDao.insertWithDedup(NewTransaction(
-      amount: 999.0,
-      currency: 'USD',
-      merchant: 'Old Store',
-      category: 'Other',
-      source: 'manual',
-      rawText: 'previous month tx',
-      timestamp: old,
-    ));
+  test(
+    'budgetSummaryProvider solo suma transacciones del periodo actual',
+    () async {
+      final db = _db();
+      final now = DateTime.now();
+      final old = now.subtract(const Duration(days: 40));
+      await db.transactionsDao.insertWithDedup(
+        NewTransaction(
+          amount: 100.0,
+          currency: 'USD',
+          merchant: 'Starbucks',
+          category: 'Coffee & Dining',
+          source: 'manual',
+          rawText: 'current month tx',
+          timestamp: now,
+        ),
+      );
+      await db.transactionsDao.insertWithDedup(
+        NewTransaction(
+          amount: 999.0,
+          currency: 'USD',
+          merchant: 'Old Store',
+          category: 'Other',
+          source: 'manual',
+          rawText: 'previous month tx',
+          timestamp: old,
+        ),
+      );
+      await db.transactionsDao.insertWithDedup(
+        NewTransaction(
+          amount: 55.0,
+          currency: 'EUR',
+          merchant: 'Foreign Store',
+          category: 'Shopping & E-commerce',
+          source: 'manual',
+          rawText: 'current month EUR tx',
+          timestamp: now,
+        ),
+      );
 
-    final period = _currentPeriod();
-    await db.budgetsDao.upsert('Coffee & Dining', 500.0, period);
-    await db.budgetsDao.upsert('Other', 1.0, '1999-01');
+      final period = _currentPeriod();
+      await db.budgetsDao.upsert('Coffee & Dining', 500.0, period);
+      await db.budgetsDao.upsert('Other', 1.0, '1999-01');
 
-    final container =
-        ProviderContainer(overrides: [appDatabaseProvider.overrideWithValue(db)]);
-    addTearDown(container.dispose);
-    final completed = Completer<BudgetSummary>();
-    final sub = container.listen<AsyncValue<BudgetSummary>>(
-        budgetSummaryProvider, (prev, next) {
-      final v = next.value;
-      if (v != null && v.totalLimit > 0 && !completed.isCompleted) {
-        completed.complete(v);
-      }
-    });
-    addTearDown(sub.close);
-    final summary = await completed.future;
+      final container = ProviderContainer(
+        overrides: [appDatabaseProvider.overrideWithValue(db)],
+      );
+      addTearDown(container.dispose);
+      final completed = Completer<BudgetSummary>();
+      final sub = container.listen<AsyncValue<BudgetSummary>>(
+        budgetSummaryProvider,
+        (prev, next) {
+          final v = next.value;
+          if (v != null && v.totalLimit > 0 && !completed.isCompleted) {
+            completed.complete(v);
+          }
+        },
+      );
+      addTearDown(sub.close);
+      final summary = await completed.future;
 
-    expect(summary.totalSpent, closeTo(100.0, 0.001));
-    expect(summary.byCategory['Other'], isNull);
-    expect(summary.byCategory['Coffee & Dining'], closeTo(100.0, 0.001));
-    expect(summary.totalLimit, closeTo(500.0, 0.001));
-    expect(summary.byCategoryLimits['Other'], isNull);
-  });
+      expect(summary.totalSpent, closeTo(100.0, 0.001));
+      expect(summary.byCategory['Other'], isNull);
+      expect(summary.byCategory['Coffee & Dining'], closeTo(100.0, 0.001));
+      expect(summary.totalLimit, closeTo(500.0, 0.001));
+      expect(summary.byCategoryLimits['Other'], isNull);
+      expect(summary.unconvertedTotals, {'EUR': 55.0});
+    },
+  );
 }
 
 String _currentPeriod() {

@@ -109,6 +109,47 @@ class TransactionsDao {
     return q.get();
   }
 
+  Future<List<Transaction>> all() => db.select(db.transactions).get();
+
+  /// Imports a transaction from the user's configured sync server.
+  ///
+  /// The remote deduplication hash is the stable identity shared by devices;
+  /// never recompute it from parsed values on import.
+  Future<bool> insertFromSync({
+    required double amount,
+    required String currency,
+    required String merchant,
+    required String category,
+    required String source,
+    required String rawText,
+    required DateTime timestamp,
+    required String dedupHash,
+  }) async {
+    if (!amount.isFinite || amount <= 0 || dedupHash.length < 8) {
+      throw ArgumentError('Invalid synced transaction');
+    }
+    final existing =
+        await (db.select(db.transactions)
+              ..where((transaction) => transaction.dedupHash.equals(dedupHash)))
+            .getSingleOrNull();
+    if (existing != null) return false;
+    await db
+        .into(db.transactions)
+        .insert(
+          TransactionsCompanion.insert(
+            amount: amount,
+            currency: Value(currency),
+            merchant: Value(merchant),
+            category: Value(category),
+            source: source,
+            rawText: rawText,
+            timestamp: timestamp,
+            dedupHash: dedupHash,
+          ),
+        );
+    return true;
+  }
+
   Future<Transaction?> updateMostRecentCategory(String category) async {
     final latest = await recent(1);
     if (latest.isEmpty) return null;

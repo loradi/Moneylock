@@ -31,11 +31,12 @@ final mentorIntentPrompt =
     '''
 Classify the user's message about their personal finances into ONE JSON
 object, no markdown, no commentary:
-{"intent": "chat"|"query_transactions"|"delete_transaction"|"query_subscriptions"|"cancel_subscription"|"update_budget_limit"|"record_transaction"|"add_subscription"|"edit_transaction"|"edit_subscription",
+{"intent": "chat"|"query_transactions"|"delete_transaction"|"query_subscriptions"|"cancel_subscription"|"update_budget_limit"|"record_transaction"|"add_subscription"|"edit_transaction"|"edit_subscription"|"set_plan_income"|"set_plan_cycle"|"set_plan_currency"|"add_category"|"remove_category",
  "category": "<one of: ${categoryCatalog.join(', ')}>"|null,
  "merchant": "<short keyword or null>", "monthsBack": <integer or null>,
  "newLimit": <number or null>, "amount": <number or null>, "dayOfMonth": <integer 1-31 or null>,
- "newMerchant": "<string or null>", "newCategory": "<one of: ${categoryCatalog.join(', ')}>"|null, "count": <integer or null>}
+ "newMerchant": "<string or null>", "newCategory": "<one of: ${categoryCatalog.join(', ')}>"|null, "count": <integer or null>,
+ "planCycle": "weekly"|"fortnightly"|"monthly"|null, "targetCurrency": "USD"|"CAD"|"EUR"|"GBP"|null, "exchangeRate": <number or null>}
 Rules:
 - "chat" is for general questions, advice requests, or anything not asking
   to find, list, cancel, or delete a specific past transaction or
@@ -82,6 +83,17 @@ Rules:
   monthly amount (e.g. "change Netflix to \$18.99", "Spotify is now \$13").
   "merchant" identifies WHICH subscription (same as "cancel_subscription"),
   "amount" is the corrected monthly charge -- required, else use "chat".
+- "set_plan_income" is for setting take-home income for the current plan.
+  Requires a positive "amount".
+- "set_plan_cycle" is for changing planning frequency. Set "planCycle" to
+  exactly weekly, fortnightly, or monthly.
+- "set_plan_currency" is for converting the current plan to another currency.
+  Set "targetCurrency" and the positive "exchangeRate" meaning how many target
+  currency units equal one current currency unit. Never guess a rate; use
+  "chat" if the user did not provide one.
+- "add_category" and "remove_category" manage plan categories. Put the exact
+  category name in "category". These are the only intents where category may
+  be a custom name outside the catalog.
 - "amount" is the requested monetary amount as a plain number, used by
   "add_subscription" (the subscription's charge), "edit_transaction" (the
   corrected amount), and "edit_subscription" (the corrected monthly
@@ -104,6 +116,8 @@ Rules:
   used for subscription intents.
 - "newLimit" is the requested new limit as a plain number if the intent is
   "update_budget_limit", else null.
+- "planCycle", "targetCurrency", and "exchangeRate" are used only by their
+  matching plan-management intents, else null.
 Examples:
 "what can I cut this month?" -> {"intent": "chat", "category": null, "merchant": null, "monthsBack": null}
 "show me groceries transactions from the last six months" -> {"intent": "query_transactions", "category": "Groceries", "merchant": null, "monthsBack": 6}
@@ -119,6 +133,11 @@ Examples:
 "move my Starbucks purchase to Coffee & Dining" -> {"intent": "edit_transaction", "category": null, "merchant": "Starbucks", "monthsBack": null, "newLimit": null, "amount": null, "dayOfMonth": null, "newMerchant": null, "newCategory": "Coffee & Dining"}
 "change Netflix to \$18.99" -> {"intent": "edit_subscription", "category": null, "merchant": "Netflix", "monthsBack": null, "newLimit": null, "amount": 18.99, "dayOfMonth": null, "newMerchant": null}
 "give me my last 5 transactions" -> {"intent": "query_transactions", "category": null, "merchant": null, "monthsBack": null, "count": 5}
+"set my income to 4500" -> {"intent": "set_plan_income", "category": null, "amount": 4500, "planCycle": null, "targetCurrency": null, "exchangeRate": null}
+"plan by week" -> {"intent": "set_plan_cycle", "category": null, "amount": null, "planCycle": "weekly", "targetCurrency": null, "exchangeRate": null}
+"convert my plan to CAD at 1.36" -> {"intent": "set_plan_currency", "category": null, "amount": null, "planCycle": null, "targetCurrency": "CAD", "exchangeRate": 1.36}
+"add Pets as a category" -> {"intent": "add_category", "category": "Pets", "amount": null, "planCycle": null, "targetCurrency": null, "exchangeRate": null}
+"remove Travel category" -> {"intent": "remove_category", "category": "Travel", "amount": null, "planCycle": null, "targetCurrency": null, "exchangeRate": null}
 ''';
 
 const strictRamseyPrompt = '''

@@ -10,9 +10,9 @@ open-source.
 
 - **On-device LLM** — a 3B parameter model (Qwen 2.5) runs locally on your iPhone via
   llama.cpp. No API keys, no cloud inference, no data leaves the device.
-- **Offline-first** — the app works fully offline; a sync client and backend are
-  included and tested, but UI wiring for sync is a planned follow-up, not a
-  dependency.
+- **Offline-first** — the app works fully offline. Optional transaction backup
+  can be configured in Settings with the URL and API key for your own
+  Moneylock server; plans, Vector chats, and model data remain on-device.
 - **Privacy** — voice is transcribed with Apple's on-device Speech framework.
 - **Free forever** — every model and package is open-source (see [Licenses](#licenses)).
 
@@ -39,7 +39,7 @@ Target market: US and Canada (USD/CAD).
 │  Data: Drift/SQLite · Notifications: local (UNUserNotificationCenter)     │
 │  State: Riverpod · UI: Dashboard / Chat / Insights / Settings             │
 └───────────────────────────────────────────────────────────────────────────┘
-          │ planned sync: client + backend tested, UI wiring TBD
+          │ optional, user-configured transaction backup
           ▼
 ┌── Minimal sync backend: FastAPI + SQLite (PostgreSQL-ready) ──┐
 │  POST /users · POST/GET /sync/transactions · GET /health      │
@@ -126,9 +126,11 @@ Endpoints:
 | `GET` | `/health` | Health check |
 
 The backend runs on SQLite by default; the SQLAlchemy layer also works with
-PostgreSQL (just change the connection URL). A ready-to-use sync client
-(FastAPI backend + Dart client) is included and tested; UI wiring (Settings →
-Sync now) is a planned follow-up. The app is fully offline-first without it.
+PostgreSQL (just change the connection URL). To enable optional backup, create
+a user on your server, then enter its URL and API key in **Settings → Private
+Sync** and choose **Sync transactions**. Sync uses deduplication hashes, so it
+is safe to repeat; it transfers transaction records only. The app remains
+fully offline-first without it.
 
 ---
 

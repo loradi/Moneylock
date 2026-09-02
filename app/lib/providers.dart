@@ -15,6 +15,7 @@ import 'llm/categorizer_agent.dart';
 import 'llm/llama_service.dart';
 import 'llm/llm_provider.dart';
 import 'llm/mentor_agent.dart';
+import 'sync/sync_service.dart';
 import 'voice/speech_service.dart';
 
 final appDatabaseProvider = Provider<AppDatabase>((ref) {
@@ -59,6 +60,10 @@ final addFlowProvider = Provider<AddTransactionFlow>(
 
 final deepLinkHandlerProvider = Provider<DeepLinkHandler>(
   (ref) => DeepLinkHandler(flow: ref.watch(addFlowProvider)),
+);
+
+final syncServiceProvider = Provider<SyncService>(
+  (ref) => SyncService(ref.watch(appDatabaseProvider)),
 );
 
 final speechServiceProvider = Provider<SpeechToTextService>(
@@ -128,30 +133,24 @@ final budgetSummaryProvider = StreamProvider<BudgetSummary>((ref) async* {
     while (await it.moveNext()) {
       final rows = txRows;
       if (rows == null) continue;
+      final activeBudgets = budgetRows
+          .where((b) => b.enabled && b.cycle == 'monthly' && b.period == period)
+          .toList();
       final limits = {
-        for (final b in budgetRows.where(
-          (b) =>
-              b.enabled &&
-              ((b.cycle == 'monthly' && b.period == period) ||
-                  (b.cycle != 'monthly' && b.period == b.cycle)),
-        ))
-          b.category: b.monthlyLimit,
+        for (final b in activeBudgets) b.category: b.monthlyLimit,
       };
       final currency =
-          budgetRows
-              .where(
-                (b) =>
-                    b.enabled &&
-                    ((b.cycle == 'monthly' && b.period == period) ||
-                        (b.cycle != 'monthly' && b.period == b.cycle)),
-              )
-              .map((b) => b.currency)
-              .firstOrNull ??
-          defaultCurrency;
+          activeBudgets.map((b) => b.currency).firstOrNull ?? defaultCurrency;
       final byCategory = <String, double>{};
+      final unconvertedTotals = <String, double>{};
       for (final t in rows.where(
         (t) => !t.timestamp.isBefore(start) && t.timestamp.isBefore(end),
       )) {
+        if (t.currency != currency) {
+          unconvertedTotals[t.currency] =
+              (unconvertedTotals[t.currency] ?? 0) + t.amount;
+          continue;
+        }
         byCategory[t.category] = (byCategory[t.category] ?? 0) + t.amount;
       }
       final totalSpent = byCategory.values.fold(0.0, (a, b) => a + b);
@@ -162,6 +161,7 @@ final budgetSummaryProvider = StreamProvider<BudgetSummary>((ref) async* {
         currency: currency,
         byCategory: byCategory,
         byCategoryLimits: limits,
+        unconvertedTotals: unconvertedTotals,
       );
     }
   } finally {
@@ -179,7 +179,13 @@ final insightsProvider = Provider<AsyncValue<List<InsightCapsule>>>(
 final spendingTrendProvider = Provider<List<MonthlySpendPoint>>((ref) {
   final transactions =
       ref.watch(transactionsStreamProvider).valueOrNull ?? const [];
-  return buildMonthlySpendingTrend(transactions: transactions);
+  final currency =
+      ref.watch(budgetSummaryProvider).valueOrNull?.currency ?? 'USD';
+  return buildMonthlySpendingTrend(
+    transactions: transactions
+        .where((transaction) => transaction.currency == currency)
+        .toList(),
+  );
 });
 
 String _currentPeriod() {

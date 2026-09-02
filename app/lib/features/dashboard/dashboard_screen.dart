@@ -76,6 +76,21 @@ class DashboardScreen extends ConsumerWidget {
                 ),
               ),
             ),
+            if (budgetSummary != null &&
+                budgetSummary.unconvertedTotals.isNotEmpty)
+              SliverPadding(
+                padding: const EdgeInsets.fromLTRB(
+                  AppSpacing.margin,
+                  12,
+                  AppSpacing.margin,
+                  0,
+                ),
+                sliver: SliverToBoxAdapter(
+                  child: _ForeignCurrencyNotice(
+                    totals: budgetSummary.unconvertedTotals,
+                  ),
+                ),
+              ),
             if (paceAlert != null)
               SliverPadding(
                 padding: const EdgeInsets.fromLTRB(
@@ -260,6 +275,39 @@ class _SpendingPaceCard extends StatelessWidget {
                   ),
                 ),
               ],
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
+class _ForeignCurrencyNotice extends StatelessWidget {
+  const _ForeignCurrencyNotice({required this.totals});
+
+  final Map<String, double> totals;
+
+  @override
+  Widget build(BuildContext context) => AppCard(
+    fill: AppColors.surfaceContainerLow,
+    child: Padding(
+      padding: const EdgeInsets.all(AppSpacing.md),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(
+            Icons.currency_exchange,
+            color: AppColors.onSurfaceVariant,
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              'Also recorded: ${totals.entries.map((entry) => fmtCurrency(entry.value, currency: entry.key)).join(', ')}. '
+              'These amounts are kept separate until you explicitly convert the plan.',
+              style: AppTextStyles.bodyMd.copyWith(
+                color: AppColors.onSurfaceVariant,
+              ),
             ),
           ),
         ],

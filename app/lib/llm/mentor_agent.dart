@@ -4,6 +4,7 @@ import 'package:moneylock/data/db.dart';
 
 import '../data/budget_change_summary.dart';
 import '../data/new_subscription_summary.dart';
+import '../data/plan_action_summary.dart';
 import '../data/subscription_edit_summary.dart';
 import '../data/subscription_projection.dart';
 import '../data/subscription_summary.dart';
@@ -58,6 +59,9 @@ class ChatIntent {
   final String? newMerchant;
   final String? newCategory;
   final int? count;
+  final String? planCycle;
+  final String? targetCurrency;
+  final double? exchangeRate;
   final bool degraded;
   ChatIntent({
     required this.intent,
@@ -70,6 +74,9 @@ class ChatIntent {
     this.newMerchant,
     this.newCategory,
     this.count,
+    this.planCycle,
+    this.targetCurrency,
+    this.exchangeRate,
     this.degraded = false,
   });
 }
@@ -88,6 +95,11 @@ ChatIntent _parseIntent(String raw) {
       'add_subscription',
       'edit_transaction',
       'edit_subscription',
+      'set_plan_income',
+      'set_plan_cycle',
+      'set_plan_currency',
+      'add_category',
+      'remove_category',
     };
     if (intent == null || !recognized.contains(intent)) {
       return ChatIntent(intent: 'chat');
@@ -113,7 +125,9 @@ ChatIntent _parseIntent(String raw) {
       return ChatIntent(intent: 'chat', degraded: true);
     }
     final newCategory = json['newCategory'] as String?;
-    if (newCategory != null && !categoryCatalog.contains(newCategory)) {
+    if (intent == 'edit_transaction' &&
+        newCategory != null &&
+        !categoryCatalog.contains(newCategory)) {
       return ChatIntent(intent: 'chat', degraded: true);
     }
     if (intent == 'edit_transaction' &&
@@ -123,6 +137,29 @@ ChatIntent _parseIntent(String raw) {
       return ChatIntent(intent: 'chat', degraded: true);
     }
     if (intent == 'edit_subscription' && json['amount'] == null) {
+      return ChatIntent(intent: 'chat', degraded: true);
+    }
+    if (intent == 'set_plan_income' &&
+        ((json['amount'] as num?)?.toDouble() ?? 0) <= 0) {
+      return ChatIntent(intent: 'chat', degraded: true);
+    }
+    const cycles = {'weekly', 'fortnightly', 'monthly'};
+    final planCycle = json['planCycle'] as String?;
+    if (intent == 'set_plan_cycle' && !cycles.contains(planCycle)) {
+      return ChatIntent(intent: 'chat', degraded: true);
+    }
+    const currencies = {'USD', 'CAD', 'EUR', 'GBP'};
+    final targetCurrency = json['targetCurrency'] as String?;
+    final exchangeRate = (json['exchangeRate'] as num?)?.toDouble();
+    if (intent == 'set_plan_currency' &&
+        (!currencies.contains(targetCurrency) ||
+            exchangeRate == null ||
+            !exchangeRate.isFinite ||
+            exchangeRate <= 0)) {
+      return ChatIntent(intent: 'chat', degraded: true);
+    }
+    if ((intent == 'add_category' || intent == 'remove_category') &&
+        (category == null || category.trim().isEmpty || category.length > 50)) {
       return ChatIntent(intent: 'chat', degraded: true);
     }
     return ChatIntent(
@@ -136,6 +173,9 @@ ChatIntent _parseIntent(String raw) {
       newMerchant: json['newMerchant'] as String?,
       newCategory: newCategory,
       count: (json['count'] as num?)?.toInt(),
+      planCycle: planCycle,
+      targetCurrency: targetCurrency,
+      exchangeRate: exchangeRate,
     );
   } catch (_) {
     return ChatIntent(intent: 'chat');
@@ -258,6 +298,16 @@ class MentorAgent {
         return _editTransactionCandidate(parsed);
       case 'edit_subscription':
         return _editSubscriptionCandidate(parsed);
+      case 'set_plan_income':
+        return _setPlanIncome(parsed);
+      case 'set_plan_cycle':
+        return _setPlanCycle(parsed);
+      case 'set_plan_currency':
+        return _setPlanCurrency(parsed);
+      case 'add_category':
+        return _addCategory(parsed);
+      case 'remove_category':
+        return _removeCategory(parsed);
       // 'record_transaction' has no case here: chat_screen.dart's _send()
       // intercepts that intent before ever calling chat(), routing it to
       // the add-transaction flow instead. If it ever does reach here
@@ -270,14 +320,34 @@ class MentorAgent {
 
   Future<MentorChatResult> _generalChat(String userMessage) async {
     final tone = await db.settingsDao.mentorTone();
-    final currency = await db.settingsDao.defaultCurrency();
     final now = DateTime.now();
     final period =
         '${now.year.toString().padLeft(4, '0')}-${now.month.toString().padLeft(2, '0')}';
-    final spentByCategory = await db.transactionsDao.spentByCategoryThisPeriod(
-      period,
-    );
-    final limits = await db.budgetsDao.limitsForPeriod(period);
+    final (planRows, storedCurrency, defaultCurrency, transactions) = await (
+      db.budgetsDao.forPeriod(period),
+      db.settingsDao.planCurrency(period),
+      db.settingsDao.defaultCurrency(),
+      db.transactionsDao.search(limit: 500),
+    ).wait;
+    final currency =
+        storedCurrency ??
+        (planRows.isEmpty ? defaultCurrency : planRows.first.currency);
+    final limits = {for (final row in planRows) row.category: row.monthlyLimit};
+    final start = DateTime(now.year, now.month);
+    final end = DateTime(now.year, now.month + 1);
+    final spentByCategory = <String, double>{};
+    final unconvertedTotals = <String, double>{};
+    for (final transaction in transactions.where(
+      (row) => !row.timestamp.isBefore(start) && row.timestamp.isBefore(end),
+    )) {
+      if (transaction.currency != currency) {
+        unconvertedTotals[transaction.currency] =
+            (unconvertedTotals[transaction.currency] ?? 0) + transaction.amount;
+        continue;
+      }
+      spentByCategory[transaction.category] =
+          (spentByCategory[transaction.category] ?? 0) + transaction.amount;
+    }
     final totalSpent = spentByCategory.values.fold<double>(0, (a, b) => a + b);
     final totalLimit = limits.values.fold<double>(0, (a, b) => a + b);
     final subs = await db.subscriptionsDao.allForScheduling();
@@ -321,6 +391,9 @@ class MentorAgent {
             );
             return 'Highest spending category this month: ${top.key} (\$${top.value.toStringAsFixed(2)}).\n';
           })();
+    final unconvertedLine = unconvertedTotals.isEmpty
+        ? ''
+        : 'Other currencies excluded from these totals: ${unconvertedTotals.entries.map((entry) => '${entry.key} ${entry.value.toStringAsFixed(2)}').join(', ')}.\n';
 
     final history = await _historyBlock();
     final context =
@@ -329,6 +402,7 @@ class MentorAgent {
         'Total spent: $currency ${totalSpent.toStringAsFixed(2)} of $currency ${totalLimit.toStringAsFixed(2)} budgeted\n'
         'By category:\n${categoryLines.isEmpty ? '(no budgets set)' : categoryLines}\n'
         '$topCategoryLine'
+        '$unconvertedLine'
         'Financial runway:\n'
         '- Upcoming tracked recurring charges this month: $currency ${upcomingSubscriptions.total.toStringAsFixed(2)}\n'
         '- Flexible money after spending and those charges: $currency ${spendable.availableAfterCommitments.toStringAsFixed(2)}\n'
@@ -480,6 +554,88 @@ class MentorAgent {
           'to \$${newLimit.toStringAsFixed(2)}?',
       kind: 'budget_confirm',
       dataJson: encodeBudgetChangeSummary(change),
+    );
+  }
+
+  Future<MentorChatResult> _setPlanIncome(ChatIntent parsed) async {
+    final now = DateTime.now();
+    final period =
+        '${now.year.toString().padLeft(4, '0')}-${now.month.toString().padLeft(2, '0')}';
+    final currency =
+        await db.settingsDao.planCurrency(period) ??
+        await db.settingsDao.defaultCurrency();
+    final amount = parsed.amount!;
+    return MentorChatResult(
+      content:
+          'Set your $period take-home income to $currency ${amount.toStringAsFixed(2)}?',
+      kind: 'plan_action_confirm',
+      dataJson: encodePlanActionSummary(
+        PlanActionSummary(action: 'set_income', period: period, amount: amount),
+      ),
+    );
+  }
+
+  Future<MentorChatResult> _setPlanCycle(ChatIntent parsed) async {
+    final cycle = parsed.planCycle!;
+    return MentorChatResult(
+      content:
+          'Use ${cycle == 'fortnightly' ? 'a two-week' : 'a $cycle'} planning cycle going forward?',
+      kind: 'plan_action_confirm',
+      dataJson: encodePlanActionSummary(
+        PlanActionSummary(action: 'set_cycle', cycle: cycle),
+      ),
+    );
+  }
+
+  Future<MentorChatResult> _setPlanCurrency(ChatIntent parsed) async {
+    final now = DateTime.now();
+    final period =
+        '${now.year.toString().padLeft(4, '0')}-${now.month.toString().padLeft(2, '0')}';
+    final rows = await db.budgetsDao.forPeriod(period);
+    final currentCurrency =
+        await db.settingsDao.planCurrency(period) ??
+        (rows.isEmpty
+            ? await db.settingsDao.defaultCurrency()
+            : rows.first.currency);
+    final target = parsed.targetCurrency!;
+    if (target == currentCurrency) {
+      return MentorChatResult(content: 'This plan is already in $target.');
+    }
+    return MentorChatResult(
+      content:
+          'Convert your $period plan from $currentCurrency to $target at ${parsed.exchangeRate!.toStringAsFixed(4)} $target per $currentCurrency?',
+      kind: 'plan_action_confirm',
+      dataJson: encodePlanActionSummary(
+        PlanActionSummary(
+          action: 'convert_currency',
+          period: period,
+          targetCurrency: target,
+          rate: parsed.exchangeRate,
+        ),
+      ),
+    );
+  }
+
+  Future<MentorChatResult> _addCategory(ChatIntent parsed) async {
+    final category = parsed.category!.trim();
+    return MentorChatResult(
+      content: 'Add "$category" to your plan categories?',
+      kind: 'plan_action_confirm',
+      dataJson: encodePlanActionSummary(
+        PlanActionSummary(action: 'add_category', category: category),
+      ),
+    );
+  }
+
+  Future<MentorChatResult> _removeCategory(ChatIntent parsed) async {
+    final category = parsed.category!.trim();
+    return MentorChatResult(
+      content:
+          'Remove "$category" from your plan categories? Existing transactions will remain unchanged.',
+      kind: 'plan_action_confirm',
+      dataJson: encodePlanActionSummary(
+        PlanActionSummary(action: 'remove_category', category: category),
+      ),
     );
   }
 

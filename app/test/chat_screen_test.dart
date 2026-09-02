@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:moneylock/data/budget_change_summary.dart';
 import 'package:moneylock/data/db.dart';
 import 'package:moneylock/data/new_subscription_summary.dart';
+import 'package:moneylock/data/plan_action_summary.dart';
 import 'package:moneylock/data/subscription_edit_summary.dart';
 import 'package:moneylock/data/subscription_summary.dart';
 import 'package:moneylock/data/transaction_edit_summary.dart';
@@ -379,4 +380,39 @@ void main() {
       await disposeTestDatabase(tester, db);
     },
   );
+
+  testWidgets('confirms a Vector plan-income action before saving it', (
+    tester,
+  ) async {
+    final db = createTestDatabase();
+    final now = DateTime.now();
+    final period =
+        '${now.year.toString().padLeft(4, '0')}-${now.month.toString().padLeft(2, '0')}';
+    final message = _msg(
+      id: 1,
+      kind: 'plan_action_confirm',
+      content: 'Set your income?',
+      dataJson: encodePlanActionSummary(
+        PlanActionSummary(action: 'set_income', period: period, amount: 4200),
+      ),
+    );
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          appDatabaseProvider.overrideWithValue(db),
+          messagesStreamProvider.overrideWith((ref) => Stream.value([message])),
+        ],
+        child: const MaterialApp(home: ChatScreen()),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(await db.settingsDao.monthlyIncome(period), isNull);
+    await tester.tap(find.text('Confirm'));
+    await tester.pumpAndSettle();
+    expect(await db.settingsDao.monthlyIncome(period), 4200);
+    expect(find.text('Done.'), findsOneWidget);
+
+    await disposeTestDatabase(tester, db);
+  });
 }

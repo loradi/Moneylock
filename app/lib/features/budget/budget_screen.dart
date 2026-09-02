@@ -11,6 +11,7 @@ import '../../data/subscription_projection.dart';
 import '../../providers.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/kit.dart';
+import 'plan_foreign_currency_notice.dart';
 import 'plan_period.dart';
 
 final categoriesProvider = StreamProvider<List<Category>>((ref) async* {
@@ -110,9 +111,19 @@ class _BudgetScreenState extends ConsumerState<BudgetScreen> {
             ?.where((t) => _isInSelectedPeriod(t.timestamp))
             .toList() ??
         const [];
+    final planCurrency = planData?.currency ?? _currency;
+    final foreignSpending = <String, double>{};
+    for (final transaction in monthTransactions) {
+      if (transaction.currency != planCurrency) {
+        foreignSpending[transaction.currency] =
+            (foreignSpending[transaction.currency] ?? 0) + transaction.amount;
+      }
+    }
     final subscriptions =
         ref.watch(subscriptionsProvider).valueOrNull ?? const <Subscription>[];
-    final spent = monthTransactions.fold<double>(0, (sum, t) => sum + t.amount);
+    final spent = monthTransactions
+        .where((transaction) => transaction.currency == planCurrency)
+        .fold<double>(0, (sum, transaction) => sum + transaction.amount);
     final planned =
         planData?.limits.values.fold<double>(0, (sum, v) => sum + v) ?? 0;
     return Scaffold(
@@ -159,6 +170,10 @@ class _BudgetScreenState extends ConsumerState<BudgetScreen> {
                         end: _cycle.endFor(_periodAnchor),
                         currency: planData?.currency ?? _currency,
                       ),
+                      if (foreignSpending.isNotEmpty) ...[
+                        const SizedBox(height: 12),
+                        PlanForeignCurrencyNotice(totals: foreignSpending),
+                      ],
                     ],
                   ),
                 ),

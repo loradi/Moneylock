@@ -6,6 +6,11 @@ class BudgetSummary {
   final String currency;
   final Map<String, double> byCategory;
 
+  /// Amounts in currencies other than [currency]. They are deliberately kept
+  /// separate: adding USD, CAD, EUR, or GBP without an explicit rate would
+  /// produce a misleading financial total.
+  final Map<String, double> unconvertedTotals;
+
   /// Límites mensuales por categoría (~v1: solo pide [byCategory], pero las
   /// barras del Dashboard necesitan el límite de cada categoría).
   final Map<String, double> byCategoryLimits;
@@ -15,6 +20,7 @@ class BudgetSummary {
     required this.byCategory,
     this.currency = 'USD',
     this.byCategoryLimits = const {},
+    this.unconvertedTotals = const {},
   });
 }
 

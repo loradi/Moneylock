@@ -15,4 +15,19 @@ void main() {
 
     await db.close();
   });
+
+  test('stores the private sync configuration together', () async {
+    final db = createTestDatabase();
+
+    await db.settingsDao.setSyncConfiguration(
+      baseUrl: 'https://sync.moneylock.test',
+      apiKey: 'key-123',
+    );
+
+    expect(await db.settingsDao.syncConfiguration(), (
+      baseUrl: 'https://sync.moneylock.test',
+      apiKey: 'key-123',
+    ));
+    await db.close();
+  });
 }

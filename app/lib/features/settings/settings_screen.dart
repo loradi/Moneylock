@@ -44,6 +44,9 @@ class SettingsScreen extends ConsumerWidget {
             const _Section('NOTIFICATIONS'),
             const _NotificationsCard(),
             const SizedBox(height: 28),
+            const _Section('PRIVATE SYNC'),
+            const _SyncCard(),
+            const SizedBox(height: 28),
             const _Section('SUBSCRIPTIONS'),
             _SubscriptionsEntry(onTap: () => context.push('/subscriptions')),
           ],
@@ -136,6 +139,137 @@ class _SubscriptionsEntry extends StatelessWidget {
         ],
       ),
     ),
+  );
+}
+
+class _SyncCard extends ConsumerStatefulWidget {
+  const _SyncCard();
+
+  @override
+  ConsumerState<_SyncCard> createState() => _SyncCardState();
+}
+
+class _SyncCardState extends ConsumerState<_SyncCard> {
+  final _urlController = TextEditingController();
+  final _apiKeyController = TextEditingController();
+  bool _loading = true;
+  bool _syncing = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  @override
+  void dispose() {
+    _urlController.dispose();
+    _apiKeyController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _load() async {
+    final config = await ref
+        .read(appDatabaseProvider)
+        .settingsDao
+        .syncConfiguration();
+    if (!mounted) return;
+    _urlController.text = config.baseUrl;
+    _apiKeyController.text = config.apiKey;
+    setState(() => _loading = false);
+  }
+
+  Future<void> _sync() async {
+    if (_syncing) return;
+    final baseUrl = _urlController.text.trim().replaceFirst(RegExp(r'/+$'), '');
+    final apiKey = _apiKeyController.text.trim();
+    if (baseUrl.isEmpty || apiKey.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Enter your server URL and API key.')),
+      );
+      return;
+    }
+    setState(() => _syncing = true);
+    try {
+      await ref
+          .read(appDatabaseProvider)
+          .settingsDao
+          .setSyncConfiguration(baseUrl: baseUrl, apiKey: apiKey);
+      final outcome = await ref.read(syncServiceProvider).sync();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Synced: ${outcome.uploaded} uploaded, ${outcome.downloaded} downloaded.',
+          ),
+        ),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('Sync failed: $error')));
+    } finally {
+      if (mounted) setState(() => _syncing = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => _Card(
+    child: _loading
+        ? const SizedBox(
+            height: 44,
+            child: Center(child: CircularProgressIndicator()),
+          )
+        : Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Back up transactions to your own Moneylock server.',
+                style: AppTextStyles.bodyMd.copyWith(
+                  color: AppColors.onSurfaceVariant,
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: _urlController,
+                keyboardType: TextInputType.url,
+                autocorrect: false,
+                enableSuggestions: false,
+                decoration: const InputDecoration(
+                  labelText: 'Server URL',
+                  hintText: 'https://moneylock.example.com',
+                ),
+              ),
+              const SizedBox(height: 10),
+              TextField(
+                controller: _apiKeyController,
+                obscureText: true,
+                autocorrect: false,
+                enableSuggestions: false,
+                decoration: const InputDecoration(labelText: 'API key'),
+              ),
+              const SizedBox(height: 12),
+              OutlinedButton.icon(
+                onPressed: _syncing ? null : _sync,
+                icon: _syncing
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.sync),
+                label: Text(_syncing ? 'Syncing…' : 'Sync transactions'),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Only transaction records are synced. Plans, Vector chats, and model data stay on this device.',
+                style: AppTextStyles.bodyMd.copyWith(
+                  fontSize: 12,
+                  color: AppColors.onSurfaceVariant,
+                ),
+              ),
+            ],
+          ),
   );
 }
 

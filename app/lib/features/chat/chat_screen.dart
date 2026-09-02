@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../data/budget_change_summary.dart';
 import '../../data/db.dart';
 import '../../data/new_subscription_summary.dart';
+import '../../data/plan_action_summary.dart';
 import '../../data/subscription_edit_summary.dart';
 import '../../data/subscription_summary.dart';
 import '../../data/transaction_edit_summary.dart';
@@ -354,10 +355,22 @@ class _BubbleState extends ConsumerState<_Bubble> {
       : null;
 
   Future<void> _confirmBudgetChange(BudgetChangeSummary change) async {
-    await ref
-        .read(appDatabaseProvider)
-        .budgetsDao
-        .upsert(change.category, change.proposedLimit, change.period);
+    final db = ref.read(appDatabaseProvider);
+    final existing = await db.budgetsDao.forPeriod(change.period);
+    final matching = existing.where((row) => row.category == change.category);
+    final current = matching.isEmpty ? null : matching.first;
+    final currency =
+        await db.settingsDao.planCurrency(change.period) ??
+        current?.currency ??
+        await db.settingsDao.defaultCurrency();
+    await db.budgetsDao.upsert(
+      change.category,
+      change.proposedLimit,
+      change.period,
+      cycle: current?.cycle ?? 'monthly',
+      cycleDays: current?.cycleDays ?? 30,
+      currency: currency,
+    );
     if (mounted) setState(() => _actionTaken = true);
   }
 
@@ -417,6 +430,41 @@ class _BubbleState extends ConsumerState<_Bubble> {
           edit.subscription.id,
           SubscriptionsCompanion(amount: Value(edit.newAmount)),
         );
+    if (mounted) setState(() => _actionTaken = true);
+  }
+
+  PlanActionSummary? get _planAction =>
+      widget.kind == 'plan_action_confirm' && widget.dataJson != null
+      ? decodePlanActionSummary(widget.dataJson!)
+      : null;
+
+  Future<void> _confirmPlanAction(PlanActionSummary action) async {
+    final db = ref.read(appDatabaseProvider);
+    switch (action.action) {
+      case 'set_income':
+        await db.settingsDao.setMonthlyIncome(action.period!, action.amount!);
+        break;
+      case 'set_cycle':
+        await db.settingsDao.setPlanCycle(action.cycle!);
+        break;
+      case 'convert_currency':
+        final income = await db.settingsDao.monthlyIncome(action.period!);
+        await db.budgetsDao.convertPeriodCurrency(
+          action.period!,
+          targetCurrency: action.targetCurrency!,
+          rate: action.rate!,
+          income: income,
+        );
+        break;
+      case 'add_category':
+        await db.categoriesDao.add(action.category!);
+        break;
+      case 'remove_category':
+        await db.categoriesDao.remove(action.category!);
+        break;
+      default:
+        throw StateError('Unknown plan action: ${action.action}');
+    }
     if (mounted) setState(() => _actionTaken = true);
   }
 
@@ -678,6 +726,42 @@ class _BubbleState extends ConsumerState<_Bubble> {
                             FilledButton(
                               onPressed: () =>
                                   _confirmSubscriptionEdit(_subscriptionEdit!),
+                              child: const Text('Confirm'),
+                            ),
+                          ],
+                        ),
+                      ),
+                    if (_actionTaken)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 4),
+                        child: Text(
+                          'Done.',
+                          style: TextStyle(
+                            color: AppColors.darkOnSurfaceVariant,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ),
+                  ],
+                  if (_planAction != null) ...[
+                    const SizedBox(height: 8),
+                    if (!_actionTaken)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 4),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            TextButton(
+                              onPressed: () =>
+                                  setState(() => _actionTaken = true),
+                              style: TextButton.styleFrom(
+                                foregroundColor: AppColors.darkPrimary,
+                              ),
+                              child: const Text('Cancel'),
+                            ),
+                            const SizedBox(width: 4),
+                            FilledButton(
+                              onPressed: () => _confirmPlanAction(_planAction!),
                               child: const Text('Confirm'),
                             ),
                           ],
