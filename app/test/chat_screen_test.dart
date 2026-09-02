@@ -415,4 +415,44 @@ void main() {
 
     await disposeTestDatabase(tester, db);
   });
+
+  testWidgets('confirms a Vector savings-goal action before saving it', (
+    tester,
+  ) async {
+    final db = createTestDatabase();
+    final message = _msg(
+      id: 1,
+      kind: 'plan_action_confirm',
+      content: 'Set your savings goal?',
+      dataJson: encodePlanActionSummary(
+        const PlanActionSummary(
+          action: 'set_savings_goal',
+          goalName: 'Emergency fund',
+          amount: 1000,
+          savedAmount: 150,
+          targetCurrency: 'USD',
+        ),
+      ),
+    );
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          appDatabaseProvider.overrideWithValue(db),
+          messagesStreamProvider.overrideWith((ref) => Stream.value([message])),
+        ],
+        child: const MaterialApp(home: ChatScreen()),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(await db.settingsDao.savingsGoal(), isNull);
+    await tester.tap(find.text('Confirm'));
+    await tester.pumpAndSettle();
+    final goal = await db.settingsDao.savingsGoal();
+    expect(goal?.name, 'Emergency fund');
+    expect(goal?.targetAmount, 1000);
+    expect(goal?.savedAmount, 150);
+
+    await disposeTestDatabase(tester, db);
+  });
 }

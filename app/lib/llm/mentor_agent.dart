@@ -63,6 +63,7 @@ class ChatIntent {
   final String? planCycle;
   final String? targetCurrency;
   final double? exchangeRate;
+  final String? goalName;
   final bool degraded;
   ChatIntent({
     required this.intent,
@@ -78,6 +79,7 @@ class ChatIntent {
     this.planCycle,
     this.targetCurrency,
     this.exchangeRate,
+    this.goalName,
     this.degraded = false,
   });
 }
@@ -86,6 +88,131 @@ bool _hasExplicitBudgetLimitLanguage(String message) => RegExp(
   r'\b(limit|cap|budget|allocation|l[ií]mite|tope|presupuesto|asignaci[oó]n)\b',
   caseSensitive: false,
 ).hasMatch(message);
+
+String? _catalogCategoryIn(String message) {
+  final normalized = message.toLowerCase();
+  for (final category in categoryCatalog) {
+    if (normalized.contains(category.toLowerCase())) return category;
+  }
+  const aliases = {
+    'coffee': 'Coffee & Dining',
+    'dining': 'Coffee & Dining',
+    'food': 'Coffee & Dining',
+    'grocery': 'Groceries',
+    'groceries': 'Groceries',
+    'transport': 'Transport',
+    'travel': 'Travel',
+    'health': 'Health',
+    'entertainment': 'Entertainment',
+  };
+  for (final entry in aliases.entries) {
+    if (RegExp('\\b${entry.key}\\b').hasMatch(normalized)) return entry.value;
+  }
+  return null;
+}
+
+double? _firstAmount(String message) {
+  final match = RegExp(r'(?<![\w.])\$?([0-9]+(?:[.,][0-9]{1,2})?)')
+      .firstMatch(message);
+  return match == null
+      ? null
+      : double.tryParse(match.group(1)!.replaceAll(',', '.'));
+}
+
+int? _requestedCount(String message) {
+  final match = RegExp(
+    r'\b(?:last|latest|recent|ultim[oa]s?)\s+(\d+)\b',
+    caseSensitive: false,
+  ).firstMatch(message);
+  return match == null ? null : int.tryParse(match.group(1)!);
+}
+
+/// Handles unambiguous commands locally before a model or a database history
+/// is needed. The model remains the fallback for natural, ambiguous language.
+ChatIntent? _fastIntent(String message) {
+  final normalized = message.trim().toLowerCase();
+  if (normalized.isEmpty) return null;
+  final amount = _firstAmount(message);
+  final category = _catalogCategoryIn(message);
+
+  if (RegExp(
+    r'\b(clear|delete|remove|borrar|eliminar|quita[rz]?)\b.*\b(savings?|ahorro|meta)',
+  ).hasMatch(normalized)) {
+    return ChatIntent(intent: 'clear_savings_goal');
+  }
+  if (RegExp(
+        r'\b(add|contribute|save|deposit|aporta[rz]?|ahorra[rz]?)\b.*\b(savings?|ahorro|meta)',
+      ).hasMatch(normalized) &&
+      amount != null &&
+      !RegExp(r'\b(for|para)\b').hasMatch(normalized)) {
+    return ChatIntent(intent: 'contribute_savings_goal', amount: amount);
+  }
+  if (RegExp(r'\b(goal|meta)\b').hasMatch(normalized) &&
+      RegExp(r'\b(save|saving|ahorrar|ahorro|create|crear|set|poner)\b')
+          .hasMatch(normalized) &&
+      amount != null) {
+    final nameMatch = RegExp(
+      r'\b(?:for|para)\s+(.+?)(?:\s+(?:of|de|target|objetivo)\s+|$)',
+      caseSensitive: false,
+    ).firstMatch(message);
+    return ChatIntent(
+      intent: 'set_savings_goal',
+      amount: amount,
+      goalName: nameMatch?.group(1)?.trim(),
+    );
+  }
+  if (RegExp(
+    r'\b(show|list|ver|muestra|listar)\b.*\b(subscription|subscriptions|suscripci[oó]n|suscripciones)',
+  ).hasMatch(normalized)) {
+    return ChatIntent(intent: 'query_subscriptions');
+  }
+  if (RegExp(
+    r'\b(show|list|ver|muestra|listar)\b.*\b(transaction|transactions|purchase|purchases|expense|expenses|transacci[oó]n|transacciones|gastos?)',
+  ).hasMatch(normalized)) {
+    return ChatIntent(
+      intent: 'query_transactions',
+      count: _requestedCount(message),
+    );
+  }
+  if (RegExp(r'\b(income|salary|paycheck|ingreso|salario)\b')
+          .hasMatch(normalized) &&
+      amount != null &&
+      RegExp(r'\b(set|change|update|pon|cambia|actualiza)\b')
+          .hasMatch(normalized)) {
+    return ChatIntent(intent: 'set_plan_income', amount: amount);
+  }
+  if (RegExp(r'\b(weekly|week|semanal|semana)\b').hasMatch(normalized) &&
+      RegExp(r'\b(plan|budget|presupuesto)\b').hasMatch(normalized)) {
+    return ChatIntent(intent: 'set_plan_cycle', planCycle: 'weekly');
+  }
+  if (RegExp(r'\b(fortnightly|biweekly|bi-weekly|quincenal|quincena)\b')
+          .hasMatch(normalized) &&
+      RegExp(r'\b(plan|budget|presupuesto)\b').hasMatch(normalized)) {
+    return ChatIntent(intent: 'set_plan_cycle', planCycle: 'fortnightly');
+  }
+  if (RegExp(r'\b(monthly|month|mensual|mes)\b').hasMatch(normalized) &&
+      RegExp(r'\b(plan|budget|presupuesto)\b').hasMatch(normalized)) {
+    return ChatIntent(intent: 'set_plan_cycle', planCycle: 'monthly');
+  }
+  if (_hasExplicitBudgetLimitLanguage(message) &&
+      amount != null &&
+      category != null) {
+    return ChatIntent(
+      intent: 'update_budget_limit',
+      category: category,
+      newLimit: amount,
+    );
+  }
+  if (_isFinancialCheckInRequest(normalized)) {
+    return ChatIntent(intent: 'financial_checkin');
+  }
+  return null;
+}
+
+bool _isFinancialCheckInRequest(String normalized) => RegExp(
+  r'\b(check[ -]?in|safe(?:ly)? spend|how am i doing|what can i cut|reduce spending|money advice|financial advice|resumen|consejo|cu[aá]nto puedo gastar|gastar hoy|reducir gastos)\b',
+  caseSensitive: false,
+).hasMatch(normalized);
 
 ChatIntent _parseIntent(String raw) {
   try {
@@ -106,6 +233,10 @@ ChatIntent _parseIntent(String raw) {
       'set_plan_currency',
       'add_category',
       'remove_category',
+      'set_savings_goal',
+      'contribute_savings_goal',
+      'clear_savings_goal',
+      'financial_checkin',
     };
     if (intent == null || !recognized.contains(intent)) {
       return ChatIntent(intent: 'chat');
@@ -119,10 +250,11 @@ ChatIntent _parseIntent(String raw) {
         (c) => c.toLowerCase() == category!.toLowerCase(),
         orElse: () => '',
       );
-      if (resolvedCategory.isEmpty) {
+      if (resolvedCategory.isNotEmpty) {
+        category = resolvedCategory;
+      } else if (category.trim().isEmpty || category.length > 50) {
         return ChatIntent(intent: 'chat', degraded: true);
       }
-      category = resolvedCategory;
     }
     if (intent == 'add_subscription' &&
         (json['merchant'] == null ||
@@ -168,6 +300,10 @@ ChatIntent _parseIntent(String raw) {
         (category == null || category.trim().isEmpty || category.length > 50)) {
       return ChatIntent(intent: 'chat', degraded: true);
     }
+    if ((intent == 'set_savings_goal' || intent == 'contribute_savings_goal') &&
+        ((json['amount'] as num?)?.toDouble() ?? 0) <= 0) {
+      return ChatIntent(intent: 'chat', degraded: true);
+    }
     return ChatIntent(
       intent: intent,
       category: category,
@@ -182,6 +318,7 @@ ChatIntent _parseIntent(String raw) {
       planCycle: planCycle,
       targetCurrency: targetCurrency,
       exchangeRate: exchangeRate,
+      goalName: json['goalName'] as String?,
     );
   } catch (_) {
     return ChatIntent(intent: 'chat');
@@ -269,6 +406,8 @@ class MentorAgent {
   }
 
   Future<ChatIntent> classify(String userMessage) async {
+    final local = _fastIntent(userMessage);
+    if (local != null) return local;
     try {
       final history = await _historyBlock();
       final raw = await provider.complete(
@@ -326,6 +465,14 @@ class MentorAgent {
         return _addCategory(parsed);
       case 'remove_category':
         return _removeCategory(parsed);
+      case 'set_savings_goal':
+        return _setSavingsGoal(parsed);
+      case 'contribute_savings_goal':
+        return _contributeSavingsGoal(parsed);
+      case 'clear_savings_goal':
+        return _clearSavingsGoal();
+      case 'financial_checkin':
+        return _financialCheckIn();
       // 'record_transaction' has no case here: chat_screen.dart's _send()
       // intercepts that intent before ever calling chat(), routing it to
       // the add-transaction flow instead. If it ever does reach here
@@ -434,6 +581,185 @@ class MentorAgent {
     } catch (_) {
       return MentorChatResult(content: 'I could not reach my model right now.');
     }
+  }
+
+  /// A data-only answer for the most common money questions. It avoids local
+  /// model startup and inference, which makes Vector feel immediate while
+  /// keeping the advice tied to records the user can inspect.
+  Future<MentorChatResult> _financialCheckIn() async {
+    final now = DateTime.now();
+    final cycle = PlanCycle.fromStorage(await db.settingsDao.planCycle());
+    final period = cycle.keyFor(now);
+    final start = cycle.startFor(now);
+    final end = cycle.endFor(now);
+    final (
+      budgets,
+      storedCurrency,
+      defaultCurrency,
+      transactions,
+      subscriptions,
+      goal,
+    ) = await (
+      db.budgetsDao.forPeriod(period),
+      db.settingsDao.planCurrency(period),
+      db.settingsDao.defaultCurrency(),
+      db.transactionsDao.search(limit: 500),
+      db.subscriptionsDao.allForScheduling(),
+      db.settingsDao.savingsGoal(),
+    ).wait;
+    final currency =
+        storedCurrency ??
+        (budgets.isEmpty ? defaultCurrency : budgets.first.currency);
+    final limits = {
+      for (final budget in budgets) budget.category: budget.monthlyLimit,
+    };
+    final spentByCategory = <String, double>{};
+    var ignoredCurrencies = 0;
+    for (final transaction in transactions) {
+      if (transaction.timestamp.isBefore(start) ||
+          !transaction.timestamp.isBefore(end)) {
+        continue;
+      }
+      if (transaction.currency != currency) {
+        ignoredCurrencies++;
+        continue;
+      }
+      spentByCategory[transaction.category] =
+          (spentByCategory[transaction.category] ?? 0) + transaction.amount;
+    }
+    final totalSpent = spentByCategory.values.fold<double>(0, (a, b) => a + b);
+    final totalLimit = limits.values.fold<double>(0, (a, b) => a + b);
+    final recurring = projectSubscriptionChargesInRange(
+      subscriptions: subscriptions,
+      start: start,
+      end: end,
+      currency: currency,
+      now: now,
+    ).total;
+    final today = DateTime(now.year, now.month, now.day);
+    final daysLeft = end.difference(today).inDays.clamp(1, 366);
+    final spendable = calculateSpendableAmount(
+      totalLimit: totalLimit,
+      totalSpent: totalSpent,
+      recurringCommitments: recurring,
+      daysLeft: daysLeft,
+    );
+    final highest = spentByCategory.entries.isEmpty
+        ? null
+        : spentByCategory.entries.reduce((a, b) => a.value > b.value ? a : b);
+    final nearLimit =
+        limits.entries
+            .where(
+              (entry) =>
+                  entry.value > 0 &&
+                  (spentByCategory[entry.key] ?? 0) / entry.value >= .8,
+            )
+            .toList()
+          ..sort(
+            (a, b) => ((spentByCategory[b.key] ?? 0) / b.value).compareTo(
+              (spentByCategory[a.key] ?? 0) / a.value,
+            ),
+          );
+
+    final headline = totalLimit <= 0
+        ? 'You have no caps set for this ${cycle.label.toLowerCase()} plan yet.'
+        : 'You have spent $currency ${totalSpent.toStringAsFixed(2)} of $currency ${totalLimit.toStringAsFixed(2)}.';
+    final nextStep = switch ((
+      totalLimit <= 0,
+      spendable.availableAfterCommitments <= 0,
+      nearLimit.isNotEmpty,
+    )) {
+      (true, _, _) =>
+        'Set category caps to give Vector a usable spending boundary.',
+      (_, true, _) => 'Pause discretionary spending until the next plan period and review upcoming charges.',
+      (_, _, true) =>
+        'Keep ${nearLimit.first.key} to essentials; it is already at ${(((spentByCategory[nearLimit.first.key] ?? 0) / nearLimit.first.value) * 100).toStringAsFixed(0)}% of its cap.',
+      _ =>
+        'A practical ceiling is $currency ${spendable.dailyAmount.toStringAsFixed(2)} per day for the remaining $daysLeft day${daysLeft == 1 ? '' : 's'}.',
+    };
+    final topLine = highest == null
+        ? ''
+        : ' Your largest category is ${highest.key} at $currency ${highest.value.toStringAsFixed(2)}.';
+    final goalLine = goal == null
+        ? ''
+        : ' Your ${goal.name} goal is $currency ${goal.savedAmount.toStringAsFixed(2)} of $currency ${goal.targetAmount.toStringAsFixed(2)}.';
+    final currencyLine = ignoredCurrencies == 0
+        ? ''
+        : ' $ignoredCurrencies transaction${ignoredCurrencies == 1 ? '' : 's'} in another currency ${ignoredCurrencies == 1 ? 'is' : 'are'} excluded.';
+    return MentorChatResult(
+      content:
+          '$headline$topLine$goalLine $nextStep$currencyLine Educational information only, not financial advice.',
+    );
+  }
+
+  Future<MentorChatResult> _setSavingsGoal(ChatIntent parsed) async {
+    final now = DateTime.now();
+    final period = await _currentPlanPeriod(now);
+    final (current, currency) = await (
+      db.settingsDao.savingsGoal(),
+      db.settingsDao.planCurrency(period),
+    ).wait;
+    final target = parsed.amount!;
+    final name = parsed.goalName?.trim();
+    return MentorChatResult(
+      content:
+          'Set ${name?.isNotEmpty == true ? name : current?.name ?? 'Savings goal'} to ${(currency ?? current?.currency ?? 'USD')} ${target.toStringAsFixed(2)}?',
+      kind: 'plan_action_confirm',
+      dataJson: encodePlanActionSummary(
+        PlanActionSummary(
+          action: 'set_savings_goal',
+          goalName: name?.isNotEmpty == true
+              ? name
+              : current?.name ?? 'Savings goal',
+          amount: target,
+          savedAmount: current?.savedAmount ?? 0,
+          targetCurrency: currency ?? current?.currency ?? 'USD',
+        ),
+      ),
+    );
+  }
+
+  Future<MentorChatResult> _contributeSavingsGoal(ChatIntent parsed) async {
+    final goal = await db.settingsDao.savingsGoal();
+    if (goal == null) {
+      return MentorChatResult(
+        content: 'Create a savings goal first, then I can track contributions to it.',
+      );
+    }
+    final updated = (goal.savedAmount + parsed.amount!)
+        .clamp(0, goal.targetAmount)
+        .toDouble();
+    return MentorChatResult(
+      content:
+          'Add ${goal.currency} ${parsed.amount!.toStringAsFixed(2)} to ${goal.name}? Your tracked progress would become ${goal.currency} ${updated.toStringAsFixed(2)}.',
+      kind: 'plan_action_confirm',
+      dataJson: encodePlanActionSummary(
+        PlanActionSummary(
+          action: 'set_savings_goal',
+          goalName: goal.name,
+          amount: goal.targetAmount,
+          savedAmount: updated,
+          targetCurrency: goal.currency,
+        ),
+      ),
+    );
+  }
+
+  Future<MentorChatResult> _clearSavingsGoal() async {
+    final goal = await db.settingsDao.savingsGoal();
+    if (goal == null) {
+      return MentorChatResult(
+        content: 'You do not have a savings goal to remove.',
+      );
+    }
+    return MentorChatResult(
+      content:
+          'Remove your ${goal.name} savings goal? This does not delete any transactions.',
+      kind: 'plan_action_confirm',
+      dataJson: encodePlanActionSummary(
+        const PlanActionSummary(action: 'clear_savings_goal'),
+      ),
+    );
   }
 
   Future<MentorChatResult> _queryTransactions(ChatIntent parsed) async {
@@ -553,7 +879,21 @@ class MentorAgent {
   }
 
   Future<MentorChatResult> _updateBudgetLimit(ChatIntent parsed) async {
-    final category = parsed.category!;
+    final requestedCategory = parsed.category!;
+    final categories = await db.categoriesDao.all();
+    final category = categories
+        .where(
+          (candidate) =>
+              candidate.name.toLowerCase() == requestedCategory.toLowerCase(),
+        )
+        .map((candidate) => candidate.name)
+        .firstOrNull;
+    if (category == null) {
+      return MentorChatResult(
+        content:
+            'I could not find "$requestedCategory" in your active categories. Add it first, then I can set its cap.',
+      );
+    }
     final newLimit = parsed.newLimit!;
     final now = DateTime.now();
     final period = await _currentPlanPeriod(now);

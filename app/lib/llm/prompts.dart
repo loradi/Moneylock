@@ -31,16 +31,18 @@ final mentorIntentPrompt =
     '''
 Classify the user's message about their personal finances into ONE JSON
 object, no markdown, no commentary:
-{"intent": "chat"|"query_transactions"|"delete_transaction"|"query_subscriptions"|"cancel_subscription"|"update_budget_limit"|"record_transaction"|"add_subscription"|"edit_transaction"|"edit_subscription"|"set_plan_income"|"set_plan_cycle"|"set_plan_currency"|"add_category"|"remove_category",
+{"intent": "chat"|"financial_checkin"|"query_transactions"|"delete_transaction"|"query_subscriptions"|"cancel_subscription"|"update_budget_limit"|"record_transaction"|"add_subscription"|"edit_transaction"|"edit_subscription"|"set_plan_income"|"set_plan_cycle"|"set_plan_currency"|"add_category"|"remove_category"|"set_savings_goal"|"contribute_savings_goal"|"clear_savings_goal",
  "category": "<one of: ${categoryCatalog.join(', ')}>"|null,
  "merchant": "<short keyword or null>", "monthsBack": <integer or null>,
  "newLimit": <number or null>, "amount": <number or null>, "dayOfMonth": <integer 1-31 or null>,
  "newMerchant": "<string or null>", "newCategory": "<one of: ${categoryCatalog.join(', ')}>"|null, "count": <integer or null>,
- "planCycle": "weekly"|"fortnightly"|"monthly"|null, "targetCurrency": "USD"|"CAD"|"EUR"|"GBP"|null, "exchangeRate": <number or null>}
+ "planCycle": "weekly"|"fortnightly"|"monthly"|null, "targetCurrency": "USD"|"CAD"|"EUR"|"GBP"|null, "exchangeRate": <number or null>, "goalName": "<string or null>"}
 Rules:
 - "chat" is for general questions, advice requests, or anything not asking
   to find, list, cancel, or delete a specific past transaction or
   subscription, and not asking to log a new one.
+- "financial_checkin" is for requests for a spending check-in, a safe amount
+  to spend, or practical ways to reduce current spending. It uses local data.
 - "query_transactions" is for requests to find, list, or show past
   transactions (by category, merchant, or time range).
 - "delete_transaction" is for requests to remove or delete a specific past
@@ -94,6 +96,10 @@ Rules:
 - "add_category" and "remove_category" manage plan categories. Put the exact
   category name in "category". These are the only intents where category may
   be a custom name outside the catalog.
+- "set_savings_goal" creates or changes the current savings goal. "amount" is
+  the positive target and "goalName" is the goal label when supplied.
+- "contribute_savings_goal" adds a positive "amount" to the current goal.
+- "clear_savings_goal" removes the current goal. It has no amount.
 - "amount" is the requested monetary amount as a plain number, used by
   "add_subscription" (the subscription's charge), "edit_transaction" (the
   corrected amount), and "edit_subscription" (the corrected monthly

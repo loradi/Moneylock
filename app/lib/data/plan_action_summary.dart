@@ -9,6 +9,8 @@ class PlanActionSummary {
     this.cycle,
     this.targetCurrency,
     this.rate,
+    this.goalName,
+    this.savedAmount,
   });
 
   final String action;
@@ -18,6 +20,8 @@ class PlanActionSummary {
   final String? cycle;
   final String? targetCurrency;
   final double? rate;
+  final String? goalName;
+  final double? savedAmount;
 
   Map<String, dynamic> toJson() => {
     'action': action,
@@ -27,6 +31,8 @@ class PlanActionSummary {
     'cycle': cycle,
     'targetCurrency': targetCurrency,
     'rate': rate,
+    'goalName': goalName,
+    'savedAmount': savedAmount,
   };
 
   factory PlanActionSummary.fromJson(Map<String, dynamic> json) =>
@@ -38,6 +44,8 @@ class PlanActionSummary {
         cycle: json['cycle'] as String?,
         targetCurrency: json['targetCurrency'] as String?,
         rate: (json['rate'] as num?)?.toDouble(),
+        goalName: json['goalName'] as String?,
+        savedAmount: (json['savedAmount'] as num?)?.toDouble(),
       );
 }
 

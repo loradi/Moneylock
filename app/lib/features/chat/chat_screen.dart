@@ -6,6 +6,7 @@ import '../../data/budget_change_summary.dart';
 import '../../data/db.dart';
 import '../../data/new_subscription_summary.dart';
 import '../../data/plan_action_summary.dart';
+import '../../data/savings_goal.dart';
 import '../../data/subscription_edit_summary.dart';
 import '../../data/subscription_summary.dart';
 import '../../data/transaction_edit_summary.dart';
@@ -202,7 +203,7 @@ class _VectorWelcome extends StatelessWidget {
     'What can I safely spend today?',
     'Show my recent transactions',
     'Show my subscriptions',
-    'How can I reduce spending this month?',
+    'Create a savings goal for Emergency fund of 1000',
   ];
 
   @override
@@ -223,7 +224,7 @@ class _VectorWelcome extends StatelessWidget {
       ),
       const SizedBox(height: 8),
       const Text(
-        'Vector can organize your records and turn your plan into clear next steps.',
+        'Record, find, correct, and delete entries. Manage subscriptions, caps, plan settings, and savings goals with a confirmation before changes.',
         textAlign: TextAlign.center,
         style: TextStyle(color: AppColors.darkOnSurfaceVariant, height: 1.4),
       ),
@@ -461,6 +462,21 @@ class _BubbleState extends ConsumerState<_Bubble> {
         break;
       case 'remove_category':
         await db.categoriesDao.remove(action.category!);
+        break;
+      case 'set_savings_goal':
+        await db.settingsDao.setSavingsGoal(
+          SavingsGoal(
+            name: action.goalName!,
+            targetAmount: action.amount!,
+            savedAmount: action.savedAmount ?? 0,
+            currency: action.targetCurrency!,
+          ),
+        );
+        ref.invalidate(savingsGoalProvider);
+        break;
+      case 'clear_savings_goal':
+        await db.settingsDao.clearSavingsGoal();
+        ref.invalidate(savingsGoalProvider);
         break;
       default:
         throw StateError('Unknown plan action: ${action.action}');

@@ -4,6 +4,7 @@ import 'package:moneylock/data/budget_change_summary.dart';
 import 'package:moneylock/data/db.dart';
 import 'package:moneylock/data/new_subscription_summary.dart';
 import 'package:moneylock/data/plan_action_summary.dart';
+import 'package:moneylock/data/savings_goal.dart';
 import 'package:moneylock/data/subscription_edit_summary.dart';
 import 'package:moneylock/data/subscription_summary.dart';
 import 'package:moneylock/data/transaction_edit_summary.dart';
@@ -65,7 +66,7 @@ class _CapturingLlm implements LlmProvider {
 
 void main() {
   test(
-    'chat intent builds a monthly summary context and returns a text result',
+    'financial check-in is generated locally without waiting for the model',
     () async {
       final db = _db();
       await db.budgetsDao.upsert('Groceries', 200.0, '2026-08');
@@ -80,16 +81,12 @@ void main() {
           timestamp: DateTime.now(),
         ),
       );
-      final llm = _ScriptedLlm([
-        '{"intent": "chat"}',
-        'Cut back on takeout this month.',
-      ]);
-      final agent = MentorAgent(llm, db);
+      final agent = MentorAgent(_ThrowingLlm(), db);
 
       final result = await agent.chat('what can I cut?');
 
       expect(result.kind, 'text');
-      expect(result.content, 'Cut back on takeout this month.');
+      expect(result.content, contains('Educational information only'));
       expect(result.dataJson, isNull);
       await db.close();
     },
@@ -659,23 +656,20 @@ void main() {
     await db.close();
   });
 
-  test(
-    'update_budget_limit with an off-catalog category falls back to chat',
-    () async {
-      final db = _db();
-      final llm = _ScriptedLlm([
-        '{"intent": "update_budget_limit", "category": "Foobar", "newLimit": 400}',
-        'General advice.',
-      ]);
-      final agent = MentorAgent(llm, db);
+  test('update_budget_limit supports a user-created category', () async {
+    final db = _db();
+    await db.categoriesDao.add('Foobar');
+    final llm = _ScriptedLlm([
+      '{"intent": "update_budget_limit", "category": "Foobar", "newLimit": 400}',
+    ]);
+    final agent = MentorAgent(llm, db);
 
-      final result = await agent.chat('change my foobar limit to \$400');
+    final result = await agent.chat('change my foobar limit to \$400');
 
-      expect(result.kind, 'text');
-      expect(result.content, 'General advice.');
-      await db.close();
-    },
-  );
+    expect(result.kind, 'budget_confirm');
+    expect(decodeBudgetChangeSummary(result.dataJson!).category, 'Foobar');
+    await db.close();
+  });
 
   test(
     'classify() recognizes record_transaction and extracts its params',
@@ -1121,17 +1115,51 @@ void main() {
     await db.close();
   });
 
+  test('fast commands skip model inference for a budget cap', () async {
+    final db = _db();
+    final llm = _ScriptedLlm([]);
+    final agent = MentorAgent(llm, db);
+
+    final intent = await agent.classify('Set my groceries budget cap to 240');
+
+    expect(intent.intent, 'update_budget_limit');
+    expect(intent.category, 'Groceries');
+    expect(intent.newLimit, 240);
+    expect(llm.callCount, 0);
+    await db.close();
+  });
+
   test(
-    'classify() leaves degraded false for a genuine chat classification',
+    'Vector creates and contributes to a savings goal with confirmation',
     () async {
       final db = _db();
-      final llm = _ScriptedLlm(['{"intent": "chat"}']);
+      final llm = _ScriptedLlm([]);
       final agent = MentorAgent(llm, db);
 
-      final intent = await agent.classify('how am I doing this month?');
+      final create = await agent.chat(
+        'Create a savings goal for Emergency fund of 1000',
+      );
+      final createAction = decodePlanActionSummary(create.dataJson!);
+      expect(create.kind, 'plan_action_confirm');
+      expect(createAction.action, 'set_savings_goal');
+      expect(createAction.goalName, 'Emergency fund');
+      expect(createAction.amount, 1000);
 
-      expect(intent.intent, 'chat');
-      expect(intent.degraded, isFalse);
+      await db.settingsDao.setSavingsGoal(
+        const SavingsGoal(
+          name: 'Emergency fund',
+          targetAmount: 1000,
+          savedAmount: 100,
+          currency: 'USD',
+        ),
+      );
+      final contribution = await agent.chat('Add 50 to my savings goal');
+      final contributionAction = decodePlanActionSummary(
+        contribution.dataJson!,
+      );
+      expect(contributionAction.action, 'set_savings_goal');
+      expect(contributionAction.savedAmount, 150);
+      expect(llm.callCount, 0);
       await db.close();
     },
   );
