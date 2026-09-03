@@ -89,6 +89,23 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
                 ),
               ),
             ),
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(
+                  AppSpacing.margin,
+                  2,
+                  AppSpacing.margin,
+                  4,
+                ),
+                child: Text(
+                  'Tap an entry to edit it, or swipe left to delete it.',
+                  style: AppTextStyles.bodyMd.copyWith(
+                    fontSize: 12,
+                    color: AppColors.onSurfaceVariant,
+                  ),
+                ),
+              ),
+            ),
             SliverPadding(
               padding: const EdgeInsets.symmetric(
                 horizontal: AppSpacing.margin,

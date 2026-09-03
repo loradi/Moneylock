@@ -15,6 +15,12 @@ void main() {
       expect(p.currency, 'USD');
       expect(p.category, 'Shopping & E-commerce');
     });
+    test('receipt total wins over store and item numbers', () {
+      final p = parseFallback(
+        'Store #842\nItem 12.99\nTax 1.04\nTOTAL 32.00\nThank you',
+      );
+      expect(p!.amount, 32);
+    });
     test('merchant desconocido -> Other, confianza baja', () {
       final p = parseFallback('FOOBARBAZ \$3.00');
       expect(p!.category, 'Other');

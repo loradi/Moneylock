@@ -655,6 +655,24 @@ void main() {
   });
 
   test(
+    'classify contributes to the named savings goal without the model',
+    () async {
+      final db = _db();
+      final llm = _ScriptedLlm([]);
+      final agent = MentorAgent(llm, db);
+
+      final intent = await agent.classify(
+        'Can you add another 200 to the mac mini goal',
+      );
+
+      expect(intent.intent, 'contribute_savings_goal');
+      expect(intent.amount, 200);
+      expect(llm.callCount, 0);
+      await db.close();
+    },
+  );
+
+  test(
     'fast record controls bypass the model for entries, lists, and deletes',
     () async {
       final db = _db();

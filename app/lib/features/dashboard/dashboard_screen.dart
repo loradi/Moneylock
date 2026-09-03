@@ -123,15 +123,25 @@ class DashboardScreen extends ConsumerWidget {
               ),
               sliver: SliverToBoxAdapter(child: _BudgetList(summary: summary)),
             ),
-            const SliverPadding(
-              padding: EdgeInsets.fromLTRB(
+            SliverPadding(
+              padding: const EdgeInsets.fromLTRB(
                 AppSpacing.margin,
                 28,
                 AppSpacing.margin,
-                8,
+                4,
               ),
               sliver: SliverToBoxAdapter(
-                child: AppSectionLabel('RECENT TRANSACTIONS'),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const AppSectionLabel('RECENT TRANSACTIONS'),
+                    TextButton.icon(
+                      onPressed: () => context.go('/history'),
+                      icon: const Icon(Icons.edit_outlined, size: 16),
+                      label: const Text('Manage'),
+                    ),
+                  ],
+                ),
               ),
             ),
             SliverList(
@@ -302,12 +312,21 @@ class _ForeignCurrencyNotice extends StatelessWidget {
           ),
           const SizedBox(width: 10),
           Expanded(
-            child: Text(
-              'Also recorded: ${totals.entries.map((entry) => fmtCurrency(entry.value, currency: entry.key)).join(', ')}. '
-              'These amounts are kept separate until you explicitly convert the plan.',
-              style: AppTextStyles.bodyMd.copyWith(
-                color: AppColors.onSurfaceVariant,
-              ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '${totals.entries.map((entry) => fmtCurrency(entry.value, currency: entry.key)).join(', ')} is recorded in another currency and is not included in Budget Health.',
+                  style: AppTextStyles.bodyMd.copyWith(
+                    color: AppColors.onSurfaceVariant,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                TextButton(
+                  onPressed: () => context.go('/budget'),
+                  child: const Text('Review conversion in Plan'),
+                ),
+              ],
             ),
           ),
         ],
@@ -398,12 +417,17 @@ class _BudgetList extends StatelessWidget {
   @override
   Widget build(BuildContext context) => summary.when(
     data: (s) {
-      final entries =
-          s.byCategory.entries
-              .where((e) => (s.byCategoryLimits[e.key] ?? 0) > 0)
+      final categories =
+          {...s.byCategoryLimits.keys, ...s.byCategory.keys}
+              .where((category) => (s.byCategoryLimits[category] ?? 0) > 0)
               .toList()
-            ..sort((a, b) => b.value.compareTo(a.value));
-      if (entries.isEmpty) {
+            ..sort((a, b) {
+              final spentComparison = (s.byCategory[b] ?? 0).compareTo(
+                s.byCategory[a] ?? 0,
+              );
+              return spentComparison != 0 ? spentComparison : a.compareTo(b);
+            });
+      if (categories.isEmpty) {
         return const AppEmptyState(
           icon: Icons.tune,
           title: 'No plan yet',
@@ -412,11 +436,11 @@ class _BudgetList extends StatelessWidget {
       }
       return Column(
         children: [
-          for (final e in entries)
+          for (final category in categories)
             BudgetBar(
-              category: e.key,
-              spent: e.value,
-              limit: s.byCategoryLimits[e.key]!,
+              category: category,
+              spent: s.byCategory[category] ?? 0,
+              limit: s.byCategoryLimits[category]!,
               currency: s.currency,
             ),
         ],

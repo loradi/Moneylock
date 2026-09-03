@@ -146,7 +146,7 @@ ChatIntent? _fastIntent(String message) {
     return ChatIntent(intent: 'clear_savings_goal');
   }
   if (RegExp(
-        r'\b(add|contribute|save|deposit|aporta[rz]?|ahorra[rz]?)\b.*\b(savings?|ahorro|meta)',
+        r'\b(add|contribute|deposit|aporta[rz]?)\b.*\b(savings?|goal|ahorro|meta)',
       ).hasMatch(normalized) &&
       amount != null &&
       !RegExp(r'\b(for|para)\b').hasMatch(normalized)) {

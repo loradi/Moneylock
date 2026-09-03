@@ -115,6 +115,19 @@ String _normalize(String s) =>
     s.toLowerCase().trim().replaceAll(RegExp(r'\s+'), ' ');
 
 double? _extractAmount(String raw) {
+  // OCR receipts contain store IDs, phone numbers, tax lines, and item
+  // quantities. A labeled final total is the only reliable amount to record.
+  // Use the last eligible total because receipts commonly show a preliminary
+  // subtotal earlier in the text.
+  final receiptTotals = RegExp(
+    r'\b(?:grand\s*total|total\s*due|amount\s*due|balance\s*due|total)\b(?!\s+(?:items?|qty|quantity|savings?))[^0-9]{0,32}([0-9]{1,6}(?:[,.][0-9]{2})?)',
+    caseSensitive: false,
+  ).allMatches(raw).toList();
+  if (receiptTotals.isNotEmpty) {
+    final value = receiptTotals.last.group(1)!.replaceAll(',', '');
+    final parsed = double.tryParse(value);
+    if (parsed != null && parsed > 0) return parsed;
+  }
   final m = RegExp(r'\$\s?([0-9]+(?:\.[0-9]{1,2})?)').firstMatch(raw);
   if (m != null) return double.parse(m.group(1)!);
   final m2 = RegExp(

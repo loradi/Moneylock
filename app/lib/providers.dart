@@ -13,6 +13,7 @@ import 'data/savings_goal.dart';
 import 'features/add/add_transaction_flow.dart';
 import 'features/insights/insights_agent.dart';
 import 'features/insights/spending_trend.dart';
+import 'features/budget/plan_period.dart';
 import 'llm/categorizer_agent.dart';
 import 'llm/llama_service.dart';
 import 'llm/llm_provider.dart';
@@ -124,17 +125,14 @@ final savingsGoalProvider = FutureProvider<SavingsGoal?>(
 /// Settings refresca las barras del Dashboard sin esperar una transacción.
 final budgetSummaryProvider = StreamProvider<BudgetSummary>((ref) async* {
   final db = ref.watch(appDatabaseProvider);
-  final defaultCurrency = await db.settingsDao.defaultCurrency();
-  final period = _currentPeriod();
-  final start = DateTime.parse('$period-01T00:00:00');
-  final end = DateTime(start.year, start.month + 1, 1);
-
   final txsStream = db.select(db.transactions).watch();
   final budgetsStream = db.select(db.budgets).watch();
+  final settingsStream = db.select(db.settings).watch();
   final events = StreamController<Object?>();
 
   List<Transaction>? txRows;
   final budgetRows = <Budget>[];
+  final settings = <String, String>{};
   final txSub = txsStream.listen((rows) {
     txRows = rows;
     events.add(null);
@@ -145,20 +143,39 @@ final budgetSummaryProvider = StreamProvider<BudgetSummary>((ref) async* {
       ..addAll(rows);
     events.add(null);
   });
+  final settingsSub = settingsStream.listen((rows) {
+    settings
+      ..clear()
+      ..addEntries(rows.map((row) => MapEntry(row.key, row.value)));
+    events.add(null);
+  });
 
   final it = StreamIterator(events.stream);
   try {
     while (await it.moveNext()) {
       final rows = txRows;
       if (rows == null) continue;
+      final now = DateTime.now();
+      final cycle = PlanCycle.fromStorage(settings['plan_cycle'] ?? 'monthly');
+      final period = cycle.keyFor(now);
+      final start = cycle.startFor(now);
+      final end = cycle.endFor(now);
       final activeBudgets = budgetRows
-          .where((b) => b.enabled && b.cycle == 'monthly' && b.period == period)
+          .where(
+            (b) =>
+                b.enabled &&
+                b.cycle == cycle.storageValue &&
+                b.period == period,
+          )
           .toList();
       final limits = {
         for (final b in activeBudgets) b.category: b.monthlyLimit,
       };
       final currency =
-          activeBudgets.map((b) => b.currency).firstOrNull ?? defaultCurrency;
+          settings['plan_currency_$period'] ??
+          activeBudgets.map((b) => b.currency).firstOrNull ??
+          settings['default_currency'] ??
+          'USD';
       final byCategory = <String, double>{};
       final unconvertedTotals = <String, double>{};
       for (final t in rows.where(
@@ -185,6 +202,7 @@ final budgetSummaryProvider = StreamProvider<BudgetSummary>((ref) async* {
   } finally {
     await txSub.cancel();
     await bSub.cancel();
+    await settingsSub.cancel();
     await events.close();
   }
 });
@@ -205,8 +223,3 @@ final spendingTrendProvider = Provider<List<MonthlySpendPoint>>((ref) {
         .toList(),
   );
 });
-
-String _currentPeriod() {
-  final now = DateTime.now();
-  return '${now.year.toString().padLeft(4, '0')}-${now.month.toString().padLeft(2, '0')}';
-}
