@@ -41,6 +41,22 @@ void main() {
       expect(p.category, 'Other');
       expect(p.merchant, 'Metro');
     });
+    test('removes command words from flexible add phrases', () {
+      final categoryEntry = parseFallback('add new entry for 120 groceries');
+      expect(categoryEntry!.category, 'Groceries');
+      expect(categoryEntry.merchant, isNull);
+
+      final merchantEntry = parseFallback('add a purchase 34 on rice');
+      expect(merchantEntry!.category, 'Other');
+      expect(merchantEntry.merchant, 'Rice');
+    });
+    test('recognizes a compact merchant and amount entry', () {
+      expect(isCompactTransactionEntry('meatloaf 23'), isTrue);
+      expect(isCompactTransactionEntry('Tim Hortons 10'), isTrue);
+      expect(isCompactTransactionEntry('I have 5 dollars'), isFalse);
+      expect(isCompactTransactionEntry('meet me at 5'), isFalse);
+      expect(isCompactTransactionEntry('add Netflix for \$30'), isFalse);
+    });
     test('does not treat recurring subscriptions as one-off transactions', () {
       expect(
         isExplicitTransactionCommand(

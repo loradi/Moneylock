@@ -18,6 +18,12 @@ void main() {
     },
   );
 
+  test('permite operaciones de registros y entradas compactas de Vector', () {
+    expect(mentorRequestAllowed('meatloaf 23'), isTrue);
+    expect(mentorRequestAllowed('show me the last 5 purchases'), isTrue);
+    expect(mentorRequestAllowed('can you delete the entry for tren'), isTrue);
+  });
+
   test('rechaza solicitudes fuera del alcance financiero', () {
     expect(mentorRequestAllowed('Write me a Python script'), isFalse);
     expect(mentorRequestAllowed('Who should I vote for?'), isFalse);

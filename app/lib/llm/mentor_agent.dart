@@ -171,8 +171,18 @@ ChatIntent? _fastIntent(String message) {
   ).hasMatch(normalized)) {
     return ChatIntent(intent: 'query_subscriptions');
   }
+  final deleteTransaction = RegExp(
+    r'\b(?:delete|remove|borrar|eliminar|quita[rz]?)\b.*?\b(?:transaction|transactions|purchase|purchases|expense|expenses|entry|entries|record|records|transacci[oó]n|transacciones|compra|compras|gasto|gastos|registro|registros)\b(?:\s+(?:for|of|at|from|de|del|para|en)\s+(.+))?\s*$',
+    caseSensitive: false,
+  ).firstMatch(normalized);
+  if (deleteTransaction != null) {
+    return ChatIntent(
+      intent: 'delete_transaction',
+      merchant: deleteTransaction.group(1)?.trim(),
+    );
+  }
   if (RegExp(
-    r'\b(show|list|ver|muestra|listar)\b.*\b(transaction|transactions|purchase|purchases|expense|expenses|transacci[oó]n|transacciones|gastos?)',
+    r'\b(show|list|display|ver|muestra|mostrar|listar)\b.*\b(transaction|transactions|purchase|purchases|expense|expenses|entry|entries|record|records|transacci[oó]n|transacciones|compra|compras|gastos?|registro|registros)',
   ).hasMatch(normalized)) {
     return ChatIntent(
       intent: 'query_transactions',
@@ -209,6 +219,13 @@ ChatIntent? _fastIntent(String message) {
     );
   }
   if (amount != null && isExplicitTransactionCommand(message)) {
+    return ChatIntent(
+      intent: 'record_transaction',
+      category: category,
+      amount: amount,
+    );
+  }
+  if (amount != null && isCompactTransactionEntry(message)) {
     return ChatIntent(
       intent: 'record_transaction',
       category: category,

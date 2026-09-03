@@ -654,6 +654,28 @@ void main() {
     await db.close();
   });
 
+  test(
+    'fast record controls bypass the model for entries, lists, and deletes',
+    () async {
+      final db = _db();
+      final llm = _ScriptedLlm([]);
+      final agent = MentorAgent(llm, db);
+
+      final compact = await agent.classify('meatloaf 23');
+      final list = await agent.classify('show me the last 5 purchases');
+      final delete = await agent.classify('can you delete the entry for tren');
+
+      expect(compact.intent, 'record_transaction');
+      expect(compact.amount, 23);
+      expect(list.intent, 'query_transactions');
+      expect(list.count, 5);
+      expect(delete.intent, 'delete_transaction');
+      expect(delete.merchant, 'tren');
+      expect(llm.callCount, 0);
+      await db.close();
+    },
+  );
+
   test('budget changes use the active weekly plan period', () async {
     final db = _db();
     await db.settingsDao.setPlanCycle('weekly');

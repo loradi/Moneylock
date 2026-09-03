@@ -141,6 +141,17 @@ String? _matchCategory(String normalized) {
 }
 
 String? _cleanMerchant(String normalized) {
+  final labeledEntryTarget = RegExp(
+    r'^\s*(?:add|log|record|agrega|agregar|a[nñ]ade|a[nñ]adir|registra|registrar)\s+(?:(?:a|an|new)\s+)*(?:entry|expense|purchase|transaction|registro|gasto|compra|transacci[oó]n)\s+(?:for\s+)?\$?\d+(?:\.\d{1,2})?(?:\s*(?:usd|cad|eur|dollars))?\s+(.+)$',
+    caseSensitive: false,
+  ).firstMatch(normalized)?.group(1)?.trim();
+  if (labeledEntryTarget != null) {
+    final target = labeledEntryTarget
+        .replaceFirst(RegExp(r'^(?:to|at|in|on|a|al|en|para|por)\s+'), '')
+        .trim();
+    if (_matchCategory(target) != null) return null;
+    return _titleCase(target);
+  }
   final commandTarget = RegExp(
     r'\b(?:add|log|record|spent|bought|paid|agrega|agregar|a[nñ]ade|a[nñ]adir|registra|registrar|anota|anotar|gast[eé]|compra|compr[eé]|paga|pag[ué])\b.*?\b(?:to|at|in|on|a|al|en|para|por)\s+(.+)$',
     caseSensitive: false,
@@ -150,14 +161,7 @@ String? _cleanMerchant(String normalized) {
     // "Add" as the merchant made otherwise successful Vector entries look
     // broken in history and the dashboard.
     if (_matchCategory(commandTarget) != null) return null;
-    return commandTarget
-        .split(' ')
-        .map(
-          (word) => word.isEmpty
-              ? word
-              : '${word[0].toUpperCase()}${word.substring(1)}',
-        )
-        .join(' ');
+    return _titleCase(commandTarget);
   }
   final cleaned = normalized
       .replaceFirst(
@@ -167,10 +171,32 @@ String? _cleanMerchant(String normalized) {
       .replaceAll(RegExp(r'\b(usd|cad|dollars|us|ca)\b'), '')
       .trim();
   if (cleaned.isEmpty) return null;
-  return cleaned
+  return _titleCase(cleaned);
+}
+
+String _titleCase(String value) {
+  return value
       .split(' ')
       .map((w) => w.isEmpty ? w : '${w[0].toUpperCase()}${w.substring(1)}')
       .join(' ');
+}
+
+/// A terse merchant-and-amount message is a transaction entry, not general
+/// conversation: `meatloaf 23`, `Tim Hortons 10`, or `Metro $18.50`.
+/// Keep the grammar deliberately narrow to avoid mistaking a normal sentence
+/// such as “I have 5 dollars” for a purchase.
+bool isCompactTransactionEntry(String rawText) {
+  final normalized = _normalize(rawText);
+  if (!RegExp(
+    r"^[a-zà-ÿ][a-zà-ÿ&'.-]*(?:\s+[a-zà-ÿ][a-zà-ÿ&'.-]*){0,2}\s+\$?[0-9]+(?:\.[0-9]{1,2})?(?:\s*(?:usd|cad|eur|dollars))?$",
+    caseSensitive: false,
+  ).hasMatch(normalized)) {
+    return false;
+  }
+  return !RegExp(
+    r'\b(?:i|we|you|my|the|a|an|meet|have|show|list|delete|remove|can|could|please|what|how|add|for|to|at|in|on|from|para|en|de)\b',
+    caseSensitive: false,
+  ).hasMatch(normalized);
 }
 
 /// A clear add/spend command is safe to route locally. This bypasses the

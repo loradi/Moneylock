@@ -18,6 +18,13 @@ final _researchPattern = RegExp(
   r'\b(research|investigate|look up|find out|investiga|investigar|buscar|averigua)\b',
 );
 
+/// Commands that operate on records are still Moneylock requests even when
+/// the user does not write an explicit financial word.
+final _recordActionPattern = RegExp(
+  r'\b(?:show|list|display|ver|muestra|mostrar|listar)\b.*\b(?:transaction|transactions|purchase|purchases|expense|expenses|entry|entries|record|records|transacci[oó]n|transacciones|compra|compras|gasto|gastos|registro|registros)\b|\b(?:delete|remove|borrar|eliminar|quita[rz]?)\b.*\b(?:transaction|transactions|purchase|purchases|expense|expenses|entry|entries|record|records|transacci[oó]n|transacciones|compra|compras|gasto|gastos|registro|registros)\b',
+  caseSensitive: false,
+);
+
 /// Broad enough to include both education (debt, investing, tax) and every
 /// Moneylock command, while preventing unrelated research from reaching the
 /// language model at all.
@@ -33,7 +40,11 @@ bool mentorRequestAllowed(String request) {
   }
   // A concise add/spend instruction is a Moneylock command even when a user
   // omits financial keywords or writes an unfamiliar merchant/category.
-  if (isExplicitTransactionCommand(normalized)) return true;
+  if (isExplicitTransactionCommand(normalized) ||
+      isCompactTransactionEntry(normalized) ||
+      _recordActionPattern.hasMatch(normalized)) {
+    return true;
+  }
   final isFinancial = _financialTopicPattern.hasMatch(normalized);
   if (_researchPattern.hasMatch(normalized) && !isFinancial) return false;
   return isFinancial;
