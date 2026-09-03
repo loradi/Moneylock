@@ -13,6 +13,7 @@ import '../data/transaction_summary.dart';
 import '../features/budget/plan_period.dart';
 import '../features/dashboard/spendable_amount.dart';
 import 'mentor_guardrails.dart';
+import 'fallback_parser.dart';
 import 'prompts.dart';
 import 'llm_provider.dart';
 
@@ -100,10 +101,14 @@ String? _catalogCategoryIn(String message) {
     'food': 'Coffee & Dining',
     'grocery': 'Groceries',
     'groceries': 'Groceries',
+    'mercado': 'Groceries',
+    'supermercado': 'Groceries',
     'transport': 'Transport',
+    'transporte': 'Transport',
     'travel': 'Travel',
     'health': 'Health',
     'entertainment': 'Entertainment',
+    'entretenimiento': 'Entertainment',
   };
   for (final entry in aliases.entries) {
     if (RegExp('\\b${entry.key}\\b').hasMatch(normalized)) return entry.value;
@@ -203,12 +208,7 @@ ChatIntent? _fastIntent(String message) {
       newLimit: amount,
     );
   }
-  if (amount != null &&
-      category != null &&
-      RegExp(
-        r'\b(add|log|record|spent|bought|paid|agrega|a[nñ]ade|registr[ae]|gast[eé]|compr[eé]|pag[ué]?)\b',
-        caseSensitive: false,
-      ).hasMatch(normalized)) {
+  if (amount != null && isExplicitTransactionCommand(message)) {
     return ChatIntent(
       intent: 'record_transaction',
       category: category,

@@ -1,3 +1,5 @@
+import 'fallback_parser.dart';
+
 /// Deterministic boundaries around the local mentor model.
 ///
 /// The model is a finance and Moneylock assistant, never a general assistant.
@@ -29,6 +31,9 @@ bool mentorRequestAllowed(String request) {
   if (_outOfScopePatterns.any((pattern) => pattern.hasMatch(normalized))) {
     return false;
   }
+  // A concise add/spend instruction is a Moneylock command even when a user
+  // omits financial keywords or writes an unfamiliar merchant/category.
+  if (isExplicitTransactionCommand(normalized)) return true;
   final isFinancial = _financialTopicPattern.hasMatch(normalized);
   if (_researchPattern.hasMatch(normalized) && !isFinancial) return false;
   return isFinancial;

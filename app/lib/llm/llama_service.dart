@@ -10,7 +10,9 @@ import 'llm_provider.dart';
 
 const _minModelSize = 1024 * 1024 * 1024; // >= 1GB
 const _defaultMaxTokens = 144;
-const _fastMaxTokens = 80;
+// Intent/extraction calls are compact JSON. A smaller cap makes the model
+// yield control sooner when a deterministic fast path cannot handle a request.
+const _fastMaxTokens = 56;
 
 class LlamaService {
   Future<Directory> _modelsDir() async {
@@ -131,7 +133,7 @@ class LocalLlmProvider implements FastLlmProvider {
       user,
       temperature: temperature,
       maxTokens: _fastMaxTokens,
-      timeout: const Duration(seconds: 20),
+      timeout: const Duration(seconds: 12),
     );
   }
 

@@ -24,6 +24,31 @@ void main() {
       final p = parseFallback('add 54 to groceries');
       expect(p!.amount, 54);
       expect(p.category, 'Groceries');
+      expect(p.merchant, isNull);
+    });
+    test(
+      'interpreta un comando de Vector en español sin inventar comercio',
+      () {
+        final p = parseFallback('agrega 54 al supermercado');
+        expect(p!.amount, 54);
+        expect(p.category, 'Groceries');
+        expect(p.merchant, isNull);
+      },
+    );
+    test('conserva el comercio escrito en un comando de Vector en español', () {
+      final p = parseFallback('registra 18.50 en Metro');
+      expect(p!.amount, 18.50);
+      expect(p.category, 'Other');
+      expect(p.merchant, 'Metro');
+    });
+    test('does not treat recurring subscriptions as one-off transactions', () {
+      expect(
+        isExplicitTransactionCommand(
+          'add Netflix for \$30 recurring on the 20th',
+        ),
+        isFalse,
+      );
+      expect(isExplicitTransactionCommand('add Netflix for \$30'), isFalse);
     });
     test('sin monto -> null', () {
       expect(parseFallback('hello world'), isNull);

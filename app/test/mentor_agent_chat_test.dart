@@ -640,6 +640,20 @@ void main() {
     await db.close();
   });
 
+  test('classify routes a Spanish transaction command locally', () async {
+    final db = _db();
+    final llm = _ScriptedLlm(['{"intent": "chat"}']);
+    final agent = MentorAgent(llm, db);
+
+    final intent = await agent.classify('agrega 54 al supermercado');
+
+    expect(intent.intent, 'record_transaction');
+    expect(intent.category, 'Groceries');
+    expect(intent.amount, 54);
+    expect(llm.callCount, 0);
+    await db.close();
+  });
+
   test('budget changes use the active weekly plan period', () async {
     final db = _db();
     await db.settingsDao.setPlanCycle('weekly');

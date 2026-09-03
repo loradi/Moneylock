@@ -10,6 +10,14 @@ void main() {
     expect(mentorRequestAllowed('Should I lower my dining budget?'), isTrue);
   });
 
+  test(
+    'permite comandos explícitos de registro aunque el comercio sea nuevo',
+    () {
+      expect(mentorRequestAllowed('agrega 54 al supermercado'), isTrue);
+      expect(mentorRequestAllowed('registra 18.50 en Metro'), isTrue);
+    },
+  );
+
   test('rechaza solicitudes fuera del alcance financiero', () {
     expect(mentorRequestAllowed('Write me a Python script'), isFalse);
     expect(mentorRequestAllowed('Who should I vote for?'), isFalse);

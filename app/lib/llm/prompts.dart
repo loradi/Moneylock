@@ -55,6 +55,10 @@ return {"intent":"chat"}.
 
 Example: "raise groceries cap to 400" ->
 {"intent":"update_budget_limit","category":"Groceries","newLimit":400}
+Example: "agrega 54 al supermercado" ->
+{"intent":"record_transaction","category":"Groceries","amount":54}
+Example: "registrar 18.50 en transporte" ->
+{"intent":"record_transaction","category":"Transport","amount":18.50}
 ''';
 
 const strictRamseyPrompt = '''

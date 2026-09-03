@@ -84,13 +84,6 @@ class AddTransactionFlow {
         return AddResult(inserted: false);
       }
 
-      try {
-        await scheduler.refresh();
-      } catch (_) {
-        // A notification-scheduling failure shouldn't mask a transaction
-        // that was already committed; refresh() is idempotent and will be
-        // retried on the next app launch/resume/transaction anyway.
-      }
       final postSave = _finishAfterSave(
         transaction: outcome.transaction!,
         timestamp: ts,
@@ -119,6 +112,14 @@ class AddTransactionFlow {
     required bool includeMentorFeedback,
   }) async {
     var saved = transaction;
+    try {
+      // Scheduling is useful, but it is cold-path work. The transaction is
+      // already durable, so do not make Vector wait on it before confirming
+      // a simple add command.
+      await scheduler.refresh();
+    } catch (_) {
+      // It is retried on the next launch/resume/transaction.
+    }
     if (shouldRefine) {
       try {
         final refined = await categorizer.categorize(rawText, source: source);

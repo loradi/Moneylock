@@ -23,9 +23,33 @@ const _categoryCatalog = {
     'doordash',
     'grubhub',
     'restaurant',
+    'coffee',
+    'cafe',
+    'café',
+    'comida',
+    'restaurante',
+    'restaurantes',
   ],
-  'Groceries': ['whole foods', 'trader joe', 'safeway', 'kroger', 'walmart'],
-  'Transport': ['uber', 'lyft', 'shell', 'chevron', 'exxon'],
+  'Groceries': [
+    'whole foods',
+    'trader joe',
+    'safeway',
+    'kroger',
+    'walmart',
+    'grocery',
+    'mercado',
+    'supermercado',
+    'alimentos',
+  ],
+  'Transport': [
+    'uber',
+    'lyft',
+    'shell',
+    'chevron',
+    'exxon',
+    'transporte',
+    'gasolina',
+  ],
   'Entertainment': ['netflix', 'spotify', 'hulu', 'disney', 'movie'],
   'Shopping & E-commerce': [
     'amazon',
@@ -42,8 +66,11 @@ const _categoryCatalog = {
     'at&t',
     'geico',
     'progressive',
+    'factura',
+    'facturas',
+    'servicios',
   ],
-  'Health': ['cvs', 'walgreens', 'pharmacy', 'doctor'],
+  'Health': ['cvs', 'walgreens', 'pharmacy', 'doctor', 'salud', 'farmacia'],
   'Tech': ['icloud', 'google', 'dropbox', 'adobe', 'microsoft'],
   'Travel': [
     'airline',
@@ -52,19 +79,35 @@ const _categoryCatalog = {
     'american airlines',
     'hotel',
     'airbnb',
+    'viaje',
+    'viajes',
   ],
 };
 
 const _explicitCategoryNames = {
   'coffee & dining': 'Coffee & Dining',
+  'coffee': 'Coffee & Dining',
+  'cafe': 'Coffee & Dining',
+  'café': 'Coffee & Dining',
+  'comida': 'Coffee & Dining',
   'groceries': 'Groceries',
+  'grocery': 'Groceries',
+  'mercado': 'Groceries',
+  'supermercado': 'Groceries',
   'transport': 'Transport',
+  'transporte': 'Transport',
   'entertainment': 'Entertainment',
+  'entretenimiento': 'Entertainment',
   'shopping & e-commerce': 'Shopping & E-commerce',
+  'compras': 'Shopping & E-commerce',
   'bills & utilities': 'Bills & Utilities',
+  'facturas': 'Bills & Utilities',
+  'servicios': 'Bills & Utilities',
   'health': 'Health',
+  'salud': 'Health',
   'tech': 'Tech',
   'travel': 'Travel',
+  'viajes': 'Travel',
   'other': 'Other',
 };
 
@@ -98,6 +141,24 @@ String? _matchCategory(String normalized) {
 }
 
 String? _cleanMerchant(String normalized) {
+  final commandTarget = RegExp(
+    r'\b(?:add|log|record|spent|bought|paid|agrega|agregar|a[nñ]ade|a[nñ]adir|registra|registrar|anota|anotar|gast[eé]|compra|compr[eé]|paga|pag[ué])\b.*?\b(?:to|at|in|on|a|al|en|para|por)\s+(.+)$',
+    caseSensitive: false,
+  ).firstMatch(normalized)?.group(1)?.trim();
+  if (commandTarget != null) {
+    // "Add 54 to groceries" names a category, not a merchant. Keeping
+    // "Add" as the merchant made otherwise successful Vector entries look
+    // broken in history and the dashboard.
+    if (_matchCategory(commandTarget) != null) return null;
+    return commandTarget
+        .split(' ')
+        .map(
+          (word) => word.isEmpty
+              ? word
+              : '${word[0].toUpperCase()}${word.substring(1)}',
+        )
+        .join(' ');
+  }
   final cleaned = normalized
       .replaceFirst(
         RegExp(r'\$?\s?[0-9]+(?:\.[0-9]{1,2})?\s*(usd|cad|dollars|us|ca)?.*$'),
@@ -110,6 +171,42 @@ String? _cleanMerchant(String normalized) {
       .split(' ')
       .map((w) => w.isEmpty ? w : '${w[0].toUpperCase()}${w.substring(1)}')
       .join(' ');
+}
+
+/// A clear add/spend command is safe to route locally. This bypasses the
+/// small on-device model for the hottest Vector path and supports natural
+/// English and Spanish phrasing.
+bool isExplicitTransactionCommand(String rawText) {
+  if (_extractAmount(rawText) == null) return false;
+  // These are financial commands too, but must keep their dedicated flows.
+  // In particular, “add Netflix for $30 recurring” is a subscription, not a
+  // one-off expense. Avoid routing it into the instant transaction path.
+  if (RegExp(
+    r'\b(subscription|subscriptions|recurring|savings?|goal|meta)\b',
+    caseSensitive: false,
+  ).hasMatch(rawText)) {
+    return false;
+  }
+  // “Add” is ambiguous (for example, “add Netflix for $30” can describe a
+  // subscription). Treat it as an instant expense only when the destination
+  // or an expense noun makes the intent clear. Record/spend/pay verbs are
+  // already explicit enough to stay on the fast path.
+  if (RegExp(
+    r'\b(?:log|record|spent|bought|paid|registra|registrar|anota|anotar|gast[eé]|compra|compr[eé]|paga|pag[ué])\b',
+    caseSensitive: false,
+  ).hasMatch(rawText)) {
+    return true;
+  }
+  if (!RegExp(
+    r'\b(?:add|agrega|agregar|a[nñ]ade|a[nñ]adir)\b',
+    caseSensitive: false,
+  ).hasMatch(rawText)) {
+    return false;
+  }
+  return RegExp(
+    r'\b(?:to|at|in|on|a|al|en|para|por|expense|expenses|transaction|purchase|gasto|gastos|transacci[oó]n|compra)\b',
+    caseSensitive: false,
+  ).hasMatch(rawText);
 }
 
 ParsedTransaction? parseFallback(String rawText) {
