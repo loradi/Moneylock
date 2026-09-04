@@ -1,102 +1,100 @@
-# Moneylock — App Store release kit
+# Moneylock — App Store submission kit
 
-## Build to upload
+Prepared for **version 1.0.9 (build 18)**. Copy the localized English values below into App Store Connect. They describe the shipped product only.
 
-- Bundle ID: `com.moneylock.moneylock`
-- Version: `1.0.7`
-- Build: `16`
-- Primary category: Finance
-- Secondary category: Productivity
-- Age rating: answer the App Store Connect questionnaire from the actual app content; Moneylock has no user-generated social content, ads, gambling, or purchases.
+## App information
 
-## English metadata
+| Field | Value |
+| --- | --- |
+| App name | Moneylock |
+| Bundle ID | `com.moneylock.moneylock` |
+| SKU | `moneylock-ios-001` |
+| Primary category | Finance |
+| Secondary category | Productivity |
+| Support URL | `https://moneylock-legal.vercel.app/support` |
+| Marketing URL | `https://moneylock-legal.vercel.app/` |
+| Privacy Policy URL | `https://moneylock-legal.vercel.app/privacy` |
 
-**Name**
+Enter a real copyright holder in the format `2026 Legal Entity Name`. The entity, review contact, territories, availability date, price, and App Store tax/banking agreements belong to the account owner and cannot be supplied from source code.
 
-Moneylock
+## English (U.S.) product page
+
+**Subtitle — 30 characters maximum**
+
+Private money planning
+
+**Promotional text — 170 characters maximum**
+
+Plan your spending, track subscriptions, and ask Vector—your fast, private on-device money assistant—for practical help.
+
+**Description — 4,000 characters maximum**
+
+Moneylock gives you a calm, private place to plan your money. Your plans, purchases, goals, and Vector conversations stay on your device—not in an advertising or analytics cloud.
+
+Build a budget that fits your rhythm: weekly, biweekly, or monthly. Set spending caps for the categories that matter, add income, and see exactly what is safe to spend in the current plan period.
+
+Capture purchases your way. Add them manually, use your voice, or scan a receipt. Review history, correct an entry, track subscriptions, and protect a savings goal.
+
+Meet Vector, your on-device financial assistant. Vector can add, find, edit, and remove local records; update plans, categories, subscriptions, and savings goals; and provide a concise financial check-in. It focuses on Moneylock and financial education, asks for confirmation before saving changes, and works offline once its local model is installed.
+
+MONEYLOCK FEATURES
+
+• Weekly, biweekly, and monthly budgets
+• Category caps and current-period budget health
+• Expense history, editing, and deletion
+• Savings goals and subscription reminders
+• Receipt scanning and voice entry
+• Vector: fast local AI for your Moneylock data
+• CSV backup and restore
+• Optional private-server sync, controlled by you
+
+Moneylock provides educational information only, not investment, legal, tax, insurance, credit, or other professional financial advice.
+
+**Keywords — 100 bytes maximum**
+
+budget,expenses,savings,spending,subscriptions,personal finance,offline,receipt,goals
+
+## Spanish (Canada) localization
 
 **Subtitle**
 
-Your money, on lock
+Planifica tu dinero en privado
 
 **Promotional text**
 
-Build a spending plan, stay ahead of subscriptions, and ask Vector for practical help with your money.
+Controla tus gastos y usa Vector, tu asistente financiero local y privado, para organizar tu dinero.
 
-**Description**
+## Screenshots and icon
 
-Moneylock helps you make confident day-to-day money decisions without handing your financial life to a cloud service.
+The ready-to-upload image assets are in [`store-assets/`](store-assets/). They are PNG files without alpha, rendered at the current 6.9-inch iPhone portrait size of **1290 × 2796 px**. Upload one to ten screenshots; these four are ordered for the product page:
 
-Create a budget that fits your rhythm — weekly, biweekly, or monthly — and set clear spending caps for the categories that matter to you. Add purchases manually, with your voice, or by scanning a receipt. See where your money goes, review past activity, and keep recurring subscriptions from slipping through the cracks.
+1. `01-dashboard.png` — current spending and category health
+2. `02-vector-welcome.png` — Vector's local privacy promise
+3. `03-vector-action.png` — asking Vector to manage a record
+4. `04-vector-confirm.png` — transparent confirmation before saved changes
 
-Meet Vector, your on-device financial assistant. Ask Vector to add, find, edit, or remove records; update plans, categories, subscriptions, and savings goals; or get a clear financial check-in. Vector focuses on Moneylock and financial education, and asks for confirmation before changing saved information.
-
-Moneylock is built for privacy: your records and Vector conversations stay on your device. Optional sync only sends data to the private Moneylock server that you configure yourself.
-
-Features:
-
-- Budgets for weekly, biweekly, and monthly plans
-- Expense history, category caps, and savings goals
-- Subscription tracking and renewal reminders
-- Receipt scanning and voice entry
-- Local, on-device Vector assistance
-- CSV backup and restore
-- Optional private-server sync
-
-Moneylock provides educational information, not financial, tax, legal, insurance, credit, or investment advice.
-
-**Keywords**
-
-budget,expense tracker,money,savings,subscriptions,spending,personal finance,finance planner
-
-## Spanish localization (optional at launch)
-
-**Subtitle**
-
-Tu dinero, bajo control
-
-**Promotional text**
-
-Planea tus gastos, controla tus suscripciones y recibe ayuda práctica de Vector.
-
-## Screenshots to capture
-
-Capture five portrait screenshots on a 6.9-inch iPhone simulator or physical device. Use only real app UI and realistic, non-sensitive sample amounts.
-
-1. Dashboard: spending versus plan and category progress.
-2. Budget: weekly, biweekly, and monthly plan options with category caps.
-3. Vector: a short financial check-in or a confirmed record action.
-4. Subscriptions: renewal projection and reminder value.
-5. History or receipt scan: quick, private expense capture.
-
-App Store Connect accepts one to ten screenshots. Supply the highest required iPhone size; do not include alpha channels. See Apple’s current screenshot specifications before capture.
+`AppIcon-1024.png` is the 1024 × 1024 marketing icon embedded in the IPA. Do not upload an image with transparency. The dashboard screenshot source is genuine UI; the illustrative sample amounts contain no personal information.
 
 ## App Review notes
 
-No account or login is required.
+Paste this in **Notes** for the reviewer:
 
-The app works without connecting to a bank. Financial records are created by the user and are stored locally. Optional sync is disabled until the user enters their own private Moneylock server URL and API key in Settings.
+> No account or login is required. Moneylock works without bank connectivity. Financial records are entered by the user and stored locally. Optional sync is disabled unless the user explicitly enters their own server URL and API key in Settings.
+>
+> Vector is an on-device assistant. It manages local Moneylock data only after the user confirms a proposed saved change. It provides Moneylock help and financial education only; it does not provide personalized investment, legal, tax, insurance, or credit advice.
+>
+> The iOS 18+ Control Center control, “Add with Vector,” opens Moneylock with Vector ready to capture a purchase. Camera, microphone, and speech-recognition permission prompts appear only when the user chooses receipt scanning or voice entry.
 
-Vector is an on-device assistant. It can manage local Moneylock data after the user confirms a change. It provides financial education and Moneylock help only; it does not offer personalized investment, legal, tax, insurance, or credit advice.
+## App privacy and compliance
 
-The Control Center control “Add with Vector” is available on iOS 18 or later. It opens Moneylock with Vector ready to capture a purchase.
+The release has no analytics SDK, advertising SDK, tracking, or mandatory account. Local transactions, plans, categories, subscriptions, goals, settings, and Vector chats stay on the device. Select **“No, we do not collect data from this app”** only if the optional sync server is truly user-operated and neither Moneylock nor its developer can access its data. Otherwise, disclose the information sent to that server as Financial Information used for App Functionality, then update the published privacy policy to name the server operator, retention policy, and deletion process.
 
-Camera, microphone, and speech-recognition permissions are requested only after the user selects receipt scanning or voice entry.
+Complete Apple’s age-rating questionnaire from the actual app content. The app contains no user-generated social content, ads, gambling, purchases, or unrestricted web access. Confirm export compliance with the account holder; standard Apple/HTTPS encryption alone generally does not require additional documentation, but this is a legal declaration by the publisher.
 
-## App Store Connect fields that need owner input
+## Owner-required preflight
 
-These values must be real public URLs and contact details. Do not submit placeholders.
-
-- Support URL: `https://moneylock-legal.vercel.app/support`
-- Privacy policy URL: `https://moneylock-legal.vercel.app/privacy`
-- Marketing URL: `https://moneylock-legal.vercel.app/`
-- App Review contact name, email, and phone number
-- Copyright holder and year
-- Availability territories and price
-- Export-compliance answer: `No` for Moneylock’s current use of standard Apple/HTTPS encryption only, subject to your legal confirmation.
-
-## App Privacy decision
-
-The app has no analytics, advertising, account system, tracking, or developer-operated data collection in the current codebase. Transactions, plans, subscriptions, categories, savings goals, and Vector chats remain on the device by default. The user may voluntarily configure a private sync server; that service’s privacy practices must be disclosed by its operator.
-
-Before publishing the App Privacy label, confirm who operates the optional Moneylock server. If it is operated by Moneylock or the developer can access its data, disclose **Financial Information** as collected for app functionality and ensure the privacy policy covers it. If it is solely a user-operated private server and the developer cannot access the data, retain documentation supporting the “not collected by developer” answer.
+- Add a genuine support email address, mailing address or phone number to the public Support page before submission. Apple requires the Support URL to lead to real contact information.
+- Enter the App Review contact name, email, and phone number in App Store Connect.
+- Enter the legal copyright holder, availability territories, and price.
+- Confirm the optional-sync operator and make the App Privacy answer match that decision.
+- Open every public URL on the final domain and make sure no placeholder text remains.
