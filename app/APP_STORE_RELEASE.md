@@ -66,7 +66,15 @@ Controla tus gastos y usa Vector, tu asistente financiero local y privado, para 
 
 ## Screenshots and icon
 
-The ready-to-upload image assets are in [`store-assets/`](store-assets/). They are PNG files without alpha, rendered at the current 6.9-inch iPhone portrait size of **1290 × 2796 px**. Upload one to ten screenshots; these four are ordered for the product page:
+The ready-to-upload image assets are in [`store-assets/`](store-assets/). Every screenshot is a PNG without alpha. Choose **one complete folder** that matches the device size currently selected in App Store Connect; do not mix screenshot sizes in a device well:
+
+| Folder | Exact portrait size |
+| --- | --- |
+| `iphone-6.9-1260x2736/` | 1260 × 2736 px |
+| `iphone-6.9-1290x2796/` | 1290 × 2796 px |
+| `iphone-6.9-1320x2868/` | 1320 × 2868 px |
+
+Upload one to ten screenshots; these four are ordered for the product page:
 
 1. `01-dashboard.png` — current spending and category health
 2. `02-vector-welcome.png` — Vector's local privacy promise
