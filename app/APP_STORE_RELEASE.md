@@ -73,6 +73,7 @@ The ready-to-upload image assets are in [`store-assets/`](store-assets/). Every 
 | `iphone-6.9-1260x2736/` | 1260 × 2736 px |
 | `iphone-6.9-1290x2796/` | 1290 × 2796 px |
 | `iphone-6.9-1320x2868/` | 1320 × 2868 px |
+| `ipad-13-2064x2752/` | 2064 × 2752 px |
 
 Upload one to ten screenshots; these four are ordered for the product page:
 
