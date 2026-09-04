@@ -417,17 +417,15 @@ class _BudgetList extends StatelessWidget {
   @override
   Widget build(BuildContext context) => summary.when(
     data: (s) {
-      final categories =
-          {...s.byCategoryLimits.keys, ...s.byCategory.keys}
-              .where((category) => (s.byCategoryLimits[category] ?? 0) > 0)
+      // Budget Health is a spending view: show every category with activity
+      // in the active plan period, while hiding categories that are still at
+      // zero. The provider already scopes [byCategory] to the chosen cycle.
+      final entries =
+          s.byCategory.entries
+              .where((entry) => (s.byCategoryLimits[entry.key] ?? 0) > 0)
               .toList()
-            ..sort((a, b) {
-              final spentComparison = (s.byCategory[b] ?? 0).compareTo(
-                s.byCategory[a] ?? 0,
-              );
-              return spentComparison != 0 ? spentComparison : a.compareTo(b);
-            });
-      if (categories.isEmpty) {
+            ..sort((a, b) => b.value.compareTo(a.value));
+      if (entries.isEmpty) {
         return const AppEmptyState(
           icon: Icons.tune,
           title: 'No plan yet',
@@ -436,11 +434,11 @@ class _BudgetList extends StatelessWidget {
       }
       return Column(
         children: [
-          for (final category in categories)
+          for (final entry in entries)
             BudgetBar(
-              category: category,
-              spent: s.byCategory[category] ?? 0,
-              limit: s.byCategoryLimits[category]!,
+              category: entry.key,
+              spent: entry.value,
+              limit: s.byCategoryLimits[entry.key]!,
               currency: s.currency,
             ),
         ],

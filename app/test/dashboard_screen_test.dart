@@ -131,38 +131,43 @@ void main() {
     await disposeTestDatabase(tester, db);
   });
 
-  testWidgets('shows every planned category even before it has spending', (
-    tester,
-  ) async {
-    final db = createTestDatabase();
-    await tester.pumpWidget(
-      ProviderScope(
-        overrides: [
-          appDatabaseProvider.overrideWithValue(db),
-          transactionsStreamProvider.overrideWith(
-            (ref) => Stream.value(const []),
-          ),
-          subscriptionsProvider.overrideWith((ref) => Stream.value(const [])),
-          budgetSummaryProvider.overrideWith(
-            (ref) => Stream.value(
-              BudgetSummary(
-                totalSpent: 10,
-                totalLimit: 300,
-                byCategory: {'Coffee & Dining': 10},
-                byCategoryLimits: {'Coffee & Dining': 100, 'Groceries': 200},
+  testWidgets(
+    'shows every spent category but hides zero-spend plan categories',
+    (tester) async {
+      final db = createTestDatabase();
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            appDatabaseProvider.overrideWithValue(db),
+            transactionsStreamProvider.overrideWith(
+              (ref) => Stream.value(const []),
+            ),
+            subscriptionsProvider.overrideWith((ref) => Stream.value(const [])),
+            budgetSummaryProvider.overrideWith(
+              (ref) => Stream.value(
+                BudgetSummary(
+                  totalSpent: 10,
+                  totalLimit: 300,
+                  byCategory: {'Coffee & Dining': 10},
+                  byCategoryLimits: {
+                    'Coffee & Dining': 100,
+                    'Groceries': 200,
+                    'Transport': 50,
+                  },
+                ),
               ),
             ),
-          ),
-        ],
-        child: const MaterialApp(home: DashboardScreen()),
-      ),
-    );
-    await tester.pumpAndSettle();
+          ],
+          child: const MaterialApp(home: DashboardScreen()),
+        ),
+      );
+      await tester.pumpAndSettle();
 
-    expect(find.text('Coffee & Dining'), findsOneWidget);
-    expect(find.text('Groceries'), findsOneWidget);
-    expect(find.textContaining('\$0.00 / \$200.00'), findsOneWidget);
+      expect(find.text('Coffee & Dining'), findsOneWidget);
+      expect(find.text('Groceries'), findsNothing);
+      expect(find.text('Transport'), findsNothing);
 
-    await disposeTestDatabase(tester, db);
-  });
+      await disposeTestDatabase(tester, db);
+    },
+  );
 }
