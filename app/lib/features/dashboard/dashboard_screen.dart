@@ -440,10 +440,11 @@ class _BudgetList extends StatelessWidget {
               .toList()
             ..sort((a, b) => b.value.compareTo(a.value));
       if (entries.isEmpty) {
-        return const AppEmptyState(
+        return AppEmptyState(
           icon: Icons.tune,
           title: 'No plan yet',
-          body: 'Build a monthly plan to see what is safe to spend each day.',
+          body: 'Set up your plan to see what is safe to spend each day.',
+          onTap: () => context.go('/budget'),
         );
       }
       return Column(

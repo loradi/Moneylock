@@ -27,7 +27,10 @@ class AppGlassHeader extends StatelessWidget {
       ),
       child: Row(
         children: [
-          if (leading != null) ...[leading!, const SizedBox(width: AppSpacing.gutter)],
+          if (leading != null) ...[
+            leading!,
+            const SizedBox(width: AppSpacing.gutter),
+          ],
           Expanded(
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
@@ -203,6 +206,7 @@ class AppEmptyState extends StatelessWidget {
   final IconData icon;
   final String? actionLabel;
   final VoidCallback? onAction;
+  final VoidCallback? onTap;
 
   const AppEmptyState({
     super.key,
@@ -211,28 +215,38 @@ class AppEmptyState extends StatelessWidget {
     required this.icon,
     this.actionLabel,
     this.onAction,
+    this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.all(AppSpacing.lg),
-      child: Column(
-        children: [
-          Icon(icon, size: 40, color: AppColors.onSurfaceVariant),
-          const SizedBox(height: AppSpacing.md),
-          Text(title, style: AppTextStyles.headlineMd, textAlign: TextAlign.center),
-          const SizedBox(height: AppSpacing.sm),
-          Text(
-            body,
-            style: AppTextStyles.bodyMd.copyWith(color: AppColors.onSurfaceVariant),
-            textAlign: TextAlign.center,
-          ),
-          if (actionLabel != null && onAction != null) ...[
+    return GestureDetector(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.all(AppSpacing.lg),
+        child: Column(
+          children: [
+            Icon(icon, size: 40, color: AppColors.onSurfaceVariant),
             const SizedBox(height: AppSpacing.md),
-            FilledButton(onPressed: onAction, child: Text(actionLabel!)),
+            Text(
+              title,
+              style: AppTextStyles.headlineMd,
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            Text(
+              body,
+              style: AppTextStyles.bodyMd.copyWith(
+                color: AppColors.onSurfaceVariant,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            if (actionLabel != null && onAction != null) ...[
+              const SizedBox(height: AppSpacing.md),
+              FilledButton(onPressed: onAction, child: Text(actionLabel!)),
+            ],
           ],
-        ],
+        ),
       ),
     );
   }
@@ -245,7 +259,7 @@ class AppSectionLabel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Text(
-        label,
-        style: AppTextStyles.labelCaps.copyWith(color: AppColors.onSurfaceVariant),
-      );
+    label,
+    style: AppTextStyles.labelCaps.copyWith(color: AppColors.onSurfaceVariant),
+  );
 }
