@@ -23,6 +23,12 @@ List<Transaction> recentWithinLastWeek(List<Transaction> txs, {DateTime? now}) {
   return txs.where((t) => !t.timestamp.isBefore(cutoff)).toList();
 }
 
+String _cycleLabel(String cycle) => switch (cycle) {
+  'weekly' => 'weekly',
+  'fortnightly' => 'biweekly',
+  _ => 'monthly',
+};
+
 class DashboardScreen extends ConsumerWidget {
   const DashboardScreen({super.key, this.now});
 
@@ -42,6 +48,8 @@ class DashboardScreen extends ConsumerWidget {
             spentByCategory: budgetSummary.byCategory,
             limitsByCategory: budgetSummary.byCategoryLimits,
             now: now,
+            periodStart: budgetSummary.periodStart,
+            periodEnd: budgetSummary.periodEnd,
           );
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -353,12 +361,16 @@ class _TotalCard extends StatelessWidget {
       child: summary.when(
         data: (s) {
           final date = now ?? DateTime.now();
-          final daysLeft =
-              DateUtils.getDaysInMonth(date.year, date.month) - date.day + 1;
+          final start = s.periodStart ?? DateTime(date.year, date.month);
+          final end = s.periodEnd ?? DateTime(date.year, date.month + 1);
+          final day = DateTime(date.year, date.month, date.day);
+          final periodDays = end.difference(start).inDays;
+          final daysLeft = end.difference(day).inDays.clamp(1, periodDays);
           final hasPlan = s.totalLimit > 0;
-          final recurring = projectSubscriptionCharges(
+          final recurring = projectSubscriptionChargesInRange(
             subscriptions: subscriptions,
-            month: date,
+            start: start,
+            end: end,
             currency: s.currency,
             now: date,
           ).total;
@@ -372,7 +384,9 @@ class _TotalCard extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                hasPlan ? 'SAFE TO SPEND TODAY' : 'THIS MONTH',
+                hasPlan
+                    ? 'SAFE TO SPEND TODAY'
+                    : _cycleLabel(s.cycle).toUpperCase(),
                 style: AppTextStyles.labelCaps.copyWith(
                   color: AppColors.onSurfaceVariant,
                 ),
@@ -396,7 +410,7 @@ class _TotalCard extends StatelessWidget {
                                       'left in your plan'
                           : '${fmtCurrency(spendable.availableAfterCommitments.abs(), currency: s.currency)} '
                                 'over your plan after recurring charges'
-                    : 'Build a monthly plan to unlock your daily amount.',
+                    : 'Build a ${_cycleLabel(s.cycle)} plan to unlock your daily amount.',
                 style: AppTextStyles.bodyMd.copyWith(
                   color: AppColors.onSurfaceVariant,
                 ),

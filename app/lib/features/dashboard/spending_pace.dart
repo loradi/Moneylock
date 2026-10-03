@@ -1,5 +1,3 @@
-import 'package:flutter/material.dart';
-
 /// A category whose current daily spending rate would exceed its monthly cap.
 class SpendingPaceAlert {
   const SpendingPaceAlert({
@@ -29,12 +27,16 @@ SpendingPaceAlert? findSpendingPaceAlert({
   required Map<String, double> spentByCategory,
   required Map<String, double> limitsByCategory,
   DateTime? now,
+  DateTime? periodStart,
+  DateTime? periodEnd,
 }) {
   final date = now ?? DateTime.now();
   const earliestReliableDay = 4;
-  if (date.day < earliestReliableDay) return null;
-
-  final daysInMonth = DateUtils.getDaysInMonth(date.year, date.month);
+  final start = periodStart ?? DateTime(date.year, date.month);
+  final end = periodEnd ?? DateTime(date.year, date.month + 1);
+  final elapsedDays = date.difference(start).inDays + 1;
+  final periodDays = end.difference(start).inDays;
+  if (elapsedDays < earliestReliableDay || periodDays <= 0) return null;
   SpendingPaceAlert? mostUrgent;
 
   for (final entry in limitsByCategory.entries) {
@@ -42,7 +44,7 @@ SpendingPaceAlert? findSpendingPaceAlert({
     final spent = spentByCategory[entry.key] ?? 0;
     if (limit <= 0 || spent <= 0 || spent >= limit) continue;
 
-    final projectedTotal = spent / date.day * daysInMonth;
+    final projectedTotal = spent / elapsedDays * periodDays;
     final isMateriallyOverPace = projectedTotal > limit * 1.15;
     if (!isMateriallyOverPace) continue;
 
@@ -51,7 +53,7 @@ SpendingPaceAlert? findSpendingPaceAlert({
       spent: spent,
       limit: limit,
       projectedTotal: projectedTotal,
-      daysRemaining: daysInMonth - date.day,
+      daysRemaining: (periodDays - elapsedDays).clamp(0, periodDays),
     );
     if (mostUrgent == null ||
         candidate.projectedOverage > mostUrgent.projectedOverage) {

@@ -4,6 +4,9 @@ class BudgetSummary {
   final double totalSpent;
   final double totalLimit;
   final String currency;
+  final String cycle;
+  final DateTime? periodStart;
+  final DateTime? periodEnd;
   final Map<String, double> byCategory;
 
   /// Amounts in currencies other than [currency]. They are deliberately kept
@@ -19,6 +22,9 @@ class BudgetSummary {
     required this.totalLimit,
     required this.byCategory,
     this.currency = 'USD',
+    this.cycle = 'monthly',
+    this.periodStart,
+    this.periodEnd,
     this.byCategoryLimits = const {},
     this.unconvertedTotals = const {},
   });

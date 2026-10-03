@@ -132,6 +132,9 @@ void main() {
     expect(summary.currency, 'CAD');
     expect(summary.totalSpent, 40);
     expect(summary.byCategory['Groceries'], 40);
+    expect(summary.cycle, 'weekly');
+    expect(summary.periodStart, cycle.startFor(now));
+    expect(summary.periodEnd, cycle.endFor(now));
   });
 
   test('keeps the active plan currency when global currency changes', () async {

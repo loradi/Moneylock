@@ -45,4 +45,26 @@ void main() {
 
     expect(alert, isNull);
   });
+
+  test('projects weekly and biweekly plans from their active period', () {
+    final weekly = findSpendingPaceAlert(
+      spentByCategory: {'Dining': 80},
+      limitsByCategory: {'Dining': 100},
+      now: DateTime(2026, 4, 9),
+      periodStart: DateTime(2026, 4, 6),
+      periodEnd: DateTime(2026, 4, 13),
+    );
+    final biweekly = findSpendingPaceAlert(
+      spentByCategory: {'Dining': 80},
+      limitsByCategory: {'Dining': 100},
+      now: DateTime(2026, 4, 13),
+      periodStart: DateTime(2026, 4, 6),
+      periodEnd: DateTime(2026, 4, 20),
+    );
+
+    expect(weekly?.projectedTotal, closeTo(140, 0.001));
+    expect(weekly?.daysRemaining, 3);
+    expect(biweekly?.projectedTotal, closeTo(140, 0.001));
+    expect(biweekly?.daysRemaining, 6);
+  });
 }
