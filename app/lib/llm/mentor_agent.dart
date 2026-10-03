@@ -315,11 +315,11 @@ ChatIntent _parseIntent(String raw) {
     if (intent == 'set_plan_cycle' && !cycles.contains(planCycle)) {
       return ChatIntent(intent: 'chat', degraded: true);
     }
-    const currencies = {'USD', 'CAD', 'EUR', 'GBP'};
     final targetCurrency = json['targetCurrency'] as String?;
     final exchangeRate = (json['exchangeRate'] as num?)?.toDouble();
     if (intent == 'set_plan_currency' &&
-        (!currencies.contains(targetCurrency) ||
+        (targetCurrency == null ||
+            !RegExp(r'^[A-Z]{3}$').hasMatch(targetCurrency) ||
             exchangeRate == null ||
             !exchangeRate.isFinite ||
             exchangeRate <= 0)) {
@@ -500,15 +500,16 @@ class MentorAgent {
     final now = DateTime.now();
     final period =
         '${now.year.toString().padLeft(4, '0')}-${now.month.toString().padLeft(2, '0')}';
-    final (planRows, storedCurrency, defaultCurrency, transactions) = await (
+    final (planRows, storedCurrency, globalCurrency, transactions) = await (
       db.budgetsDao.forPeriod(period),
       db.settingsDao.planCurrency(period),
-      db.settingsDao.defaultCurrency(),
+      db.settingsDao.storedDefaultCurrency(),
       db.transactionsDao.search(limit: 500),
     ).wait;
     final currency =
+        globalCurrency ??
         storedCurrency ??
-        (planRows.isEmpty ? defaultCurrency : planRows.first.currency);
+        (planRows.isEmpty ? 'USD' : planRows.first.currency);
     final limits = {for (final row in planRows) row.category: row.monthlyLimit};
     final start = DateTime(now.year, now.month);
     final end = DateTime(now.year, now.month + 1);
@@ -607,21 +608,22 @@ class MentorAgent {
     final (
       budgets,
       storedCurrency,
-      defaultCurrency,
+      globalCurrency,
       transactions,
       subscriptions,
       goal,
     ) = await (
       db.budgetsDao.forPeriod(period),
       db.settingsDao.planCurrency(period),
-      db.settingsDao.defaultCurrency(),
+      db.settingsDao.storedDefaultCurrency(),
       db.transactionsDao.search(limit: 500),
       db.subscriptionsDao.allForScheduling(),
       db.settingsDao.savingsGoal(),
     ).wait;
     final currency =
+        globalCurrency ??
         storedCurrency ??
-        (budgets.isEmpty ? defaultCurrency : budgets.first.currency);
+        (budgets.isEmpty ? 'USD' : budgets.first.currency);
     final limits = {
       for (final budget in budgets) budget.category: budget.monthlyLimit,
     };

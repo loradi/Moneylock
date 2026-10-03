@@ -504,6 +504,8 @@ class _BubbleState extends ConsumerState<_Bubble> {
           rate: action.rate!,
           income: income,
         );
+        await db.settingsDao.setDefaultCurrency(action.targetCurrency!);
+        ref.invalidate(defaultCurrencyProvider);
         break;
       case 'add_category':
         await db.categoriesDao.add(action.category!);

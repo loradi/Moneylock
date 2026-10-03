@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'fallback_parser.dart';
 import 'llm_provider.dart';
 import 'prompts.dart';
+import '../core/currency_options.dart';
 
 class CategorizeResult {
   final ParsedTransaction parsed;
@@ -44,7 +45,7 @@ class CategorizerAgent {
       final category = (map['category'] as String?) ?? '';
       final confidence = (map['confidence'] as num?)?.toDouble() ?? 0.5;
       if (amount == null || amount <= 0) return null;
-      if (currency != null && currency != 'USD' && currency != 'CAD') {
+      if (currency != null && !isCurrencyCode(currency)) {
         return null;
       }
       if (!categoryCatalog.contains(category)) return null;

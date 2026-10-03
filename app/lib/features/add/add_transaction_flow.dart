@@ -7,6 +7,7 @@ import '../../llm/fallback_parser.dart';
 import '../../llm/mentor_agent.dart';
 import '../../core/notifications.dart';
 import '../../core/notification_scheduler.dart';
+import '../../core/currency_options.dart';
 
 class AddResult {
   final bool inserted;
@@ -62,9 +63,24 @@ class AddTransactionFlow {
       // still refines low-confidence categories after the save, but the user
       // never has to wait for model inference to protect a simple record.
       final fallback = parseFallback(rawText);
-      final parsed =
+      final parsedResult =
           fallback ??
           (await categorizer.categorize(rawText, source: source)).parsed;
+      final configuredCurrency = await db.settingsDao.defaultCurrency();
+      final hasExplicitCurrency = RegExp(r'(?:\b[A-Z]{3}\b|\$|€|£|¥|₹)')
+          .hasMatch(rawText);
+      final parsed =
+          !hasExplicitCurrency &&
+              parsedResult.amount != null &&
+              isCurrencyCode(configuredCurrency)
+          ? ParsedTransaction(
+              amount: parsedResult.amount,
+              currency: configuredCurrency,
+              merchant: parsedResult.merchant,
+              category: parsedResult.category,
+              confidence: parsedResult.confidence,
+            )
+          : parsedResult;
       final amount = parsed.amount;
       if (amount == null) {
         return AddResult(inserted: false, error: 'Could not extract amount');

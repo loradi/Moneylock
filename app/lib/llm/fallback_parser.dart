@@ -253,7 +253,10 @@ ParsedTransaction? parseFallback(String rawText) {
   final amount = _extractAmount(rawText);
   if (amount == null) return null;
   final category = _matchCategory(normalized);
-  final currency = RegExp(r'\bcad\b').hasMatch(normalized) ? 'CAD' : 'USD';
+  final explicitCode = RegExp(r'\b[A-Z]{3}\b').firstMatch(rawText)?.group(0);
+  final currency =
+      explicitCode?.toUpperCase() ??
+      (RegExp(r'\bcad\b').hasMatch(normalized) ? 'CAD' : 'USD');
   return ParsedTransaction(
     amount: amount,
     currency: currency,

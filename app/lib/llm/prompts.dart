@@ -15,9 +15,10 @@ final categorizerSystemPrompt =
     '''
 You extract purchase data from raw transaction text.
 Return ONLY a JSON object with no markdown, no commentary:
-{"amount": <number>, "currency": "USD"|"CAD", "merchant": "<string>",
+{"amount": <number>, "currency": "ISO 4217 code", "merchant": "<string>",
  "category": "<one of: ${categoryCatalog.join(', ')}>", "confidence": <0.0-1.0>}
 Rules:
+- currency is an uppercase ISO 4217 three-letter code when stated.
 - amount is a positive number in the currency unit stated.
 - merchant is the company name only.
 - If you cannot determine a field, use "" for merchant and "Other" for category.
@@ -48,7 +49,7 @@ Find/list/show expenses is query_transactions; delete a past expense is
 delete_transaction; correct one is edit_transaction. Subscription actions use
 subscription intents: adding needs merchant, positive amount and day 1-31.
 Plan income needs a positive amount; planCycle is weekly, fortnightly or
-monthly; currency conversion needs targetCurrency (USD/CAD/EUR/GBP) and a
+monthly; currency conversion needs targetCurrency as an uppercase ISO 4217 code and a
 positive exchangeRate. Adding/removing categories uses the exact category
 label. Saving-goal set/contribution needs a positive amount. If uncertain,
 return {"intent":"chat"}.

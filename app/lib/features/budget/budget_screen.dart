@@ -5,9 +5,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
 import '../../core/format.dart';
-import '../../data/budgets_dao.dart';
+import '../../core/currency_options.dart';
 import '../../data/db.dart';
-import '../../data/exchange_rate_service.dart';
 import '../../data/subscription_projection.dart';
 import '../../data/savings_goal.dart';
 import '../../providers.dart';
@@ -40,17 +39,28 @@ final monthlyPlanProvider = FutureProvider.family<MonthlyPlanData, String>((
   ref,
   period,
 ) async {
+  // Recompute when the global currency changes, even when the period rows do
+  // not change.
+  ref.watch(defaultCurrencyProvider);
   final db = ref.watch(appDatabaseProvider);
-  final (income, rows, storedCurrency, defaultCurrency) = await (
+  final (
+    income,
+    rows,
+    storedCurrency,
+    defaultCurrency,
+    globalCurrency,
+  ) = await (
     db.settingsDao.monthlyIncome(period),
     db.budgetsDao.forPeriod(period),
     db.settingsDao.planCurrency(period),
     db.settingsDao.defaultCurrency(),
+    db.settingsDao.storedDefaultCurrency(),
   ).wait;
   return MonthlyPlanData(
     income: income,
     limits: {for (final row in rows) row.category: row.monthlyLimit},
     currency:
+        globalCurrency ??
         storedCurrency ??
         (rows.isEmpty ? defaultCurrency : rows.first.currency),
   );
@@ -68,7 +78,6 @@ class _BudgetScreenState extends ConsumerState<BudgetScreen> {
   bool _cycleInitialized = false;
   String _currency = 'USD';
   bool _currencyInitialized = false;
-  int _currencyPickerVersion = 0;
   String _hydratedPeriod = '';
   final _controllers = <String, TextEditingController>{};
   final _editedCategories = <String>{};
@@ -178,9 +187,6 @@ class _BudgetScreenState extends ConsumerState<BudgetScreen> {
                         isCopyingPreviousPlan: _isCopyingPreviousPlan,
                         onCopyPreviousPlan: _copyPreviousPlan,
                         currency: planData?.currency ?? _currency,
-                        onCurrencyChanged: (value) =>
-                            _changeCurrency(value, planData),
-                        currencyPickerVersion: _currencyPickerVersion,
                         onCycleChanged: _changeCycle,
                       ),
                       const SizedBox(height: 12),
@@ -304,8 +310,13 @@ class _BudgetScreenState extends ConsumerState<BudgetScreen> {
       await ref
           .read(appDatabaseProvider)
           .settingsDao
+          .setDefaultCurrency(_currency);
+      await ref
+          .read(appDatabaseProvider)
+          .settingsDao
           .setPlanCurrency(_periodKey(), _currency);
       ref.invalidate(monthlyPlanProvider(_periodKey()));
+      ref.invalidate(defaultCurrencyProvider);
     } catch (error) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -393,93 +404,6 @@ class _BudgetScreenState extends ConsumerState<BudgetScreen> {
       _editedCategories.clear();
     });
     ref.read(appDatabaseProvider).settingsDao.setPlanCycle(cycle.storageValue);
-  }
-
-  Future<void> _changeCurrency(
-    String currency,
-    MonthlyPlanData? planData,
-  ) async {
-    if (currency == _currency) return;
-    final hasValues =
-        planData != null &&
-        (planData.income != null || planData.limits.isNotEmpty);
-    if (!hasValues) {
-      setState(() => _currency = currency);
-      await ref
-          .read(appDatabaseProvider)
-          .settingsDao
-          .setPlanCurrency(_periodKey(), currency);
-      ref.invalidate(monthlyPlanProvider(_periodKey()));
-      return;
-    }
-    final rate = await _askForConversionRate(
-      sourceCurrency: _currency,
-      targetCurrency: currency,
-      planData: planData,
-    );
-    if (rate == null) {
-      if (mounted) setState(() => _currencyPickerVersion++);
-      return;
-    }
-    try {
-      final db = ref.read(appDatabaseProvider);
-      await db.budgetsDao.convertPeriodCurrency(
-        _periodKey(),
-        targetCurrency: currency,
-        rate: rate,
-        income: planData.income,
-      );
-      if (!mounted) return;
-      setState(() => _currency = currency);
-      ref.invalidate(monthlyPlanProvider(_periodKey()));
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Converted this plan to $currency.')),
-      );
-    } catch (error) {
-      if (!mounted) return;
-      setState(() => _currencyPickerVersion++);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Could not convert this plan: $error')),
-      );
-    }
-  }
-
-  Future<double?> _askForConversionRate({
-    required String sourceCurrency,
-    required String targetCurrency,
-    required MonthlyPlanData? planData,
-  }) async {
-    ExchangeRateQuote? suggested;
-    try {
-      suggested = await ref
-          .read(exchangeRateServiceProvider)
-          .quote(base: sourceCurrency, target: targetCurrency);
-    } catch (_) {
-      // The manual entry remains available when offline or when a reference
-      // rate is temporarily unavailable.
-    }
-    if (!mounted) return null;
-    final controller = TextEditingController(
-      text: suggested?.rate.toStringAsFixed(4) ?? '',
-    );
-    final rate = await showDialog<double>(
-      context: context,
-      builder: (context) => _CurrencyConversionDialog(
-        sourceCurrency: sourceCurrency,
-        targetCurrency: targetCurrency,
-        planned: planData == null
-            ? 0
-            : planData.limits.values.fold<double>(
-                0,
-                (sum, amount) => sum + amount,
-              ),
-        income: planData?.income,
-        controller: controller,
-        suggested: suggested,
-      ),
-    );
-    controller.dispose();
-    return rate;
   }
 
   Future<void> _copyPreviousPlan() async {
@@ -987,9 +911,7 @@ class _PlanOverview extends StatelessWidget {
   final bool isCopyingPreviousPlan;
   final Future<void> Function() onCopyPreviousPlan;
   final String currency;
-  final ValueChanged<String> onCurrencyChanged;
   final ValueChanged<PlanCycle> onCycleChanged;
-  final int currencyPickerVersion;
 
   const _PlanOverview({
     required this.periodLabel,
@@ -1006,9 +928,7 @@ class _PlanOverview extends StatelessWidget {
     required this.isCopyingPreviousPlan,
     required this.onCopyPreviousPlan,
     required this.currency,
-    required this.onCurrencyChanged,
     required this.onCycleChanged,
-    required this.currencyPickerVersion,
   });
 
   @override
@@ -1104,21 +1024,22 @@ class _PlanOverview extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 14),
-          DropdownButtonFormField<String>(
-            key: ValueKey('$currency-$currencyPickerVersion'),
-            initialValue: currency,
-            decoration: const InputDecoration(labelText: 'Plan currency'),
-            items: const [
-              DropdownMenuItem(value: 'USD', child: Text('USD — US Dollar')),
-              DropdownMenuItem(
-                value: 'CAD',
-                child: Text('CAD — Canadian Dollar'),
-              ),
-              DropdownMenuItem(value: 'EUR', child: Text('EUR — Euro')),
-            ],
-            onChanged: (v) {
-              if (v != null) onCurrencyChanged(v);
-            },
+          InputDecorator(
+            decoration: const InputDecoration(
+              labelText: 'Global plan currency',
+              helperText: 'Change this in Settings to use any ISO 4217 code.',
+            ),
+            child: Text(currency),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            commonCurrencies.entries
+                .take(8)
+                .map((entry) => entry.key)
+                .join('  ·  '),
+            style: AppTextStyles.labelCaps.copyWith(
+              color: AppColors.onSurfaceVariant,
+            ),
           ),
           const SizedBox(height: 12),
           DropdownButtonFormField<PlanCycle>(
@@ -1138,106 +1059,6 @@ class _PlanOverview extends StatelessWidget {
       ),
     ),
   );
-}
-
-class _CurrencyConversionDialog extends StatefulWidget {
-  const _CurrencyConversionDialog({
-    required this.sourceCurrency,
-    required this.targetCurrency,
-    required this.planned,
-    required this.income,
-    required this.controller,
-    required this.suggested,
-  });
-
-  final String sourceCurrency;
-  final String targetCurrency;
-  final double planned;
-  final double? income;
-  final TextEditingController controller;
-  final ExchangeRateQuote? suggested;
-
-  @override
-  State<_CurrencyConversionDialog> createState() =>
-      _CurrencyConversionDialogState();
-}
-
-class _CurrencyConversionDialogState extends State<_CurrencyConversionDialog> {
-  double? get _rate =>
-      double.tryParse(widget.controller.text.trim().replaceAll(',', '.'));
-
-  @override
-  Widget build(BuildContext context) {
-    final rate = _rate;
-    final validRate = rate != null && rate > 0 && rate.isFinite;
-    final previewRate = validRate ? rate : null;
-    return AlertDialog(
-      title: const Text('Convert plan currency?'),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Enter how many ${widget.targetCurrency} equal 1 ${widget.sourceCurrency}.',
-          ),
-          if (widget.suggested != null) ...[
-            const SizedBox(height: 6),
-            Text(
-              'Suggested by Frankfurter: ${widget.suggested!.rate.toStringAsFixed(4)} on ${DateFormat.yMMMd().format(widget.suggested!.asOf)}. Review it before converting.',
-              style: AppTextStyles.bodyMd.copyWith(
-                fontSize: 12,
-                color: AppColors.onSurfaceVariant,
-              ),
-            ),
-          ],
-          const SizedBox(height: 12),
-          TextField(
-            controller: widget.controller,
-            autofocus: true,
-            keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            decoration: InputDecoration(
-              labelText: 'Exchange rate',
-              hintText: 'e.g. 1.36',
-              suffixText: '${widget.targetCurrency} / ${widget.sourceCurrency}',
-            ),
-            onChanged: (_) => setState(() {}),
-          ),
-          if (previewRate != null) ...[
-            const SizedBox(height: 14),
-            Text(
-              'Planned: ${fmtCurrency(widget.planned, currency: widget.sourceCurrency)} → '
-              '${fmtCurrency(convertCurrencyAmount(widget.planned, previewRate), currency: widget.targetCurrency)}',
-            ),
-            if (widget.income != null)
-              Text(
-                'Income: ${fmtCurrency(widget.income!, currency: widget.sourceCurrency)} → '
-                '${fmtCurrency(convertCurrencyAmount(widget.income!, previewRate), currency: widget.targetCurrency)}',
-              ),
-          ],
-          const SizedBox(height: 12),
-          Text(
-            'This updates every cap and the income in this plan. You can cancel to leave values unchanged.',
-            style: AppTextStyles.bodyMd.copyWith(
-              fontSize: 12,
-              color: AppColors.onSurfaceVariant,
-            ),
-          ),
-        ],
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: const Text('Cancel'),
-        ),
-        FilledButton(
-          onPressed: previewRate != null
-              ? () => Navigator.pop(context, previewRate)
-              : null,
-          child: const Text('Convert'),
-        ),
-      ],
-    );
-  }
 }
 
 class _PlanMetric extends StatelessWidget {

@@ -58,6 +58,13 @@ class SettingsDao {
     return row?.value ?? 'USD';
   }
 
+  Future<String?> storedDefaultCurrency() async {
+    final row = await (db.select(
+      db.settings,
+    )..where((s) => s.key.equals('default_currency'))).getSingleOrNull();
+    return row?.value;
+  }
+
   Future<void> setDefaultCurrency(String currency) => db
       .into(db.settings)
       .insertOnConflictUpdate(
@@ -162,6 +169,7 @@ class SettingsDao {
         await (db.select(db.settings)..where(
               (setting) =>
                   setting.key.equals('plan_cycle') |
+                  setting.key.equals('default_currency') |
                   setting.key.like('monthly_income_%') |
                   setting.key.like('plan_currency_%') |
                   setting.key.like('savings_goal_%'),
@@ -175,6 +183,7 @@ class SettingsDao {
         for (final entry in values.entries) {
           final allowed =
               entry.key == 'plan_cycle' ||
+              entry.key == 'default_currency' ||
               entry.key.startsWith('monthly_income_') ||
               entry.key.startsWith('plan_currency_') ||
               entry.key.startsWith('savings_goal_');

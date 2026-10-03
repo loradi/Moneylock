@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:flutter/services.dart';
 
 import '../../data/transaction_csv_backup.dart';
+import '../../core/currency_options.dart';
 import '../../providers.dart';
 import '../../theme/app_theme.dart';
 import '../../voice/speech_service.dart';
@@ -45,6 +46,9 @@ class SettingsScreen extends ConsumerWidget {
             const SizedBox(height: 28),
             const _Section('NOTIFICATIONS'),
             const _NotificationsCard(),
+            const SizedBox(height: 28),
+            const _Section('GLOBAL CURRENCY'),
+            const _CurrencyCard(),
             const SizedBox(height: 28),
             const _Section('PRIVATE SYNC'),
             const _SyncCard(),
@@ -121,6 +125,54 @@ class _NotificationsCard extends ConsumerWidget {
               ref.invalidate(notificationsEnabledProvider);
               await ref.read(notificationSchedulerProvider).refresh();
             },
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _CurrencyCard extends ConsumerWidget {
+  const _CurrencyCard();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final currency = ref.watch(defaultCurrencyProvider).valueOrNull ?? 'USD';
+    return _Card(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Used for new entries and the active plan. Enter any ISO 4217 code.',
+            style: AppTextStyles.bodyMd.copyWith(
+              color: AppColors.onSurfaceVariant,
+            ),
+          ),
+          const SizedBox(height: 12),
+          CurrencyCodeField(
+            value: currency,
+            label: 'Default currency',
+            onSubmitted: (value) async {
+              await ref
+                  .read(appDatabaseProvider)
+                  .settingsDao
+                  .setDefaultCurrency(value);
+              ref.invalidate(defaultCurrencyProvider);
+              if (!context.mounted) return;
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text('Global currency set to $value.')),
+              );
+            },
+          ),
+          const SizedBox(height: 8),
+          Text(
+            commonCurrencies.entries
+                .take(8)
+                .map((entry) => entry.key)
+                .join('  ·  '),
+            style: AppTextStyles.labelCaps.copyWith(
+              color: AppColors.onSurfaceVariant,
+            ),
           ),
         ],
       ),

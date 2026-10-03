@@ -172,9 +172,9 @@ final budgetSummaryProvider = StreamProvider<BudgetSummary>((ref) async* {
         for (final b in activeBudgets) b.category: b.monthlyLimit,
       };
       final currency =
+          settings['default_currency'] ??
           settings['plan_currency_$period'] ??
           activeBudgets.map((b) => b.currency).firstOrNull ??
-          settings['default_currency'] ??
           'USD';
       final byCategory = <String, double>{};
       final unconvertedTotals = <String, double>{};
