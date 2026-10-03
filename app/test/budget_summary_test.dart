@@ -78,6 +78,10 @@ void main() {
       expect(summary.totalSpent, closeTo(100.0, 0.001));
       expect(summary.byCategory['Other'], isNull);
       expect(summary.byCategory['Coffee & Dining'], closeTo(100.0, 0.001));
+      expect(
+        summary.byCategoryAllCurrencies['Shopping & E-commerce'],
+        {'EUR': 55.0},
+      );
       expect(summary.totalLimit, closeTo(500.0, 0.001));
       expect(summary.byCategoryLimits['Other'], isNull);
       expect(summary.unconvertedTotals, {'EUR': 55.0});

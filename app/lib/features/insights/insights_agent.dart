@@ -8,6 +8,7 @@ class BudgetSummary {
   final DateTime? periodStart;
   final DateTime? periodEnd;
   final Map<String, double> byCategory;
+  final Map<String, Map<String, double>> byCategoryAllCurrencies;
 
   /// Amounts in currencies other than [currency]. They are deliberately kept
   /// separate: adding USD, CAD, EUR, or GBP without an explicit rate would
@@ -26,6 +27,7 @@ class BudgetSummary {
     this.periodStart,
     this.periodEnd,
     this.byCategoryLimits = const {},
+    this.byCategoryAllCurrencies = const {},
     this.unconvertedTotals = const {},
   });
 }

@@ -14,16 +14,21 @@ class BudgetBar extends StatelessWidget {
   final double spent;
   final double limit;
   final String currency;
+  final Map<String, double>? amountsByCurrency;
   const BudgetBar({
     super.key,
     required this.category,
     required this.spent,
     required this.limit,
     this.currency = 'USD',
+    this.amountsByCurrency,
   });
   @override
   Widget build(BuildContext context) {
     final progress = limit > 0 ? (spent / limit).clamp(0.0, 1.0) : 0.0;
+    final displayedAmounts = (amountsByCurrency ?? {currency: spent}).entries
+        .map((entry) => fmtCurrency(entry.value, currency: entry.key))
+        .join(' + ');
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 7),
       child: Column(
@@ -40,9 +45,8 @@ class BudgetBar extends StatelessWidget {
               ),
               Text(
                 limit > 0
-                    ? '${fmtCurrency(spent, currency: currency)} / '
-                          '${fmtCurrency(limit, currency: currency)}'
-                    : '${fmtCurrency(spent, currency: currency)} · No cap',
+                    ? '$displayedAmounts / ${fmtCurrency(limit, currency: currency)}'
+                    : '$displayedAmounts · No cap',
                 style: AppTextStyles.monoData.copyWith(
                   fontSize: 12,
                   color: AppColors.onSurfaceVariant,

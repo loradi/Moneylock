@@ -324,7 +324,7 @@ class _ForeignCurrencyNotice extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  '${totals.entries.map((entry) => fmtCurrency(entry.value, currency: entry.key)).join(', ')} is recorded in another currency and is not included in Budget Health.',
+                  '${totals.entries.map((entry) => fmtCurrency(entry.value, currency: entry.key)).join(', ')} is included in Budget Health. Conversion is not applied automatically.',
                   style: AppTextStyles.bodyMd.copyWith(
                     color: AppColors.onSurfaceVariant,
                   ),
@@ -434,8 +434,23 @@ class _BudgetList extends StatelessWidget {
       // Budget Health is a spending view: every entry in the active period
       // belongs here, even when its category has no configured cap. The
       // provider already scopes [byCategory] to the chosen date window.
-      final entries = s.byCategory.entries.toList()
-        ..sort((a, b) => b.value.compareTo(a.value));
+      final allCategoryEntries = s.byCategoryAllCurrencies.isNotEmpty
+          ? s.byCategoryAllCurrencies.entries
+          : s.byCategory.entries.map(
+              (entry) => MapEntry(entry.key, {s.currency: entry.value}),
+            );
+      final entries = allCategoryEntries.toList()
+        ..sort((a, b) {
+          final aTotal = a.value.values.fold<double>(
+            0,
+            (sum, value) => sum + value,
+          );
+          final bTotal = b.value.values.fold<double>(
+            0,
+            (sum, value) => sum + value,
+          );
+          return bTotal.compareTo(aTotal);
+        });
       if (entries.isEmpty) {
         return AppEmptyState(
           icon: Icons.tune,
@@ -449,9 +464,10 @@ class _BudgetList extends StatelessWidget {
           for (final entry in entries)
             BudgetBar(
               category: entry.key,
-              spent: entry.value,
+              spent: s.byCategory[entry.key] ?? 0,
               limit: s.byCategoryLimits[entry.key] ?? 0,
               currency: s.currency,
+              amountsByCurrency: entry.value,
             ),
         ],
       );

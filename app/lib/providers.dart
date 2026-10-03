@@ -200,10 +200,17 @@ final budgetSummaryProvider = StreamProvider<BudgetSummary>((ref) async* {
           settings['default_currency'] ??
           'USD';
       final byCategory = <String, double>{};
+      final byCategoryAllCurrencies = <String, Map<String, double>>{};
       final unconvertedTotals = <String, double>{};
       for (final t in rows.where(
         (t) => !t.timestamp.isBefore(start) && t.timestamp.isBefore(end),
       )) {
+        final categoryTotals = byCategoryAllCurrencies.putIfAbsent(
+          t.category,
+          () => <String, double>{},
+        );
+        categoryTotals[t.currency] =
+            (categoryTotals[t.currency] ?? 0) + t.amount;
         if (t.currency != currency) {
           unconvertedTotals[t.currency] =
               (unconvertedTotals[t.currency] ?? 0) + t.amount;
@@ -221,6 +228,7 @@ final budgetSummaryProvider = StreamProvider<BudgetSummary>((ref) async* {
         periodStart: start,
         periodEnd: end,
         byCategory: byCategory,
+        byCategoryAllCurrencies: byCategoryAllCurrencies,
         byCategoryLimits: limits,
         unconvertedTotals: unconvertedTotals,
       );
