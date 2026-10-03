@@ -125,6 +125,7 @@ final savingsGoalProvider = FutureProvider<SavingsGoal?>(
 /// Settings refresca las barras del Dashboard sin esperar una transacción.
 final budgetSummaryProvider = StreamProvider<BudgetSummary>((ref) async* {
   final db = ref.watch(appDatabaseProvider);
+  final exchangeRates = ref.watch(exchangeRateServiceProvider);
   final txsStream = db.select(db.transactions).watch();
   final budgetsStream = db.select(db.budgets).watch();
   final settingsStream = db.select(db.settings).watch();
@@ -202,21 +203,48 @@ final budgetSummaryProvider = StreamProvider<BudgetSummary>((ref) async* {
       final byCategory = <String, double>{};
       final byCategoryAllCurrencies = <String, Map<String, double>>{};
       final unconvertedTotals = <String, double>{};
-      for (final t in rows.where(
-        (t) => !t.timestamp.isBefore(start) && t.timestamp.isBefore(end),
-      )) {
+      final periodTransactions = rows
+          .where(
+            (t) => !t.timestamp.isBefore(start) && t.timestamp.isBefore(end),
+          )
+          .toList();
+      final rates = <String, double>{currency: 1};
+      for (final sourceCurrency
+          in periodTransactions
+              .map((t) => t.currency)
+              .where((code) => code != currency)
+              .toSet()) {
+        try {
+          rates[sourceCurrency] = (await exchangeRates.quote(
+            base: sourceCurrency,
+            target: currency,
+          )).rate;
+        } catch (_) {
+          // Keep the entry visible in its source currency if a rate is not
+          // available. A missing network quote must never erase a purchase.
+        }
+      }
+      for (final t in periodTransactions) {
+        final rate = rates[t.currency];
+        if (rate == null) {
+          unconvertedTotals[t.currency] =
+              (unconvertedTotals[t.currency] ?? 0) + t.amount;
+          final sourceTotals = byCategoryAllCurrencies.putIfAbsent(
+            t.category,
+            () => <String, double>{},
+          );
+          sourceTotals[t.currency] = (sourceTotals[t.currency] ?? 0) + t.amount;
+          continue;
+        }
+        final convertedAmount = t.amount * rate;
+        byCategory[t.category] =
+            (byCategory[t.category] ?? 0) + convertedAmount;
         final categoryTotals = byCategoryAllCurrencies.putIfAbsent(
           t.category,
           () => <String, double>{},
         );
-        categoryTotals[t.currency] =
-            (categoryTotals[t.currency] ?? 0) + t.amount;
-        if (t.currency != currency) {
-          unconvertedTotals[t.currency] =
-              (unconvertedTotals[t.currency] ?? 0) + t.amount;
-          continue;
-        }
-        byCategory[t.category] = (byCategory[t.category] ?? 0) + t.amount;
+        categoryTotals[currency] =
+            (categoryTotals[currency] ?? 0) + convertedAmount;
       }
       final totalSpent = byCategory.values.fold(0.0, (a, b) => a + b);
       final totalLimit = limits.values.fold(0.0, (a, b) => a + b);

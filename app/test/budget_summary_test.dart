@@ -4,6 +4,7 @@ import 'package:drift_flutter/drift_flutter.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:moneylock/data/db.dart';
+import 'package:moneylock/data/exchange_rate_service.dart';
 import 'package:moneylock/data/transactions_dao.dart';
 import 'package:moneylock/features/budget/plan_period.dart';
 import 'package:moneylock/features/insights/insights_agent.dart';
@@ -12,6 +13,22 @@ import 'package:moneylock/providers.dart';
 AppDatabase _db() => AppDatabase.forTesting(
   driftDatabase(name: 'test_${DateTime.now().microsecondsSinceEpoch}'),
 );
+
+class _FakeExchangeRateService extends ExchangeRateService {
+  @override
+  Future<ExchangeRateQuote> quote({
+    required String base,
+    required String target,
+    DateTime? date,
+  }) async => ExchangeRateQuote(
+    base: base,
+    quote: target,
+    rate: base == target ? 1 : 1.5,
+    asOf: date ?? DateTime(2026, 1, 1),
+  );
+}
+
+final _exchangeRates = _FakeExchangeRateService();
 
 void main() {
   test(
@@ -59,7 +76,10 @@ void main() {
       await db.budgetsDao.upsert('Other', 1.0, '1999-01');
 
       final container = ProviderContainer(
-        overrides: [appDatabaseProvider.overrideWithValue(db)],
+        overrides: [
+          appDatabaseProvider.overrideWithValue(db),
+          exchangeRateServiceProvider.overrideWithValue(_exchangeRates),
+        ],
       );
       addTearDown(container.dispose);
       final completed = Completer<BudgetSummary>();
@@ -75,16 +95,15 @@ void main() {
       addTearDown(sub.close);
       final summary = await completed.future;
 
-      expect(summary.totalSpent, closeTo(100.0, 0.001));
+      expect(summary.totalSpent, closeTo(182.5, 0.001));
       expect(summary.byCategory['Other'], isNull);
       expect(summary.byCategory['Coffee & Dining'], closeTo(100.0, 0.001));
-      expect(
-        summary.byCategoryAllCurrencies['Shopping & E-commerce'],
-        {'EUR': 55.0},
-      );
+      expect(summary.byCategoryAllCurrencies['Shopping & E-commerce'], {
+        'USD': 82.5,
+      });
       expect(summary.totalLimit, closeTo(500.0, 0.001));
       expect(summary.byCategoryLimits['Other'], isNull);
-      expect(summary.unconvertedTotals, {'EUR': 55.0});
+      expect(summary.unconvertedTotals, isEmpty);
     },
   );
 
@@ -115,7 +134,10 @@ void main() {
     );
 
     final container = ProviderContainer(
-      overrides: [appDatabaseProvider.overrideWithValue(db)],
+      overrides: [
+        appDatabaseProvider.overrideWithValue(db),
+        exchangeRateServiceProvider.overrideWithValue(_exchangeRates),
+      ],
     );
     addTearDown(container.dispose);
     final completed = Completer<BudgetSummary>();
@@ -160,7 +182,10 @@ void main() {
     );
 
     final container = ProviderContainer(
-      overrides: [appDatabaseProvider.overrideWithValue(db)],
+      overrides: [
+        appDatabaseProvider.overrideWithValue(db),
+        exchangeRateServiceProvider.overrideWithValue(_exchangeRates),
+      ],
     );
     addTearDown(container.dispose);
     final completed = Completer<BudgetSummary>();
@@ -208,7 +233,10 @@ void main() {
       );
 
       final container = ProviderContainer(
-        overrides: [appDatabaseProvider.overrideWithValue(db)],
+        overrides: [
+          appDatabaseProvider.overrideWithValue(db),
+          exchangeRateServiceProvider.overrideWithValue(_exchangeRates),
+        ],
       );
       addTearDown(container.dispose);
       final completed = Completer<BudgetSummary>();
@@ -228,10 +256,10 @@ void main() {
       final summary = await completed.future;
 
       expect(summary.cycle, 'fortnightly');
-    expect(
-      summary.totalLimit,
-      closeTo(300 * 14 / PlanCycle.monthly.daysFor(now), 0.001),
-    );
+      expect(
+        summary.totalLimit,
+        closeTo(300 * 14 / PlanCycle.monthly.daysFor(now), 0.001),
+      );
       expect(summary.byCategory['Groceries'], 40);
     },
   );

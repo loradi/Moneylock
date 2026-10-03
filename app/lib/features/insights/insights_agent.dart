@@ -10,9 +10,7 @@ class BudgetSummary {
   final Map<String, double> byCategory;
   final Map<String, Map<String, double>> byCategoryAllCurrencies;
 
-  /// Amounts in currencies other than [currency]. They are deliberately kept
-  /// separate: adding USD, CAD, EUR, or GBP without an explicit rate would
-  /// produce a misleading financial total.
+  /// Amounts that could not be converted because a rate was unavailable.
   final Map<String, double> unconvertedTotals;
 
   /// Límites mensuales por categoría (~v1: solo pide [byCategory], pero las

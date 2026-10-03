@@ -324,7 +324,7 @@ class _ForeignCurrencyNotice extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  '${totals.entries.map((entry) => fmtCurrency(entry.value, currency: entry.key)).join(', ')} is included in Budget Health. Conversion is not applied automatically.',
+                  '${totals.entries.map((entry) => fmtCurrency(entry.value, currency: entry.key)).join(', ')} is included in Budget Health. It remains in the original currency because no conversion rate is available.',
                   style: AppTextStyles.bodyMd.copyWith(
                     color: AppColors.onSurfaceVariant,
                   ),
