@@ -178,6 +178,59 @@ void main() {
     expect(summary.totalSpent, 40);
     expect(summary.byCategory['Groceries'], 40);
   });
+
+  test(
+    'derives a fortnightly dashboard from the current monthly plan',
+    () async {
+      final db = _db();
+      final now = DateTime.now();
+      await db.settingsDao.setPlanCycle('fortnightly');
+      await db.budgetsDao.upsert(
+        'Groceries',
+        300,
+        PlanCycle.monthly.keyFor(now),
+        currency: 'USD',
+      );
+      await db.transactionsDao.insertWithDedup(
+        NewTransaction(
+          amount: 40,
+          currency: 'USD',
+          merchant: 'Market',
+          category: 'Groceries',
+          source: 'manual',
+          rawText: 'Market 40',
+          timestamp: now,
+        ),
+      );
+
+      final container = ProviderContainer(
+        overrides: [appDatabaseProvider.overrideWithValue(db)],
+      );
+      addTearDown(container.dispose);
+      final completed = Completer<BudgetSummary>();
+      final sub = container.listen<AsyncValue<BudgetSummary>>(
+        budgetSummaryProvider,
+        (previous, next) {
+          final summary = next.value;
+          if (summary != null &&
+              summary.cycle == 'fortnightly' &&
+              summary.totalLimit > 0 &&
+              !completed.isCompleted) {
+            completed.complete(summary);
+          }
+        },
+      );
+      addTearDown(sub.close);
+      final summary = await completed.future;
+
+      expect(summary.cycle, 'fortnightly');
+    expect(
+      summary.totalLimit,
+      closeTo(300 * 14 / PlanCycle.monthly.daysFor(now), 0.001),
+    );
+      expect(summary.byCategory['Groceries'], 40);
+    },
+  );
 }
 
 String _currentPeriod() {

@@ -160,7 +160,7 @@ final budgetSummaryProvider = StreamProvider<BudgetSummary>((ref) async* {
       final period = cycle.keyFor(now);
       final start = cycle.startFor(now);
       final end = cycle.endFor(now);
-      final activeBudgets = budgetRows
+      var activeBudgets = budgetRows
           .where(
             (b) =>
                 b.enabled &&
@@ -168,8 +168,28 @@ final budgetSummaryProvider = StreamProvider<BudgetSummary>((ref) async* {
                 b.period == period,
           )
           .toList();
+      var budgetScale = 1.0;
+      if (activeBudgets.isEmpty && cycle != PlanCycle.monthly) {
+        // A user can change cadence before copying the existing plan. Keep
+        // the Dashboard useful immediately by deriving the current shorter
+        // cycle from this month's allocations until the Plan screen saves
+        // the new period explicitly.
+        final monthlyPeriod = PlanCycle.monthly.keyFor(now);
+        final monthlyBudgets = budgetRows
+            .where(
+              (b) =>
+                  b.enabled &&
+                  b.cycle == PlanCycle.monthly.storageValue &&
+                  b.period == monthlyPeriod,
+            )
+            .toList();
+        if (monthlyBudgets.isNotEmpty) {
+          activeBudgets = monthlyBudgets;
+          budgetScale = cycle.daysFor(now) / PlanCycle.monthly.daysFor(now);
+        }
+      }
       final limits = {
-        for (final b in activeBudgets) b.category: b.monthlyLimit,
+        for (final b in activeBudgets) b.category: b.monthlyLimit * budgetScale,
       };
       // Existing plans own their currency. Prefer it over the global
       // default so changing Settings cannot blank Budget Health by making
