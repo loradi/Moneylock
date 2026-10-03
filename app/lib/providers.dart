@@ -189,16 +189,10 @@ final budgetSummaryProvider = StreamProvider<BudgetSummary>((ref) async* {
           budgetScale = cycle.daysFor(now) / PlanCycle.monthly.daysFor(now);
         }
       }
-      final limits = {
-        for (final b in activeBudgets) b.category: b.monthlyLimit * budgetScale,
-      };
-      // Existing plans own their currency. Prefer it over the global
-      // default so changing Settings cannot blank Budget Health by making
-      // an older plan's USD rows look like foreign-currency transactions.
       final currency =
+          settings['default_currency'] ??
           activeBudgets.map((b) => b.currency).firstOrNull ??
           settings['plan_currency_$period'] ??
-          settings['default_currency'] ??
           'USD';
       final byCategory = <String, double>{};
       final byCategoryAllCurrencies = <String, Map<String, double>>{};
@@ -208,12 +202,12 @@ final budgetSummaryProvider = StreamProvider<BudgetSummary>((ref) async* {
             (t) => !t.timestamp.isBefore(start) && t.timestamp.isBefore(end),
           )
           .toList();
+      final sourceCurrencies = {
+        ...periodTransactions.map((t) => t.currency),
+        ...activeBudgets.map((b) => b.currency),
+      }..remove(currency);
       final rates = <String, double>{currency: 1};
-      for (final sourceCurrency
-          in periodTransactions
-              .map((t) => t.currency)
-              .where((code) => code != currency)
-              .toSet()) {
+      for (final sourceCurrency in sourceCurrencies) {
         try {
           rates[sourceCurrency] = (await exchangeRates.quote(
             base: sourceCurrency,
@@ -223,6 +217,12 @@ final budgetSummaryProvider = StreamProvider<BudgetSummary>((ref) async* {
           // Keep the entry visible in its source currency if a rate is not
           // available. A missing network quote must never erase a purchase.
         }
+      }
+      final limits = <String, double>{};
+      for (final budget in activeBudgets) {
+        final rate = rates[budget.currency];
+        final limit = budget.monthlyLimit * budgetScale;
+        limits[budget.category] = rate == null ? limit : limit * rate;
       }
       for (final t in periodTransactions) {
         final rate = rates[t.currency];

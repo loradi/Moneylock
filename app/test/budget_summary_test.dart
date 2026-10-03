@@ -163,7 +163,7 @@ void main() {
     expect(summary.periodEnd, cycle.endFor(now));
   });
 
-  test('keeps the active plan currency when global currency changes', () async {
+  test('converts the active plan into the global currency', () async {
     final db = _db();
     final now = DateTime.now();
     final period = _currentPeriod();
@@ -194,7 +194,8 @@ void main() {
       (previous, next) {
         final summary = next.value;
         if (summary != null &&
-            summary.totalLimit == 250 &&
+            summary.currency == 'CAD' &&
+            summary.totalLimit == 375 &&
             !completed.isCompleted) {
           completed.complete(summary);
         }
@@ -203,9 +204,10 @@ void main() {
     addTearDown(sub.close);
     final summary = await completed.future;
 
-    expect(summary.currency, 'USD');
-    expect(summary.totalSpent, 40);
-    expect(summary.byCategory['Groceries'], 40);
+    expect(summary.currency, 'CAD');
+    expect(summary.totalSpent, 60);
+    expect(summary.totalLimit, 375);
+    expect(summary.byCategory['Groceries'], 60);
   });
 
   test(

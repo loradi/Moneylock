@@ -135,6 +135,57 @@ class _NotificationsCard extends ConsumerWidget {
 class _CurrencyCard extends ConsumerWidget {
   const _CurrencyCard();
 
+  Future<void> _changeCurrency(
+    BuildContext context,
+    WidgetRef ref,
+    String nextCurrency,
+  ) async {
+    final db = ref.read(appDatabaseProvider);
+    final currentCurrency = await db.settingsDao.defaultCurrency();
+    if (currentCurrency == nextCurrency || !context.mounted) return;
+
+    try {
+      final quote = await ref
+          .read(exchangeRateServiceProvider)
+          .quote(base: currentCurrency, target: nextCurrency);
+      if (!context.mounted) return;
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: Text('Switch currency to $nextCurrency?'),
+          content: Text(
+            'Current rate: 1 $currentCurrency = ${quote.rate.toStringAsFixed(4)} $nextCurrency.\n\n'
+            'Existing budgets and entries will be displayed in $nextCurrency using this currency setting. Original entry currencies remain preserved.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(dialogContext, true),
+              child: const Text('Use this currency'),
+            ),
+          ],
+        ),
+      );
+      if (confirmed != true || !context.mounted) return;
+      await db.settingsDao.setDefaultCurrency(nextCurrency);
+      ref.invalidate(defaultCurrencyProvider);
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Global currency set to $nextCurrency.')),
+      );
+    } catch (error) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Could not get the current exchange rate: $error'),
+        ),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final currency = ref.watch(defaultCurrencyProvider).valueOrNull ?? 'USD';
@@ -152,17 +203,7 @@ class _CurrencyCard extends ConsumerWidget {
           CurrencySelector(
             value: currency,
             label: 'Default currency',
-            onSubmitted: (value) async {
-              await ref
-                  .read(appDatabaseProvider)
-                  .settingsDao
-                  .setDefaultCurrency(value);
-              ref.invalidate(defaultCurrencyProvider);
-              if (!context.mounted) return;
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('Global currency set to $value.')),
-              );
-            },
+            onSubmitted: (value) => _changeCurrency(context, ref, value),
           ),
         ],
       ),

@@ -43,6 +43,7 @@ final monthlyPlanProvider = FutureProvider.family<MonthlyPlanData, String>((
   // not change.
   ref.watch(defaultCurrencyProvider);
   final db = ref.watch(appDatabaseProvider);
+  final exchangeRates = ref.watch(exchangeRateServiceProvider);
   final (
     income,
     rows,
@@ -56,13 +57,34 @@ final monthlyPlanProvider = FutureProvider.family<MonthlyPlanData, String>((
     db.settingsDao.defaultCurrency(),
     db.settingsDao.storedDefaultCurrency(),
   ).wait;
+  final currency =
+      globalCurrency ??
+      storedCurrency ??
+      (rows.isEmpty ? defaultCurrency : rows.first.currency);
+  final rates = <String, double>{currency: 1};
+  final sourceCurrencies = {
+    ...rows.map((row) => row.currency),
+    if (income != null) storedCurrency ?? defaultCurrency,
+  }..remove(currency);
+  for (final sourceCurrency in sourceCurrencies) {
+    try {
+      rates[sourceCurrency] = (await exchangeRates.quote(
+        base: sourceCurrency,
+        target: currency,
+      )).rate;
+    } catch (_) {
+      // Keep the saved amount visible if a reference rate is unavailable.
+    }
+  }
+  final limits = <String, double>{};
+  for (final row in rows) {
+    limits[row.category] = row.monthlyLimit * (rates[row.currency] ?? 1);
+  }
+  final incomeRate = storedCurrency == null ? 1 : (rates[storedCurrency] ?? 1);
   return MonthlyPlanData(
-    income: income,
-    limits: {for (final row in rows) row.category: row.monthlyLimit},
-    currency:
-        globalCurrency ??
-        storedCurrency ??
-        (rows.isEmpty ? defaultCurrency : rows.first.currency),
+    income: income == null ? null : income * incomeRate,
+    limits: limits,
+    currency: currency,
   );
 });
 
