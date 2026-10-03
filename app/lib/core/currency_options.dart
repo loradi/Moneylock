@@ -17,18 +17,48 @@ const commonCurrencies = <String, String>{
   'ARS': 'Argentine Peso',
   'CLP': 'Chilean Peso',
   'PEN': 'Peruvian Sol',
+  'BOB': 'Bolivian Boliviano',
+  'CRC': 'Costa Rican Colón',
+  'CZK': 'Czech Koruna',
+  'DKK': 'Danish Krone',
+  'DOP': 'Dominican Peso',
+  'EGP': 'Egyptian Pound',
+  'HKD': 'Hong Kong Dollar',
+  'HUF': 'Hungarian Forint',
+  'IDR': 'Indonesian Rupiah',
+  'ILS': 'Israeli New Shekel',
+  'KRW': 'South Korean Won',
+  'MAD': 'Moroccan Dirham',
+  'MYR': 'Malaysian Ringgit',
+  'NGN': 'Nigerian Naira',
+  'NOK': 'Norwegian Krone',
+  'PHP': 'Philippine Peso',
+  'PKR': 'Pakistani Rupee',
+  'PLN': 'Polish Zloty',
+  'QAR': 'Qatari Riyal',
+  'RON': 'Romanian Leu',
+  'RUB': 'Russian Ruble',
+  'SAR': 'Saudi Riyal',
+  'SEK': 'Swedish Krona',
+  'SGD': 'Singapore Dollar',
+  'THB': 'Thai Baht',
+  'TRY': 'Turkish Lira',
+  'TWD': 'Taiwan Dollar',
+  'UAH': 'Ukrainian Hryvnia',
+  'VND': 'Vietnamese Dong',
+  'ZAR': 'South African Rand',
 };
 
 bool isCurrencyCode(String value) => RegExp(r'^[A-Z]{3}$').hasMatch(value);
 
 String normalizeCurrencyCode(String value) => value.trim().toUpperCase();
 
-class CurrencyCodeField extends StatefulWidget {
+class CurrencySelector extends StatelessWidget {
   final String value;
   final String label;
   final ValueChanged<String> onSubmitted;
 
-  const CurrencyCodeField({
+  const CurrencySelector({
     super.key,
     required this.value,
     required this.label,
@@ -36,47 +66,27 @@ class CurrencyCodeField extends StatefulWidget {
   });
 
   @override
-  State<CurrencyCodeField> createState() => _CurrencyCodeFieldState();
-}
-
-class _CurrencyCodeFieldState extends State<CurrencyCodeField> {
-  late final TextEditingController _controller;
-
   @override
-  void initState() {
-    super.initState();
-    _controller = TextEditingController(text: widget.value);
+  Widget build(BuildContext context) {
+    final options = {...commonCurrencies};
+    if (!options.containsKey(value)) options[value] = value;
+    return DropdownButtonFormField<String>(
+      initialValue: options.containsKey(value) ? value : null,
+      decoration: InputDecoration(
+        labelText: label,
+        prefixIcon: const Icon(Icons.currency_exchange),
+        helperText: 'Select the currency used for new entries and plans.',
+      ),
+      items: [
+        for (final entry in options.entries)
+          DropdownMenuItem(
+            value: entry.key,
+            child: Text('${entry.key} · ${entry.value}'),
+          ),
+      ],
+      onChanged: (code) {
+        if (code != null && isCurrencyCode(code)) onSubmitted(code);
+      },
+    );
   }
-
-  @override
-  void didUpdateWidget(covariant CurrencyCodeField oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.value != widget.value && _controller.text != widget.value) {
-      _controller.text = widget.value;
-    }
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) => TextField(
-    controller: _controller,
-    textCapitalization: TextCapitalization.characters,
-    textInputAction: TextInputAction.done,
-    maxLength: 3,
-    decoration: InputDecoration(
-      labelText: widget.label,
-      counterText: '',
-      suffixIcon: const Icon(Icons.currency_exchange),
-      helperText: 'Any ISO 4217 code, such as USD or COP',
-    ),
-    onSubmitted: (raw) {
-      final code = normalizeCurrencyCode(raw);
-      if (isCurrencyCode(code)) widget.onSubmitted(code);
-    },
-  );
 }

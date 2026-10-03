@@ -133,6 +133,48 @@ void main() {
     expect(summary.totalSpent, 40);
     expect(summary.byCategory['Groceries'], 40);
   });
+
+  test('keeps the active plan currency when global currency changes', () async {
+    final db = _db();
+    final now = DateTime.now();
+    final period = _currentPeriod();
+    await db.settingsDao.setDefaultCurrency('CAD');
+    await db.budgetsDao.upsert('Groceries', 250, period, currency: 'USD');
+    await db.transactionsDao.insertWithDedup(
+      NewTransaction(
+        amount: 40,
+        currency: 'USD',
+        merchant: 'Market',
+        category: 'Groceries',
+        source: 'manual',
+        rawText: 'Market 40',
+        timestamp: now,
+      ),
+    );
+
+    final container = ProviderContainer(
+      overrides: [appDatabaseProvider.overrideWithValue(db)],
+    );
+    addTearDown(container.dispose);
+    final completed = Completer<BudgetSummary>();
+    final sub = container.listen<AsyncValue<BudgetSummary>>(
+      budgetSummaryProvider,
+      (previous, next) {
+        final summary = next.value;
+        if (summary != null &&
+            summary.totalLimit == 250 &&
+            !completed.isCompleted) {
+          completed.complete(summary);
+        }
+      },
+    );
+    addTearDown(sub.close);
+    final summary = await completed.future;
+
+    expect(summary.currency, 'USD');
+    expect(summary.totalSpent, 40);
+    expect(summary.byCategory['Groceries'], 40);
+  });
 }
 
 String _currentPeriod() {

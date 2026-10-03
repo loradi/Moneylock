@@ -170,6 +170,29 @@ class _BottomNav extends StatelessWidget {
                     ),
                   ),
                 ),
+              Expanded(
+                child: InkWell(
+                  onTap: () => context.push('/settings'),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        Icons.person_outline,
+                        size: 22,
+                        color: AppColors.onSurfaceVariant,
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        'Settings',
+                        style: AppTextStyles.labelCaps.copyWith(
+                          fontSize: 10,
+                          color: AppColors.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
             ],
           ),
         ),

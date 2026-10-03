@@ -171,10 +171,13 @@ final budgetSummaryProvider = StreamProvider<BudgetSummary>((ref) async* {
       final limits = {
         for (final b in activeBudgets) b.category: b.monthlyLimit,
       };
+      // Existing plans own their currency. Prefer it over the global
+      // default so changing Settings cannot blank Budget Health by making
+      // an older plan's USD rows look like foreign-currency transactions.
       final currency =
-          settings['default_currency'] ??
-          settings['plan_currency_$period'] ??
           activeBudgets.map((b) => b.currency).firstOrNull ??
+          settings['plan_currency_$period'] ??
+          settings['default_currency'] ??
           'USD';
       final byCategory = <String, double>{};
       final unconvertedTotals = <String, double>{};

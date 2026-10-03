@@ -143,13 +143,13 @@ class _CurrencyCard extends ConsumerWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Used for new entries and the active plan. Enter any ISO 4217 code.',
+            'Used for new entries and the active plan. Choose an ISO 4217 currency.',
             style: AppTextStyles.bodyMd.copyWith(
               color: AppColors.onSurfaceVariant,
             ),
           ),
           const SizedBox(height: 12),
-          CurrencyCodeField(
+          CurrencySelector(
             value: currency,
             label: 'Default currency',
             onSubmitted: (value) async {
@@ -163,16 +163,6 @@ class _CurrencyCard extends ConsumerWidget {
                 SnackBar(content: Text('Global currency set to $value.')),
               );
             },
-          ),
-          const SizedBox(height: 8),
-          Text(
-            commonCurrencies.entries
-                .take(8)
-                .map((entry) => entry.key)
-                .join('  ·  '),
-            style: AppTextStyles.labelCaps.copyWith(
-              color: AppColors.onSurfaceVariant,
-            ),
           ),
         ],
       ),
