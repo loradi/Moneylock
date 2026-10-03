@@ -39,8 +39,10 @@ class BudgetBar extends StatelessWidget {
                 ),
               ),
               Text(
-                '${fmtCurrency(spent, currency: currency)} / '
-                '${fmtCurrency(limit, currency: currency)}',
+                limit > 0
+                    ? '${fmtCurrency(spent, currency: currency)} / '
+                          '${fmtCurrency(limit, currency: currency)}'
+                    : '${fmtCurrency(spent, currency: currency)} · No cap',
                 style: AppTextStyles.monoData.copyWith(
                   fontSize: 12,
                   color: AppColors.onSurfaceVariant,

@@ -431,14 +431,11 @@ class _BudgetList extends StatelessWidget {
   @override
   Widget build(BuildContext context) => summary.when(
     data: (s) {
-      // Budget Health is a spending view: show every category with activity
-      // in the active plan period, while hiding categories that are still at
-      // zero. The provider already scopes [byCategory] to the chosen cycle.
-      final entries =
-          s.byCategory.entries
-              .where((entry) => (s.byCategoryLimits[entry.key] ?? 0) > 0)
-              .toList()
-            ..sort((a, b) => b.value.compareTo(a.value));
+      // Budget Health is a spending view: every entry in the active period
+      // belongs here, even when its category has no configured cap. The
+      // provider already scopes [byCategory] to the chosen date window.
+      final entries = s.byCategory.entries.toList()
+        ..sort((a, b) => b.value.compareTo(a.value));
       if (entries.isEmpty) {
         return AppEmptyState(
           icon: Icons.tune,
@@ -453,7 +450,7 @@ class _BudgetList extends StatelessWidget {
             BudgetBar(
               category: entry.key,
               spent: entry.value,
-              limit: s.byCategoryLimits[entry.key]!,
+              limit: s.byCategoryLimits[entry.key] ?? 0,
               currency: s.currency,
             ),
         ],

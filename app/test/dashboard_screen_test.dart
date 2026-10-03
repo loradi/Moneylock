@@ -170,4 +170,38 @@ void main() {
       await disposeTestDatabase(tester, db);
     },
   );
+
+  testWidgets('shows spent entries even when their category has no cap', (
+    tester,
+  ) async {
+    final db = createTestDatabase();
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          appDatabaseProvider.overrideWithValue(db),
+          transactionsStreamProvider.overrideWith(
+            (ref) => Stream.value(const []),
+          ),
+          subscriptionsProvider.overrideWith((ref) => Stream.value(const [])),
+          budgetSummaryProvider.overrideWith(
+            (ref) => Stream.value(
+              BudgetSummary(
+                totalSpent: 25,
+                totalLimit: 100,
+                byCategory: {'Other': 25},
+                byCategoryLimits: {},
+              ),
+            ),
+          ),
+        ],
+        child: const MaterialApp(home: DashboardScreen()),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Other'), findsOneWidget);
+    expect(find.textContaining('No cap'), findsOneWidget);
+
+    await disposeTestDatabase(tester, db);
+  });
 }
